@@ -18,10 +18,10 @@ const connectDb = async () => {
     if (!checkAdmin) {
       await Admin.create({
         name: humanize("admin"),
-        // email: "sipadmin@gmail.com",
-        password: md5("Admin@1234"),
+        email: "sipadmin@gmail.com",
+        password: md5("Admin@123"),
         roles: "superAdmin",
-        phone: "+911111111111",
+        phoneNumber: "+911111111111",
         dob: moment(new Date("01/01/1998")).format(
           "YYYY-MM-DD[T00:00:00.000Z]"
         ),

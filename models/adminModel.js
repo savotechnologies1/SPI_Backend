@@ -2,8 +2,11 @@ const mongoose = require("mongoose");
 
 const adminSchema = new mongoose.Schema(
     {
-        name:{
+        userName:{
             type: String
+        },
+        phoneNumber:{
+            type :String
         },
         firstName: { 
             type: String
@@ -14,6 +17,9 @@ const adminSchema = new mongoose.Schema(
         email: {
             type: String
         },
+        otp: {
+            type: String,
+          },
         dob: {
             type: Date
         },

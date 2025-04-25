@@ -1,5 +1,10 @@
 const { body } = require("express-validator");
 
+const adminLogin = [
+  body("userName")
+  .exists({ checkFalsy: true })
+  .withMessage("Please enter the username")
+];
 const userRegister = [
   body("email")
     .exists({ checkFalsy: true })
@@ -92,6 +97,7 @@ const userChangePassword = [
     .withMessage("Please enter the confirm Password"),
 ];
 module.exports = {
+  adminLogin,
   userRegister,
   userOTPVerify,
   userOTPVerified,
