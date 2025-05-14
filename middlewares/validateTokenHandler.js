@@ -1,13 +1,20 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
+const { pool } = require("../config/dbConnection");
 const validateToken = async (req, res, next) => {
   let token;
   let authHeader = req.headers.Authorization || req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer")) {
     token = authHeader.split(" ")[1];
-    const userData = await User.countDocuments({
-      tokens: { $elemMatch: { $eq: token } },isDeleted:false
-    });
+    const connection = await pool.getConnection();
+    const [data] = await connection.query(
+      `SELECT * FROM admins 
+       WHERE tokens = ? 
+       AND isDeleted = FALSE`,
+      token
+    );
+    // const userData = await User.countDocuments({
+    //   tokens: { $elemMatch: { $eq: token } },isDeleted:false
+    // });
     if (userData) {
       jwt.verify(token, process.env.ACCESS_TOKEN_SECERT, (err, decoded) => {
         if (err) {
@@ -17,7 +24,9 @@ const validateToken = async (req, res, next) => {
         next();
       });
     } else {
-      return res.status(400).json({ message: "Token expired please re-login ." });
+      return res
+        .status(400)
+        .json({ message: "Token expired please re-login ." });
     }
   } else {
     return res
@@ -27,4 +36,3 @@ const validateToken = async (req, res, next) => {
 };
 
 module.exports = validateToken;
-

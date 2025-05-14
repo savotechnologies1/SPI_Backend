@@ -1,13 +1,11 @@
 const multer = require("multer");
-const mongoose = require("mongoose");
-const path = require("path");
-
+const { v4: uuidv4 } = require("uuid");
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    console.log('filefilefile342334',file);
-    
-    if (file?.fieldname === "jobImg") {
-      cb(null, "./public/uploads/jobImg");
+    console.log("filefilefile342334", file);
+
+    if (file?.fieldname === "workInstructionImg") {
+      cb(null, "./public/uploads/workInstructionImg");
     } else if (file?.fieldname === "uteImages") {
       cb(null, "./public/uploads/uteImages");
     } else if (file?.fieldname === "profileImg") {
@@ -16,33 +14,30 @@ const storage = multer.diskStorage({
       cb(null, "./public/uploads/coverImg");
     } else if (file?.fieldname === "blogImg") {
       cb(null, "./public/uploads/blogImg");
-    }else if (file?.fieldname === "jobBookingImg") {
+    } else if (file?.fieldname === "jobBookingImg") {
       cb(null, "./public/uploads/jobBookingImg");
     } else {
       cb(new Error("Invalid file fieldname"), false);
-    } 
+    }
   },
-  // filename: function (req, file, cb) {
-  //   const fileExtension = path.extname(file.originalname).slice(1);
-  //   const data =
-  //     file.fieldname === "jobImg" || "uteImages" || "profileImg"
-  //       ? new mongoose.Types.ObjectId()
-  //       : req?.user?._id;
-  //   cb(null, `${data}.${fileExtension}`);
-  // },
 
   filename: function (req, file, cb) {
     const fileExtension = file.originalname.substr(
       file.originalname.lastIndexOf(".") + 1,
       file.originalname.length
     );
-    let data = req?.user?._id;
+    let data = req?.user?.id;
     if (
-      ["profileImg", "coverImg", "uteImages", "jobImg","blogImg","jobBookingImg"].includes(
-        file?.fieldname
-      )
+      [
+        "profileImg",
+        "workInstructionImg",
+        "uteImages",
+        "jobImg",
+        "blogImg",
+        "jobBookingImg",
+      ].includes(file?.fieldname)
     ) {
-      data = new mongoose.Types.ObjectId();
+      data = uuidv4();
     }
     cb(null, `${data}.${fileExtension}`);
   },
@@ -66,12 +61,12 @@ const upload = multer({
 }).fields([
   { name: "jobImg" },
   {
-    name: "uteImages",
+    name: "workInstructionImg",
   },
   { name: "profileImg" },
   { name: "coverImg" },
-  { name:"blogImg"},
-  {name:"jobBookingImg"}
+  { name: "blogImg" },
+  { name: "jobBookingImg" },
 ]);
 
 module.exports = upload;

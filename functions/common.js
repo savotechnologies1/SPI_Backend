@@ -19,7 +19,7 @@ module.exports.generateRandomOTP = () => {
     try {
       const page = parseInt(data?.page) || 1;
       const pageSize = parseInt(data?.limit);
-      const validPageSize = isNaN(pageSize) ? 10 : pageSize;
+      const validPageSize = isNaN(pageSize) ? 8 : pageSize;
       const skip = (page - 1) * validPageSize;
    
       return {
@@ -53,58 +53,46 @@ module.exports.generateRandomOTP = () => {
     }
   };
   
-  module.exports.fileUploadFunc = (request, response) => {
-    console.log('requestrequest',request);
-    
-    return new Promise(async function (resolve, reject) {
-      try {
-        upload(request, response, (err) => {
-          console.log('requestrequest',request);
-          
-          if (!request.files || !Object.keys(request.files).length) {
-            return resolve({
-              type: "success",
-              status: 200,
-              data: request.files,
-            });
-          }
-          if (request.fileValidationError) {
-            return resolve({
-              type: request.fileValidationError,
-              status: 400,
-            });
-          }
-  
-          if (err instanceof multer.MulterError) {
-            if (err.code === "LIMIT_UNEXPECTED_FILE") {
-              return resolve({
-                type: "Unexpected file field",
-                status: 400,
-              });
-            }
-  
-            if (err.code === "LIMIT_FILE_SIZE") {
-              return resolve({
-                type: "File too large",
-                status: 400,
-              });
-            }
-          } else if (err) {
-            return resolve({
-              type: "File upload failed",
-              status: 400,
-            });
-          }
-  
+module.exports.fileUploadFunc = (request, response) => {
+  return new Promise(async function (resolve, reject) {
+    try {
+      upload(request, response, (err) => {
+        if (request.files && !Object.keys(request.files).length) {
           return resolve({
-            type: "success",
-            status: 200,
-            data: request.files,
+            type: "fileNotFound",
+            status: 400,
           });
+        }
+
+        if (request.fileValidationError) {
+          return resolve({
+            type: request.fileValidationError,
+            status: 400,
+          });
+        }
+
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_UNEXPECTED_FILE") {
+            return resolve({
+              type: "Unexpected file field",
+              status: 400,
+            });
+          }
+        } else if (err) {
+          return resolve({
+            type: "File upload failed",
+            status: 400,
+          });
+        }
+
+        return resolve({
+          type: "success",
+          status: 200,
+          data: request.files,
         });
-      } catch (error) {
-        return reject(error);
-      }
-    });
-  };
-  
+      });
+    } catch (error) {
+      return reject(error);
+    }
+  });
+};

@@ -2,8 +2,8 @@ const { body } = require("express-validator");
 
 const adminLogin = [
   body("userName")
-  .exists({ checkFalsy: true })
-  .withMessage("Please enter the username")
+    .exists({ checkFalsy: true })
+    .withMessage("Please enter the username"),
 ];
 const userRegister = [
   body("email")
@@ -31,8 +31,6 @@ const userOTPVerified = [
   body("code").exists({ checkFalsy: true }).withMessage("OTP is required"),
 ];
 
-
-
 const forgotPass = [
   body("email")
     .exists({ checkFalsy: true })
@@ -46,7 +44,13 @@ const forgotPass = [
 const resetPass = [
   body("newPassword")
     .exists({ checkFalsy: true })
-    .withMessage("Please enter the new Password"),
+    .withMessage("Please enter the new Password")
+    .matches(
+      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{8,}$/
+    )
+    .withMessage(
+      "Password contain 8 character which has at least one uppercase letter, one lowercase letter, and one number"
+    ),
   body("confirmPassword")
     .exists({ checkFalsy: true })
     .withMessage("Please enter the confirm Password"),
