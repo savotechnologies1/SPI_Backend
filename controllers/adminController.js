@@ -953,8 +953,7 @@ const workInstruction = async (req, res) => {
       [
         part?.trim(),
         workInstruction?.trim() || null,
-        // imageWorkInstruction,
-        // videoWorkInstruction,
+     
         userId,
       ]
     );
