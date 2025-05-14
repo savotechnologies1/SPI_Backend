@@ -68,14 +68,13 @@ const connectDb = async () => {
 
     if (adminRows[0].count === 0) {
       await connection.query(
-        `INSERT INTO admins (name, email, password, roles, phoneNumber) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO admins (name, email, password, roles, phoneNumber) VALUES (?, ?, ?, ?, ?)`,
         [
           humanize("admin"),
           "spiadmin@gmail.com",
           md5("Admin@123"),
           "superAdmin",
           "+911111111111",
-          moment("1998-01-01").format("YYYY-MM-DD"),
         ]
       );
     }
