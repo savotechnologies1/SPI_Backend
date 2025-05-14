@@ -68,7 +68,7 @@ const connectDb = async () => {
 
     if (adminRows[0].count === 0) {
       await connection.query(
-        `INSERT INTO admins (name, email, password, roles, phoneNumber, dob) VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO admins (name, email, password, roles, phoneNumber) VALUES (?, ?, ?, ?, ?, ?)`,
         [
           humanize("admin"),
           "spiadmin@gmail.com",

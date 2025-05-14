@@ -253,7 +253,7 @@ const resetPassword = async (req, res) => {
 //     const { id } = req.params;
 //     const connection = await pool.getConnection();
 //     const [data] = await connection.query(
-//       `SELECT * FROM employee 
+//       `SELECT * FROM employee
 //        WHERE id = ?
 //        AND isDeleted = FALSE`,
 //       id
@@ -292,15 +292,15 @@ const resetPassword = async (req, res) => {
 //     const connection = await pool.getConnection();
 //     connection
 //       .query(
-//         `UPDATE employee 
-//        SET firstName = ?, 
-//            lastName = ?, 
-//            fullName = ?, 
-//            hourlyRate = ?, 
-//            shift = ?, 
-//            pin = ?,  
-//            startDate = ?, 
-//            shopFloorLogin = ? 
+//         `UPDATE employee
+//        SET firstName = ?,
+//            lastName = ?,
+//            fullName = ?,
+//            hourlyRate = ?,
+//            shift = ?,
+//            pin = ?,
+//            startDate = ?,
+//            shopFloorLogin = ?
 //        WHERE id = ?`,
 //         [
 //           firstName.trim(),
@@ -574,7 +574,7 @@ const resetPassword = async (req, res) => {
 //     const { id } = req.params;
 //     const connection = await pool.getConnection();
 //     const [employeeStatusExists] = await connection.query(
-//       ` SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+//       ` SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
 //       WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = 'employeeStatus'`
 //     );
 //     if (employeeStatusExists.length === 0) {
@@ -621,7 +621,7 @@ const resetPassword = async (req, res) => {
 //     for (const column of columnsToCheck) {
 //       const [columnExists] = await connection.query(
 //         `
-//         SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+//         SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
 //         WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = ?
 //       `,
 //         [column.name]
@@ -644,12 +644,12 @@ const resetPassword = async (req, res) => {
 //     } = req.body;
 //     connection
 //       .query(
-//         `UPDATE employee 
-//        SET isApproved = ?, 
-//        fullName = ?, 
-//        vacationStartDate = ?, 
-//        vacationEndDate = ?, 
-//        vacationNote = ?, 
+//         `UPDATE employee
+//        SET isApproved = ?,
+//        fullName = ?,
+//        vacationStartDate = ?,
+//        vacationEndDate = ?,
+//        vacationNote = ?,
 //        vacationHours = ?
 //        WHERE id = ? AND isDeleted = FALSE`,
 //         [
@@ -679,7 +679,7 @@ const resetPassword = async (req, res) => {
 
 // const vacationApprovalList = async (req, res) => {
 //   try {
-    
+
 //     const { isApproved } = req.query;
 //     const connection = await pool.getConnection();
 //     const paginationData = await paginationQuery(req.query);
@@ -743,7 +743,7 @@ const resetPassword = async (req, res) => {
 
 //     for (const column of columnsToCheck) {
 //       const [columnExists] = await connection.query(
-//         `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+//         `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
 //         WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = ?`,
 //         [column.name]
 //       );
@@ -765,13 +765,13 @@ const resetPassword = async (req, res) => {
 //     } = req.body;
 //     connection
 //       .query(
-//         `UPDATE employee 
-//        SET employeeLunchInDate = ?, 
-//        employeeLunchInTime = ?, 
-//        employeeLunchEndDate = ?, 
+//         `UPDATE employee
+//        SET employeeLunchInDate = ?,
+//        employeeLunchInTime = ?,
+//        employeeLunchEndDate = ?,
 //        employeeLunchEndTime = ?,
-//        employeeExceptionInTime = ?, 
-//        employeeExceptionEndDate = ?, 
+//        employeeExceptionInTime = ?,
+//        employeeExceptionEndDate = ?,
 //        employeeExceptionEndTime = ?
 //        WHERE id = ? AND isDeleted = FALSE`,
 //         [
@@ -851,22 +851,65 @@ const resetPassword = async (req, res) => {
 //     });
 //   }
 // };
+
+const selectProcessProcess = async (req, res) => {
+  try {
+    await createTable("work", [
+      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "process", type: "VARCHAR(255)" },
+      { name: "product", type: "VARCHAR(255)" },
+      { name: "instructionId", type: "VARCHAR(255)" },
+      { name: "part", type: "VARCHAR(255)" },
+      { name: "stepNumber", type: "INT" },
+      { name: "workInstruction", type: "VARCHAR(255)" },
+      { name: "createdBy", type: "VARCHAR(255)" },
+    ]);
+    const { process, product } = req.body;
+    const { id } = req.user;
+    const instructionId = uuidv4();
+    console.log("instructionIdinstructionId", instructionId);
+    const connection = await pool.getConnection();
+    await connection.query(
+      `INSERT INTO work 
+        (process,product,instructionId,createdBy)
+       VALUES (?,?,?,?)`,
+      [
+        process?.trim(),
+        product?.trim(),
+        instructionId?.trim(),
+        // imageWorkInstruction,
+        // videoWorkInstruction,
+        id,
+      ]
+    );
+    return res.status(201).json({
+      message: "You have successfully process and product successfully !",
+      data:instructionId
+    });
+  } catch (error) {
+    console.log("errorerrorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
 const workInstruction = async (req, res) => {
   try {
-      await createTable("work", [
+    await createTable("work", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
       { name: "part", type: "VARCHAR(255)" },
       { name: "stepNumber", type: "INT" },
       { name: "workInstruction", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
-     
     ]);
 
-    const { part, stepNumber, workInstruction, step } = req.body;
+    const { part, stepNumber, workInstruction, step ,instructionId} = req.body;
     const userId = req.user.id;
 
+    console.log('instructionId',instructionId)
     const stepValue = parseInt(step);
-    
+
     if (![1, 2, 3, 4].includes(stepValue)) {
       return res.status(400).json({ message: "Invalid step" });
     }
@@ -879,20 +922,34 @@ const workInstruction = async (req, res) => {
 
     // Check if same step already exists
 
-    const [existing] = await connection.query(
-      `SELECT id FROM work WHERE part = ? AND stepNumber = ? AND isDeleted = 0`,
-      [part, stepNumber]
-    );
+    // const [existing] = await connection.query(
+    //   `SELECT * FROM work WHERE id = ? AND isDeleted = FALSE`,
+    //   [instructionId]
+    // );
 
-    if (existing.length > 0) {
-      return res.status(400).json({ message: `Step ${stepNumber} already exists for part ${part}` });
-    }
+    // console.log('existingexistingexisting',existing)
+
+    // if (existing.length > 0) {
+    //   return res.status(400).json({
+    //     message: `Step ${stepNumber} already exists for part ${part}`,
+    //   });
+    // }
 
     // Insert new step
+      connection
+      .query(
+        `UPDATE work 
+      SET part = ?, 
+      workInstruction = ?, 
+      createdBy = ?
+      WHERE instructionId = ? AND isDeleted = FALSE`,
+        [part, workInstruction,  instructionId]
+      )
+      .then();
     await connection.query(
       `INSERT INTO work 
         (part, workInstruction,createdBy)
-       VALUES (?,  ?, ?)`,
+       VALUES (?,  ?, ?) WHERE id = ?`,
       [
         part?.trim(),
         workInstruction?.trim() || null,
@@ -1465,8 +1522,6 @@ const addPartNumber = async (req, res) => {
   }
 };
 
-
-
 const profileUpdate = async (req, res) => {
   try {
     let fileData;
@@ -1621,5 +1676,6 @@ module.exports = {
   profileUpdate,
   profileDetail,
   deleteProfile,
+  selectProcessProcess,
   // supplierOrder,
 };

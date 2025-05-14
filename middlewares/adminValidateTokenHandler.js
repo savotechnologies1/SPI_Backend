@@ -22,10 +22,7 @@ const adminValidateToken = async (req, res, next) => {
             console.error("JWT verification failed:", err.message);
             return res.status(401).json({ message: "User is not authorized" });
           }
-
           req.user = decoded.user;
-          console.log("Authenticated admin:", decoded.user
-          );
           next();
         });
       } else {
