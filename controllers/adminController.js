@@ -944,6 +944,8 @@ const workInstruction = async (req, res) => {
       { name: "part", type: "VARCHAR(255)" },
       { name: "stepNumber", type: "INT" },
       { name: "workInstruction", type: "VARCHAR(255)" },
+      { name: "workInstructionImg", type: "VARCHAR(255)" },
+      { name: "workInstructionVideo", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
     ]);
     let fileData;
