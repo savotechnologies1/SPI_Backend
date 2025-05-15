@@ -852,120 +852,255 @@ const resetPassword = async (req, res) => {
 //   }
 // };
 
+// const selectProcessProcess = async (req, res) => {
+//   try {
+//     await createTable("work", [
+//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+//       { name: "process", type: "VARCHAR(255)" },
+//       { name: "product", type: "VARCHAR(255)" },
+//       { name: "instructionId", type: "VARCHAR(255)" },
+//       { name: "part", type: "VARCHAR(255)" },
+//       { name: "stepNumber", type: "INT" },
+//       { name: "workInstruction", type: "VARCHAR(255)" },
+//       { name: "createdBy", type: "VARCHAR(255)" },
+//     ]);
+//     const { process, product } = req.body;
+//     const { id } = req.user;
+//     const instructionId = uuidv4();
+//     console.log("instructionIdinstructionId", instructionId);
+//     const connection = await pool.getConnection();
+//     await connection.query(
+//       `INSERT INTO work
+//         (process,product,instructionId,createdBy)
+//        VALUES (?,?,?,?)`,
+//       [
+//         process?.trim(),
+//         product?.trim(),
+//         instructionId?.trim(),
+//         // imageWorkInstruction,
+//         // videoWorkInstruction,
+//         id,
+//       ]
+//     );
+//     return res.status(201).json({
+//       message: "You have successfully process and product successfully !",
+//       data: instructionId,
+//     });
+//   } catch (error) {
+//     console.log("errorerrorerror", error);
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
+
 const selectProcessProcess = async (req, res) => {
   try {
+    // Ensure table exists (run only once in production)
     await createTable("work", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
       { name: "process", type: "VARCHAR(255)" },
       { name: "product", type: "VARCHAR(255)" },
       { name: "instructionId", type: "VARCHAR(255)" },
-      { name: "part", type: "VARCHAR(255)" },
-      { name: "stepNumber", type: "INT" },
-      { name: "workInstruction", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
     ]);
+
     const { process, product } = req.body;
-    const { id } = req.user;
+    const { id: userId } = req.user;
+
     const instructionId = uuidv4();
-    console.log("instructionIdinstructionId", instructionId);
+    console.log("Generated instructionId:", instructionId);
+
     const connection = await pool.getConnection();
+
+    // Insert main record without steps
     await connection.query(
       `INSERT INTO work 
-        (process,product,instructionId,createdBy)
-       VALUES (?,?,?,?)`,
-      [
-        process?.trim(),
-        product?.trim(),
-        instructionId?.trim(),
-        // imageWorkInstruction,
-        // videoWorkInstruction,
-        id,
-      ]
+       (process, product, instructionId, createdBy)
+       VALUES (?, ?, ?, ?)`,
+      [process?.trim(), product?.trim(), instructionId, userId]
     );
+
+    connection.release();
+
     return res.status(201).json({
-      message: "You have successfully process and product successfully !",
-      data:instructionId
+      message: "Process and product selected successfully!",
+      instructionId: instructionId, // return this so client can add steps later
     });
   } catch (error) {
-    console.log("errorerrorerror", error);
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+    console.error("Error selecting process/product:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
 
 const workInstruction = async (req, res) => {
   try {
-    await createTable("work", [
+    await createTable("work_instructions", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "instructionId", type: "VARCHAR(255)" },
+      { name: "process", type: "VARCHAR(255)" },
       { name: "part", type: "VARCHAR(255)" },
       { name: "stepNumber", type: "INT" },
       { name: "workInstruction", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
     ]);
-
-    const { part, stepNumber, workInstruction, step ,instructionId} = req.body;
-    const userId = req.user.id;
-
-    console.log('instructionId',instructionId)
-    const stepValue = parseInt(step);
-
-    if (![1, 2, 3, 4].includes(stepValue)) {
-      return res.status(400).json({ message: "Invalid step" });
+    let fileData;
+    fileData = await fileUploadFunc(req, res);
+    if (fileData && fileData?.type !== "success") {
+      return res.status(400).send({ message: fileData.type });
     }
+    const getWorkInstructionimg =
+      fileData?.data?.workInstructionImg?.[0].filename;
+    const getWorkInstructionVideo =
+      fileData?.data?.workInstructionVideo?.[0].filename;
 
+    const { id: userId } = req.user;
+    const { instructionId, part, workInstruction, stepNumber } = req.body;
     const connection = await pool.getConnection();
-
-    // Image and Video (optional uploads)
-    // const imageWorkInstruction = req.files?.imageWorkInstruction?.[0]?.filename || null;
-    // const videoWorkInstruction = req.files?.videoWorkInstruction?.[0]?.filename || null;
-
-    // Check if same step already exists
-
-    // const [existing] = await connection.query(
-    //   `SELECT * FROM work WHERE id = ? AND isDeleted = FALSE`,
-    //   [instructionId]
-    // );
-
-    // console.log('existingexistingexisting',existing)
-
-    // if (existing.length > 0) {
-    //   return res.status(400).json({
-    //     message: `Step ${stepNumber} already exists for part ${part}`,
-    //   });
-    // }
-
-    // Insert new step
-      connection
-      .query(
-        `UPDATE work 
-      SET part = ?, 
-      workInstruction = ?, 
-      createdBy = ?
-      WHERE instructionId = ? AND isDeleted = FALSE`,
-        [part, workInstruction,  instructionId]
-      )
-      .then();
+    const [[getProcess]] = await connection.query(
+      `SELECT process FROM work WHERE  instructionId = ? AND isDeleted = FALSE`,
+      [instructionId]
+    );
+    console.log("getProcessgetProcess", getProcess.process);
     await connection.query(
-      `INSERT INTO work 
-        (part, workInstruction,createdBy)
-       VALUES (?,  ?, ?) WHERE id = ?`,
+      `INSERT INTO work_instructions (instructionId, process,stepNumber, part, workInstruction,workInstructionImg,workInstructionVideo,createdBy)
+       VALUES (?, ?,?, ?,?, ?,?,?)`,
       [
+        instructionId,
+        getProcess.process,
+        stepNumber,
         part?.trim(),
-        workInstruction?.trim() || null,
-     
+        workInstruction?.trim(),
+        getWorkInstructionimg,
+        getWorkInstructionVideo,
         userId,
       ]
     );
-
-    return res.status(201).json({
-      message: `Step ${stepNumber} for part '${part}' created successfully!`,
-    });
-  } catch (err) {
-    console.error("Error in createWorkInstruction:", err);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res
+      .status(201)
+      .json({ message: `Step ${stepNumber} added successfully!` });
+  } catch (error) {
+    console.error("Error inserting work instruction step:", error);
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
+
+// const workInstruction = async (req, res) => {
+//   const { instructionId, process, product, part, steps } = req.body; // steps: array of { stepNumber, workInstruction }
+//   const userId = req.user.id;
+
+//   if (!instructionId || !process || !product || !part || !steps?.length) {
+//     return res.status(400).json({ message: "Missing required fields" });
+//   }
+
+//   const connection = await pool.getConnection();
+
+//   try {
+//     await connection.beginTransaction();
+
+//     // Insert each step as separate row
+//     for (const step of steps) {
+//       await connection.query(
+//         `INSERT INTO work
+//          (instructionId, process, product, part, stepNumber, workInstruction, createdBy)
+//          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+//         [instructionId, process, product, part, step.stepNumber, step.workInstruction.trim(), userId]
+//       );
+//     }
+
+//     await connection.commit();
+//     connection.release();
+
+//     return res.status(201).json({ message: "Work instruction steps added successfully!" });
+//   } catch (err) {
+//     await connection.rollback();
+//     connection.release();
+//     console.error(err);
+//     return res.status(500).json({ message: "Something went wrong" });
+//   }
+// };
+
+// const workInstruction = async (req, res) => {
+//   let connection;
+//   try {
+//     const { instructionId, part, workInstruction, steps } = req.body;
+//     const userId = req.user.id;
+
+//     connection = await pool.getConnection();
+//     await connection.beginTransaction();
+
+//     // 1. Update work table
+//     const [updateResult] = await connection.query(
+//       `UPDATE work
+//        SET part = ?, workInstruction = ?, createdBy = ?
+//        WHERE instructionId = ? AND isDeleted = FALSE`,
+//       [part?.trim(), workInstruction?.trim(), userId, instructionId]
+//     );
+
+//     if (updateResult.affectedRows === 0) {
+//       await connection.rollback();
+//       return res.status(404).json({ message: "Work instruction not found." });
+//     }
+
+//     // 2. Delete existing steps (optional – if you're replacing all)
+//     await connection.query(
+//       `DELETE FROM work_steps WHERE instruction_id = ?`,
+//       [instructionId]
+//     );
+
+//     // 3. Insert new steps
+//     for (const step of steps) {
+//       const { stepNo, title, description } = step;
+//       await connection.query(
+//         `INSERT INTO work_steps (instruction_id, step_no, step, description)
+//          VALUES (?, ?, ?, ?)`,
+//         [instructionId, stepNo, title, description]
+//       );
+//     }
+
+//     await connection.commit();
+//     connection.release();
+
+//     return res.status(200).json({
+//       message: `Work instruction and ${steps.length} steps saved successfully!`,
+//     });
+//   } catch (error) {
+//     if (connection) await connection.rollback();
+//     console.error("Error saving work instruction:", error);
+//     return res.status(500).json({ message: "Something went wrong." });
+//   }
+// };
+
+// const workInstruction = async (req, res) => {
+//   try {
+//     const { part, stepNumber, workInstruction, step, instructionId } = req.body;
+//     const userId = req.user.id;
+
+//     console.log("instructionId", instructionId);
+//     const connection = await pool.getConnection();
+//     const [result] = await connection.query(
+//       `UPDATE work
+//    SET part = ?,
+//        workInstruction = ?,
+//        createdBy = ?
+//    WHERE instructionId = ? AND isDeleted = FALSE`,
+//       [part?.trim(), workInstruction?.trim(), userId, instructionId]
+//     );
+
+//     if (result.affectedRows === 0) {
+//       console.log("No matching record found to update.");
+//     }
+
+//     return res.status(201).json({
+//       message: `Step ${stepNumber} for part '${part}' created successfully!`,
+//     });
+//   } catch (err) {
+//     console.error("Error in createWorkInstruction:", err);
+//     return res.status(500).json({ message: "Internal Server Error" });
+//   }
+// };
 
 // const workInstruction = async (req, res) => {
 //   try {
@@ -1054,6 +1189,41 @@ const updateWorkInstruction = async (req, res) => {
   } catch (error) {
     return res.status(500).send({
       message: "Sometthing went wrong .",
+    });
+  }
+};
+
+const workInstructionList = async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const paginationData = await paginationQuery(req.query);
+
+    const [[workInstructionData], [totalCounts]] = await Promise.all([
+      connection.query(
+        `SELECT * FROM work_instructions WHERE isDeleted = FALSE LIMIT ${Number(
+          paginationData.pageSize
+        )} OFFSET ${Number(paginationData.skip)};`
+      ),
+      connection.query(
+        `SELECT COUNT(*) AS totalCount FROM work_instructions WHERE isDeleted = FALSE;`
+      ),
+    ]);
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCounts[0].totalCount,
+    };
+    const getPagination = await pagination(paginationObj);
+    return res.status(200).json({
+      message: "Work Instructions list retrived successfully !",
+      data: workInstructionData,
+      totalCounts: totalCounts[0].totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.log("errorerrorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
     });
   }
 };
@@ -1236,6 +1406,7 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log('customer error : ',error)
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1373,6 +1544,7 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+     console.log('customer error : ',error)
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1656,6 +1828,7 @@ module.exports = {
   workInstruction,
   getWorkDetail,
   updateWorkInstruction,
+  workInstructionList,
   addSuppliers,
   getSuppliers,
   editSupplierDetail,

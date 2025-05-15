@@ -18,7 +18,8 @@ const { login, forgetPassword, validOtp, resetPassword,  workInstruction, getWor
     profileUpdate,
     profileDetail,
     deleteProfile,
-    selectProcessProcess} = require('../controllers/adminController')
+    selectProcessProcess,
+    workInstructionList} = require('../controllers/adminController')
 const { forgotPass, userOTPVerify, resetPass, adminLogin } = require('../validations/validations')
 const adminValidateToken = require('../middlewares/adminValidateTokenHandler')
 const upload = require('../functions/upload')
@@ -38,10 +39,11 @@ router.post("/reset-password",resetPass,resetPassword)
 // router.get("/all-employee-vacation-list",adminValidateToken,vacationApprovalList)
 // router.put("/employee-clock-update/:id",adminValidateToken,updateEmployeeTimeClock)
 // router.get("/all-employee-clock-list",adminValidateToken,allEmployeeTimeClockList)
-router.post('/select-procese-product',adminValidateToken,selectProcessProcess)
+router.post('/add-work',adminValidateToken,selectProcessProcess)
 router.post("/add-work-instruction",adminValidateToken,workInstruction)
 router.get("/get-work-detail/:id",adminValidateToken,getWorkDetail)
 router.put("/update-work-instruction/:id",adminValidateToken,updateWorkInstruction)
+router.get('/work-instruction-list',adminValidateToken,workInstructionList)
 router.post("/add-supplier",adminValidateToken,addSuppliers)
 router.get("/get-supplier-list",adminValidateToken,getSuppliers)
 router.put("/edit-supplier-detail/:id",adminValidateToken,editSupplierDetail)
@@ -65,6 +67,7 @@ router.put("/profile-delete",adminValidateToken,deleteProfile)
 // router.post("/add-worked-instruction",adminValidateToken,addWorkInstruction)
 // router.put("/edit-worked-instruction/:id",adminValidateToken,editWorkInstruction)
 module.exports = router
+
 
 
 

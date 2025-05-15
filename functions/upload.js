@@ -6,16 +6,10 @@ const storage = multer.diskStorage({
 
     if (file?.fieldname === "workInstructionImg") {
       cb(null, "./public/uploads/workInstructionImg");
-    } else if (file?.fieldname === "uteImages") {
-      cb(null, "./public/uploads/uteImages");
+    } else if (file?.fieldname === "workInstructionVideo") {
+      cb(null, "./public/uploads/workInstructionVideo");
     } else if (file?.fieldname === "profileImg") {
       cb(null, "./public/uploads/profileImg");
-    } else if (file?.fieldname === "coverImg") {
-      cb(null, "./public/uploads/coverImg");
-    } else if (file?.fieldname === "blogImg") {
-      cb(null, "./public/uploads/blogImg");
-    } else if (file?.fieldname === "jobBookingImg") {
-      cb(null, "./public/uploads/jobBookingImg");
     } else {
       cb(new Error("Invalid file fieldname"), false);
     }
@@ -28,14 +22,9 @@ const storage = multer.diskStorage({
     );
     let data = req?.user?.id;
     if (
-      [
-        "profileImg",
-        "workInstructionImg",
-        "uteImages",
-        "jobImg",
-        "blogImg",
-        "jobBookingImg",
-      ].includes(file?.fieldname)
+      ["profileImg", "workInstructionImg", "workInstructionVideo"].includes(
+        file?.fieldname
+      )
     ) {
       data = uuidv4();
     }
@@ -44,13 +33,26 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
+  const allowedImageTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ];
+  const allowedVideoTypes = [
+    "video/mp4",
+    "video/mpeg",
+    "video/webm",
+    "video/ogg",
+  ];
+
   if (
-    ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(
-      file.mimetype
-    )
+    allowedImageTypes.includes(file.mimetype) ||
+    allowedVideoTypes.includes(file.mimetype)
   ) {
     return cb(null, true);
   }
+
   return cb(new Error("Invalid file type"), false);
 };
 
@@ -59,14 +61,11 @@ const upload = multer({
   fileFilter: fileFilter,
   limits: { fileSize: 10 * 1024 * 1024 },
 }).fields([
-  { name: "jobImg" },
   {
     name: "workInstructionImg",
   },
+  { name: "workInstructionVideo" },
   { name: "profileImg" },
-  { name: "coverImg" },
-  { name: "blogImg" },
-  { name: "jobBookingImg" },
 ]);
 
 module.exports = upload;
