@@ -1805,6 +1805,7 @@ const deleteProfile = async (req, res) => {
       message: "Your profile deleted successfully .",
     });
   } catch (error) {
+    console.log("eerrrrrrrrro",error)
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
