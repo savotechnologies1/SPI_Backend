@@ -193,707 +193,6 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// const createEmployee = async (req, res) => {
-//   try {
-//     await createTable("employee", [
-//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-//       { name: "firstName", type: "VARCHAR(255)" },
-//       { name: "lastName", type: "VARCHAR(255)" },
-//       { name: "fullName", type: "VARCHAR(255)" },
-//       { name: "hourlyRate", type: "VARCHAR(255)" },
-//       { name: "shift", type: "VARCHAR(255)" },
-//       { name: "pin", type: "VARCHAR(255)" },
-//       { name: "startDate", type: "VARCHAR(255)" },
-//       { name: "shopFloorLogin", type: "VARCHAR(255)" },
-//       { name: "department", type: "VARCHAR(255)" },
-//       { name: "createdBy", type: "VARCHAR(255)" },
-//     ]);
-//     const userId = req.user.id;
-//     const {
-//       firstName,
-//       lastName,
-//       fullName,
-//       hourlyRate,
-//       shift,
-//       pin,
-//       startDate,
-//       shopFloorLogin,
-//       department,
-//     } = req.body;
-//     const connection = await pool.getConnection();
-//     connection
-//       .query(
-//         "INSERT INTO employee (firstName, lastName, fullName,hourlyRate,shift,pin,startDate,shopFloorLogin,department,createdBy) VALUES (?, ?, ?,?,?,?,?,?,?,?)",
-//         [
-//           firstName.trim(),
-//           lastName.trim(),
-//           fullName.trim(),
-//           hourlyRate.trim(),
-//           shift.trim(),
-//           pin.trim(),
-//           startDate.trim(),
-//           shopFloorLogin.trim(),
-//           department.trim(),
-//           userId,
-//         ]
-//       )
-//       .then();
-//     return res.status(201).json({
-//       message: "New employee created successfully !",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const employeeDetail = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const connection = await pool.getConnection();
-//     const [data] = await connection.query(
-//       `SELECT * FROM employee
-//        WHERE id = ?
-//        AND isDeleted = FALSE`,
-//       id
-//     );
-//     if (data.length === 0) {
-//       return res.status(404).json({
-//         message: "This employee not found or may be deleted .",
-//       });
-//     }
-
-//     return res.status(200).json({
-//       message: "Employee detail retrived successfully !",
-//       data: data[0],
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const editEmployee = async (req, res) => {
-//   try {
-//     const id = req.params.id;
-//     const {
-//       firstName,
-//       lastName,
-//       fullName,
-//       hourlyRate,
-//       shift,
-//       pin,
-//       startDate,
-//       shopFloorLogin,
-//     } = req.body;
-
-//     const connection = await pool.getConnection();
-//     connection
-//       .query(
-//         `UPDATE employee
-//        SET firstName = ?,
-//            lastName = ?,
-//            fullName = ?,
-//            hourlyRate = ?,
-//            shift = ?,
-//            pin = ?,
-//            startDate = ?,
-//            shopFloorLogin = ?
-//        WHERE id = ?`,
-//         [
-//           firstName.trim(),
-//           lastName.trim(),
-//           fullName.trim(),
-//           hourlyRate.trim(),
-//           shift.trim(),
-//           pin.trim(),
-//           startDate.trim(),
-//           shopFloorLogin.trim(),
-//           id,
-//         ]
-//       )
-//       .then();
-//     return res.status(200).json({
-//       message: "Employee information edit successfully !",
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const allEmployees = async (req, res) => {
-//   try {
-//     const { employeeStatus } = req.query;
-//     const connection = await pool.getConnection();
-//     const paginationData = await paginationQuery(req.query);
-//     const { page, pageSize, skip } = paginationData;
-//     let query = `SELECT * FROM employee WHERE isDeleted = FALSE`;
-//     let countQuery = `SELECT COUNT(*) AS total FROM employee WHERE isDeleted = FALSE`;
-//     const params = [];
-//     const countParams = [];
-//     if (employeeStatus) {
-//       query += ` AND employeeStatus = ?`;
-//       countQuery += ` AND employeeStatus = ?`;
-//       params.push(employeeStatus);
-//       countParams.push(employeeStatus);
-//     }
-//     query += ` LIMIT ? OFFSET ?`;
-//     params.push(pageSize, skip);
-//     const [data] = await connection.query(query, params);
-//     const [countResult] = await connection.query(countQuery, countParams);
-//     const totalCount = countResult[0]?.total || 0;
-//     const paginationObj = {
-//       page,
-//       pageSize,
-//       total: totalCount,
-//     };
-//     const getPagination = await pagination(paginationObj);
-//     res.status(200).json({
-//       message: "All employee list retrived successfully !",
-//       data: data,
-//       totalCount,
-//       pagination: getPagination,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Internal server error" });
-//   } finally {
-//     connection.release();
-//   }
-// };
-
-// const allEmployees = async (req, res) => {
-//   try {
-//     // const { employeeStatus, search, department } = req.query;
-//     // const paginationData = await paginationQuery(req.query);
-//     // console.log('paginationDatapaginationData',paginationData);
-
-//     // let condition = { isDeleted: false };
-
-//     // if (employeeStatus) {
-//     //   condition.employeeStatus = employeeStatus.trim();
-//     // }
-
-//     // if (search) {
-//     //   condition.fullName = { $regex: search.trim(), $options: "i" };
-//     // }
-//     // if (department) {
-//     //   condition.department = department.trim();
-//     // }
-
-//     // const [EmployeeData, totalCount] = await Promise.all([
-//     //   Employee.find(condition, {
-//     //     __v: 0,
-//     //     updatedAt: 0,
-//     //   })
-//     //     .skip(paginationData.skip)
-//     //     .limit(paginationData.pageSize)
-//     //     .lean(true),
-//     //   Employee.countDocuments(condition),
-//     // ]);
-//     // const paginationObj = {
-//     //   page: paginationData.page,
-//     //   pageSize: paginationData.pageSize,
-//     //   total: totalCount,
-//     // };
-//     // const getPagination = await pagination(paginationObj);
-
-//     // if (Employee.length) {
-//     //   return res.status(200).send({
-//     //     data: EmployeeData,
-//     //     current: EmployeeData.length,
-//     //     totalCount,
-//     //     pagination: getPagination,
-//     //     message: "All employees list retirved successfully!",
-//     //   });
-//     // }
-
-//     //   const { employeeStatus, limit ,page} = req.query;
-//     //   const connection = await pool.getConnection();
-//     //   const paginationData = await paginationQuery(req.query);
-//     //   console.log("paginationDatapaginationData", paginationData);
-
-//     //   let query = `SELECT * FROM employee WHERE isDeleted = FALSE`;
-//     //   let params = [];
-
-//     //   if (employeeStatus) {
-//     //     query += ` AND employeeStatus = ?`;
-//     //     params.push(employeeStatus);
-//     //   }
-
-//     //   if (limit) {
-//     //     query += ` LIMIT ?`;
-//     //     params.push(Number(paginationData.pageSize));
-//     //   }
-//     //   query += ` OFFSET ?`;
-//     //   params.push(Number(paginationData.skip));
-
-//     //   const [data] = await connection.query(query, params);
-//     //   const paginationObj = {
-//     //     page: paginationData.page,
-//     //     pageSize: paginationData.pageSize,
-//     //     // total: totalCount,
-//     //   };
-//     //  console.log('paginationObjpaginationObj',paginationObj);
-
-//     //   return res.status(200).json({
-//     //     message: "All Employee list retrived successfully !",
-//     //     data: data,
-//     //   });
-
-//     const { employeeStatus, limit, page } = req.query;
-//     const connection = await pool.getConnection();
-
-// try {
-//   const paginationData = await paginationQuery(req.query);
-//   const { page, pageSize, skip } = paginationData;
-//   let query = `SELECT * FROM employee WHERE isDeleted = FALSE`;
-//   let countQuery = `SELECT COUNT(*) AS total FROM employee WHERE isDeleted = FALSE`;
-
-//   const params = [];
-//   const countParams = [];
-//   if (employeeStatus) {
-//     query += ` AND employeeStatus = ?`;
-//     countQuery += ` AND employeeStatus = ?`;
-//     params.push(employeeStatus);
-//     countParams.push(employeeStatus);
-//   }
-//   query += ` LIMIT ? OFFSET ?`;
-//   params.push(pageSize, skip);
-
-//   const [data] = await connection.query(query, params);
-//   const [countResult] = await connection.query(countQuery, countParams);
-
-//   const totalCount = countResult[0]?.total || 0;
-
-//   const paginationObj = {
-//     page,
-//     pageSize,
-//     total: totalCount,
-//   };
-
-//   const getPagination = await pagination(paginationObj);
-
-//   res.json({ data, totalCount, pagination: getPagination });
-
-// } catch (error) {
-//   console.error(error);
-//   res.status(500).json({ message: "Internal server error" });
-// } finally {
-//   connection.release(); // Always release connection
-// }
-//  catch (error) {
-//       console.error(error);
-//       res.status(500).json({ message: "Internal server error" });
-//     } finally {
-//       connection.release();
-//     }
-//   } catch (error) {
-//     console.log("errorerror", error);
-
-//     return res.status(500).send({
-//       message: "Something went wrong . please try agian later.",
-//     });
-//   }
-// };
-
-// const allEmployees = async (req, res) => {
-//   try {
-//     const {
-//       page = 1,
-//       pageSize = 10,
-//       search = "",
-//       department = "",
-//       employeeStatus,
-//     } = req.query;
-
-//     const offset = (parseInt(page) - 1) * parseInt(pageSize);
-
-//     let whereClause = "WHERE isDeleted = FALSE";
-//     let queryParams = [];
-
-//     // Search by fullName
-//     if (search) {
-//       whereClause += " AND fullName LIKE ?";
-//       queryParams.push(`%${search.trim()}%`);
-//     }
-
-//     // Filter by department
-//     if (department) {
-//       whereClause += " AND department = ?";
-//       queryParams.push(department.trim());
-//     }
-
-//     // Filter by employeeStatus (if you have such a column, otherwise ignore this part)
-//     if (employeeStatus) {
-//       whereClause += " AND employeeStatus = ?";
-//       queryParams.push(employeeStatus.trim());
-//     }
-
-//     const connection = await pool.getConnection();
-
-//     // Get paginated data
-//     const [data] = await connection.query(
-//       `SELECT * FROM employee ${whereClause} LIMIT ? OFFSET ?`,
-//       [...queryParams, parseInt(pageSize), offset]
-//     );
-
-//     // Get total count
-//     const [[{ totalCount }]] = await connection.query(
-//       `SELECT COUNT(*) as totalCount FROM employee ${whereClause}`,
-//       queryParams
-//     );
-
-//     connection.release();
-
-//     return res.status(200).json({
-//       message: "All Employee list retrieved successfully!",
-//       data,
-//       current: data.length,
-//       totalCount,
-//       pagination: {
-//         page: parseInt(page),
-//         pageSize: parseInt(pageSize),
-//         totalPages: Math.ceil(totalCount / pageSize),
-//       },
-//     });
-//   } catch (error) {
-//     console.log("errorerror", error);
-//     return res.status(500).send({
-//       message: "Something went wrong. Please try again later.",
-//     });
-//   }
-// };
-
-// const changeEmployeeStatus = async (req, res) => {
-//   try {
-//     const { employeeStatus } = req.body;
-//     const { id } = req.params;
-//     const connection = await pool.getConnection();
-//     const [employeeStatusExists] = await connection.query(
-//       ` SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-//       WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = 'employeeStatus'`
-//     );
-//     if (employeeStatusExists.length === 0) {
-//       await connection.query(
-//         `ALTER TABLE employee ADD COLUMN employeeStatus VARCHAR(100) DEFAULT 'pending'`
-//       );
-//     }
-//     connection
-//       .query(
-//         `UPDATE employee SET employeeStatus = ? WHERE id = ? AND isDeleted = FALSE`,
-//         [employeeStatus.toLowerCase(), id]
-//       )
-//       .then();
-//     return res.status(201).json({
-//       message: `Employee status ${employeeStatus} .`,
-//     });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .send({ message: "Something went wrong . please try again later ." });
-//   }
-// };
-
-// const vacationApprovel = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     let connection;
-//     connection = await pool.getConnection();
-//     const [employee] = await connection.query(
-//       `SELECT isDeleted FROM employee WHERE id = ?`,
-//       [id]
-//     );
-//     if (employee[0].isDeleted) {
-//       return res.status(400).json({ message: "Employee has been deleted." });
-//     }
-//     const columnsToCheck = [
-//       { name: "isApproved", definition: `VARCHAR(20) DEFAULT 'pending'` },
-//       { name: "vacationStartDate", definition: "VARCHAR(20)" },
-//       { name: "vacationEndDate", definition: "VARCHAR(20)" },
-//       { name: "vacationNote", definition: "VARCHAR(255)" },
-//       { name: "vacationHours", definition: "VARCHAR(20)" },
-//     ];
-
-//     for (const column of columnsToCheck) {
-//       const [columnExists] = await connection.query(
-//         `
-//         SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-//         WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = ?
-//       `,
-//         [column.name]
-//       );
-
-//       if (columnExists.length === 0) {
-//         await connection.query(
-//           `ALTER TABLE employee ADD COLUMN ${column.name} ${column.definition}`
-//         );
-//       }
-//     }
-
-//     const {
-//       isApproved,
-//       fullName,
-//       vacationStartDate,
-//       vacationEndDate,
-//       vacationNote,
-//       vacationHours,
-//     } = req.body;
-//     connection
-//       .query(
-//         `UPDATE employee
-//        SET isApproved = ?,
-//        fullName = ?,
-//        vacationStartDate = ?,
-//        vacationEndDate = ?,
-//        vacationNote = ?,
-//        vacationHours = ?
-//        WHERE id = ? AND isDeleted = FALSE`,
-//         [
-//           isApproved.trim() === "yes" ? "approved" : "rejected",
-//           fullName.trim(),
-//           vacationStartDate.trim(),
-//           vacationEndDate.trim(),
-//           vacationNote.trim(),
-//           vacationHours.trim(),
-//           id,
-//         ]
-//       )
-//       .then();
-//     return res.status(200).json({
-//       message: `Employee vacation request has been ${
-//         isApproved === "yes" ? "Approved" : "Rejected"
-//       }.`,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Something went wrong. Please try again later.",
-//     });
-//   } finally {
-//     if (connection) connection.release();
-//   }
-// };
-
-// const vacationApprovalList = async (req, res) => {
-//   try {
-
-//     const { isApproved } = req.query;
-//     const connection = await pool.getConnection();
-//     const paginationData = await paginationQuery(req.query);
-//     const { page, pageSize, skip } = paginationData;
-//     let query = `SELECT * FROM employee WHERE isDeleted = FALSE`;
-//     let countQuery = `SELECT COUNT(*) AS total FROM employee WHERE isDeleted = FALSE`;
-//     const params = [];
-//     const countParams = [];
-//     if (isApproved) {
-//       query += ` AND isApproved = ?`;
-//       countQuery += ` AND isApproved = ?`;
-//       params.push(isApproved);
-//       countParams.push(isApproved);
-//     }
-//     query += ` LIMIT ? OFFSET ?`;
-//     params.push(pageSize, skip);
-//     const [data] = await connection.query(query, params);
-//     const [countResult] = await connection.query(countQuery, countParams);
-//     const totalCount = countResult[0]?.total || 0;
-//     const paginationObj = {
-//       page,
-//       pageSize,
-//       total: totalCount,
-//     };
-//     const getPagination = await pagination(paginationObj);
-//     res.status(200).json({
-//       message: "All employee vacation list retrived successfully !",
-//       data: data,
-//       totalCount,
-//       pagination: getPagination,
-//     });
-//   } catch (error) {
-//     return res
-//       .status(500)
-//       .send({ message: "Something went wrong . please try again later ." });
-//   }
-// };
-
-// const updateEmployeeTimeClock = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     let connection;
-//     connection = await pool.getConnection();
-//     const [employee] = await connection.query(
-//       `SELECT isDeleted FROM employee WHERE id = ?`,
-//       [id]
-//     );
-//     if (employee[0].isDeleted) {
-//       return res.status(400).json({ message: "Employee has been deleted." });
-//     }
-//     const columnsToCheck = [
-//       { name: "employeeLunchInDate", definition: `VARCHAR(255) ` },
-//       { name: "employeeLunchInTime", definition: "VARCHAR(255)" },
-//       { name: "employeeLunchEndDate", definition: "VARCHAR(255)" },
-//       { name: "employeeLunchEndTime", definition: "VARCHAR(255)" },
-//       { name: "employeeExceptionEndDate", definition: "VARCHAR(255)" },
-//       { name: "employeeExceptionInTime", definition: "VARCHAR(255)" },
-//       { name: "employeeExceptionEndDate", definition: "VARCHAR(255)" },
-//       { name: "employeeExceptionEndTime", definition: "VARCHAR(255)" },
-//     ];
-
-//     for (const column of columnsToCheck) {
-//       const [columnExists] = await connection.query(
-//         `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-//         WHERE TABLE_NAME = 'employee' AND COLUMN_NAME = ?`,
-//         [column.name]
-//       );
-
-//       if (columnExists.length === 0) {
-//         await connection.query(
-//           `ALTER TABLE employee ADD COLUMN ${column.name} ${column.definition}`
-//         );
-//       }
-//     }
-//     const {
-//       employeeLunchInDate,
-//       employeeLunchInTime,
-//       employeeLunchEndDate,
-//       employeeLunchEndTime,
-//       employeeExceptionInTime,
-//       employeeExceptionEndDate,
-//       employeeExceptionEndTime,
-//     } = req.body;
-//     connection
-//       .query(
-//         `UPDATE employee
-//        SET employeeLunchInDate = ?,
-//        employeeLunchInTime = ?,
-//        employeeLunchEndDate = ?,
-//        employeeLunchEndTime = ?,
-//        employeeExceptionInTime = ?,
-//        employeeExceptionEndDate = ?,
-//        employeeExceptionEndTime = ?
-//        WHERE id = ? AND isDeleted = FALSE`,
-//         [
-//           employeeLunchInDate.trim(),
-//           employeeLunchInTime.trim(),
-//           employeeLunchEndDate.trim(),
-//           employeeLunchEndTime.trim(),
-//           employeeExceptionInTime.trim(),
-//           employeeExceptionEndDate.trim(),
-//           employeeExceptionEndTime.trim(),
-//           id,
-//         ]
-//       )
-//       .then();
-
-//     return res.status(201).json({
-//       message: "Employee clock detail update successfully!",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const allEmployeeTimeClockList = async (req, res) => {
-//   try {
-//     const paginationData = paginationQuery(req.query);
-//     const connection = await pool.getConnection();
-//     const [[processData], [totalCounts]] = await Promise.all([
-//       connection.query(
-//         `SELECT * FROM  employee WHERE  isDeleted = FALSE LIMIT ${Number(
-//           paginationData.pageSize
-//         )} OFFSET ${Number(paginationData.skip)} `
-//       ),
-//       connection.query(
-//         `SELECT COUNT(*) AS totalCount FROM employee WHERE isDeleted = FALSE; `
-//       ),
-//     ]);
-//     const paginationObj = {
-//       page: paginationData.page,
-//       pageSize: paginationData.pageSize,
-//       total: totalCounts[0].totalCount,
-//     };
-//     const getPagination = await pagination(paginationObj);
-//     return res.status(200).json({
-//       message: "All employee time clock list retrived successfully !",
-//       processData: processData,
-//       totalCount: totalCounts[0].totalCount,
-//       pagination: getPagination,
-//     });
-//     // const connection = await pool.getConnection();
-//     // const paginationData = await paginationQuery(req.query);
-//     // const { page, pageSize, skip } = paginationData;
-//     // let query = `SELECT * FROM employee WHERE isDeleted = FALSE`;
-//     // let countQuery = `SELECT COUNT(*) AS total FROM employee WHERE isDeleted = FALSE`;
-//     // const params = [];
-//     // params.push(pageSize, skip);
-//     // const [data] = await connection.query(query, params);
-//     // const [countResult] = await connection.query(countQuery);
-//     // const totalCount = countResult[0]?.total || 0;
-//     // const paginationObj = {
-//     //   page,
-//     //   pageSize,
-//     //   total: totalCount,
-//     // };
-//     // const getPagination = await pagination(paginationObj);
-//     // res.status(200).json({
-//     //   message: "All employee time clock list retrived successfully !",
-//     //   data: data,
-//     //   totalCount,
-//     //   pagination: getPagination,
-//     // });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const selectProcessProcess = async (req, res) => {
-//   try {
-//     await createTable("work", [
-//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-//       { name: "process", type: "VARCHAR(255)" },
-//       { name: "product", type: "VARCHAR(255)" },
-//       { name: "instructionId", type: "VARCHAR(255)" },
-//       { name: "part", type: "VARCHAR(255)" },
-//       { name: "stepNumber", type: "INT" },
-//       { name: "workInstruction", type: "VARCHAR(255)" },
-//       { name: "createdBy", type: "VARCHAR(255)" },
-//     ]);
-//     const { process, product } = req.body;
-//     const { id } = req.user;
-//     const instructionId = uuidv4();
-//     console.log("instructionIdinstructionId", instructionId);
-//     const connection = await pool.getConnection();
-//     await connection.query(
-//       `INSERT INTO work
-//         (process,product,instructionId,createdBy)
-//        VALUES (?,?,?,?)`,
-//       [
-//         process?.trim(),
-//         product?.trim(),
-//         instructionId?.trim(),
-//         // imageWorkInstruction,
-//         // videoWorkInstruction,
-//         id,
-//       ]
-//     );
-//     return res.status(201).json({
-//       message: "You have successfully process and product successfully !",
-//       data: instructionId,
-//     });
-//   } catch (error) {
-//     console.log("errorerrorerror", error);
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
 const selectProcessProcess = async (req, res) => {
   try {
     // Ensure table exists (run only once in production)
@@ -1150,7 +449,7 @@ const getWorkDetail = async (req, res) => {
     const id = req.params;
     const connection = await pool.getConnection();
     const [data] = await connection.query(
-      `SELECT * FROM work WHERE id = ? AND isDeleted = FALSE`,
+      `SELECT * FROM work_instructions WHERE id = ? AND isDeleted = FALSE`,
       id
     );
     if (data.length === 0) {
@@ -1171,17 +470,35 @@ const getWorkDetail = async (req, res) => {
 
 const updateWorkInstruction = async (req, res) => {
   try {
+    let fileData;
+    fileData = await fileUploadFunc(req, res);
+    if (fileData && fileData?.type !== "success") {
+      return res.status(400).send({ message: fileData.type });
+    }
+    const getWorkInstructionimg =
+      fileData?.data?.workInstructionImg?.[0].filename;
+    const getWorkInstructionVideo =
+      fileData?.data?.workInstructionVideo?.[0].filename;
     const id = req.params.id;
     const connection = await pool.getConnection();
     const { part, stepNumber, workInstruction } = req.body;
     connection
       .query(
-        `UPDATE work 
+        `UPDATE work_instructions 
         SET part = ?, 
         stepNumber = ?, 
-        workInstruction = ?
+        workInstruction = ?,
+        workInstructionImg = ?,
+        workInstructionVideo = ?
         WHERE id = ? AND isDeleted = FALSE`,
-        [part.trim(), stepNumber.trim(), workInstruction.trim(), id]
+        [
+          part.trim(),
+          stepNumber.trim(),
+          workInstruction.trim(),
+          getWorkInstructionimg,
+          getWorkInstructionVideo,
+          id,
+        ]
       )
       .then();
 
@@ -1224,6 +541,23 @@ const workInstructionList = async (req, res) => {
     });
   } catch (error) {
     console.log("errorerrorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const deleteWorkInstruction = async (req, res) => {
+  try {
+    const id = req?.params?.id;
+    const connection = await pool.getConnection();
+    connection
+      .query(`UPDATE work_instructions SET isDeleted = TRUE WHERE id = ?`, [id])
+      .then();
+    return res.status(200).json({
+      message: "Work Instruction delete successfully !",
+    });
+  } catch (error) {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1408,7 +742,7 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log('customer error : ',error)
+    console.log("customer error : ", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1546,7 +880,7 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-     console.log('customer error : ',error)
+    console.log("customer error : ", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1805,8 +1139,34 @@ const deleteProfile = async (req, res) => {
       message: "Your profile deleted successfully .",
     });
   } catch (error) {
-    console.log("eerrrrrrrrro",error)
+    console.log("eerrrrrrrrro", error);
     return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const checkToken = async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const id = req.user.id;
+    const [[user]] = await connection.query(
+      `SELECT *, NULL AS tokens ,NULL AS password FROM admins WHERE id = ? AND isDeleted = FALSE`,
+      id
+    );
+
+    return res.status(200).json({
+      message: "Token is valid",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profileImg: user.profileImg,
+        roles: user.roles,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
       message: "Something went wrong . please try again later .",
     });
   }
@@ -1832,6 +1192,7 @@ module.exports = {
   getWorkDetail,
   updateWorkInstruction,
   workInstructionList,
+  deleteWorkInstruction,
   addSuppliers,
   getSuppliers,
   editSupplierDetail,
@@ -1852,5 +1213,6 @@ module.exports = {
   profileDetail,
   deleteProfile,
   selectProcessProcess,
+  checkToken,
   // supplierOrder,
 };
