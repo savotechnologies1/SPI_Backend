@@ -56,7 +56,7 @@ const login = async (req, res) => {
       token,
     });
   } catch (err) {
-    console.log('errerrerr',err)
+    console.log('login eerrror',err)
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
