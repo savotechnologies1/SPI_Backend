@@ -28,7 +28,7 @@ const register = async (req, res) => {
     }
 
     const convertedPassword = md5(password);
-    const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECERT, {
+    const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
       expiresIn: "5d",
     });
 
@@ -74,7 +74,7 @@ const login = async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECERT, {
+    const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
       expiresIn: "5d",
     });
     connection

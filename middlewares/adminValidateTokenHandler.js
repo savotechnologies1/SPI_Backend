@@ -9,6 +9,7 @@ const adminValidateToken = async (req, res, next) => {
     token = authHeader.split(" ")[1];
     let connection;
     try {
+      console.log('tokentokentoken',token)
       connection = await pool.getConnection();
 
       const [rows] = await connection.query(
@@ -16,8 +17,9 @@ const adminValidateToken = async (req, res, next) => {
         [token]
       );
 
+      console.log("rowsrows", rows);
       if (rows.length > 0) {
-        jwt.verify(token,process.env.ACCESS_TOKEN_SECERT, (err, decoded) => {
+        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
           if (err) {
             console.error("JWT verification failed:", err.message);
             return res.status(401).json({ message: "User is not authorized" });
@@ -39,7 +41,9 @@ const adminValidateToken = async (req, res, next) => {
   } else {
     return res
       .status(401)
-      .json({ message: "Authorization header missing or improperly formatted" });
+      .json({
+        message: "Authorization header missing or improperly formatted",
+      });
   }
 };
 

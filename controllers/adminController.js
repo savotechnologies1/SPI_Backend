@@ -39,7 +39,7 @@ const login = async (req, res) => {
       password: data[0].password,
       roles: data[0].roles,
     };
-    const token = jwt.sign({ user: user }, process.env.ACCESS_TOKEN_SECERT, {
+    const token = jwt.sign({ user: user }, process.env.ACCESS_TOKEN_SECRET, {
       expiresIn: "5d",
     });
     connection
@@ -182,7 +182,7 @@ const resetPassword = async (req, res) => {
     const covertedNewPass = md5(newPassword);
 
     await connection.query(
-      `UPDATE admins SET password = ?, token = NULL WHERE id = ?`,
+      `UPDATE admins SET password = ?, tokens = NULL WHERE id = ?`,
       [covertedNewPass, getData.id]
     );
     return res.status(200).send({ message: "Password reset successfully." });
@@ -1151,7 +1151,7 @@ const checkToken = async (req, res) => {
     const connection = await pool.getConnection();
     const id = req.user.id;
     const [[user]] = await connection.query(
-      `SELECT *, NULL AS tokens ,NULL AS password FROM admins WHERE id = ? AND isDeleted = FALSE`,
+      `SELECT *, NULL AS token ,NULL AS password FROM admins WHERE id = ? AND isDeleted = FALSE`,
       id
     );
 
