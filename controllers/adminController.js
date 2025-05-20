@@ -56,11 +56,11 @@ const login = async (req, res) => {
       token,
     });
   } catch (err) {
-    console.log('login eerrror',err)
+    console.log("login eerrror", err);
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
-  } 
+  }
 };
 
 const forgetPassword = async (req, res) => {
@@ -194,7 +194,6 @@ const resetPassword = async (req, res) => {
 
 const selectProcessProcess = async (req, res) => {
   try {
-    // Ensure table exists (run only once in production)
     await createTable("work", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
       { name: "process", type: "VARCHAR(255)" },
@@ -207,11 +206,8 @@ const selectProcessProcess = async (req, res) => {
     const { id: userId } = req.user;
 
     const instructionId = uuidv4();
-    console.log("Generated instructionId:", instructionId);
 
     const connection = await pool.getConnection();
-
-    // Insert main record without steps
     await connection.query(
       `INSERT INTO work 
        (process, product, instructionId, createdBy)
@@ -223,7 +219,7 @@ const selectProcessProcess = async (req, res) => {
 
     return res.status(201).json({
       message: "Process and product selected successfully!",
-      instructionId: instructionId, // return this so client can add steps later
+      instructionId: instructionId,
     });
   } catch (error) {
     console.error("Error selecting process/product:", error);
@@ -263,7 +259,6 @@ const workInstruction = async (req, res) => {
       `SELECT process FROM work WHERE  instructionId = ? AND isDeleted = FALSE`,
       [instructionId]
     );
-    console.log("getProcessgetProcess", getProcess.process);
     await connection.query(
       `INSERT INTO work_instructions (instructionId, process,stepNumber, part, workInstruction,workInstructionImg,workInstructionVideo,createdBy)
        VALUES (?, ?,?, ?,?, ?,?,?)`,
@@ -445,12 +440,13 @@ const workInstruction = async (req, res) => {
 
 const getWorkDetail = async (req, res) => {
   try {
-    const id = req.params;
+    const id = req.params.id;
     const connection = await pool.getConnection();
     const [data] = await connection.query(
       `SELECT * FROM work_instructions WHERE id = ? AND isDeleted = FALSE`,
       id
     );
+    console.log('data.lengthdata.lengthdata.length',data.length)
     if (data.length === 0) {
       return res.status(404).send({
         message: "Record not found .",
@@ -513,27 +509,72 @@ const updateWorkInstruction = async (req, res) => {
 
 const workInstructionList = async (req, res) => {
   try {
+    // const connection = await pool.getConnection();
+    // const paginationData = await paginationQuery(req.query);
+    // const { process } = req.query;
+    // const [[workInstructionData], [totalCounts]] = await Promise.all([
+    //   connection.query(
+    //     `SELECT * FROM work_instructions WHERE process = ? AND isDeleted = FALSE LIMIT ? OFFSET ?`,
+    //     [
+    //       Number(process),
+    //       Number(paginationData.pageSize),
+    //       Number(paginationData.skip),
+    //     ]
+    //   ),
+    //   connection.query(
+    //     `SELECT COUNT(*) AS totalCount FROM work_instructions WHERE process = ? AND isDeleted = FALSE`,
+    //     [Number(process)]
+    //   ),
+    // ]);
+
+    // const paginationObj = {
+    //   page: paginationData.page,
+    //   pageSize: paginationData.pageSize,
+    //   total: totalCounts[0].totalCount,
+    // };
+    // const getPagination = await pagination(paginationObj);
+    // return res.status(200).json({
+    //   message: "Work Instructions list retrived successfully !",
+    //   data: workInstructionData,
+    //   totalCounts: totalCounts[0].totalCount,
+    //   pagination: getPagination,
+    // });
     const connection = await pool.getConnection();
     const paginationData = await paginationQuery(req.query);
-
+    const { process = "", search = "" } = req.query;
+    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
     const [[workInstructionData], [totalCounts]] = await Promise.all([
       connection.query(
-        `SELECT * FROM work_instructions WHERE isDeleted = FALSE LIMIT ${Number(
-          paginationData.pageSize
-        )} OFFSET ${Number(paginationData.skip)};`
-      ),
+        `SELECT * FROM work_instructions 
+        WHERE process = ${process?.trim()} AND isDeleted = FALSE 
+        AND (workInstruction LIKE ? OR part LIKE ?)
+        LIMIT ? OFFSET ?`,
+              [
+                `%${searchTerm.trim()}%`,
+                `%${searchTerm.trim()}%`,
+                paginationData.pageSize,
+                paginationData.skip,
+              ]
+            ),
+
       connection.query(
-        `SELECT COUNT(*) AS totalCount FROM work_instructions WHERE isDeleted = FALSE;`
-      ),
+        `SELECT COUNT(*) AS totalCount FROM work_instructions 
+          WHERE process = ${process} AND isDeleted = FALSE 
+          AND (workInstruction LIKE ? OR part LIKE ?)`,
+                [`%${searchTerm.trim()}%`, `%${searchTerm.trim()}%`]
+              ),
     ]);
+
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,
       total: totalCounts[0].totalCount,
     };
+
     const getPagination = await pagination(paginationObj);
+
     return res.status(200).json({
-      message: "Work Instructions list retrived successfully !",
+      message: "Work Instructions list retrieved successfully!",
       data: workInstructionData,
       totalCounts: totalCounts[0].totalCount,
       pagination: getPagination,
@@ -570,6 +611,7 @@ const addSuppliers = async (req, res) => {
       { name: "firstName", type: "VARCHAR(255)" },
       { name: "lastName", type: "VARCHAR(255)" },
       { name: "email", type: "VARCHAR(255)" },
+
       { name: "address", type: "VARCHAR(255)" },
       { name: "billingTerms", type: "VARCHAR(255)" },
       { name: "submittedBy", type: "VARCHAR(255)" },
@@ -718,15 +760,35 @@ const customerList = async (req, res) => {
   try {
     const connection = await pool.getConnection();
     const paginationData = await paginationQuery(req.query);
+    const { process = "", search = "" } = req.query;
+    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
+    console.log("searchsearchsearch", search);
     const [[customerData], [totalCounts]] = await Promise.all([
       connection.query(
-        `SELECT * FROM customers WHERE isDeleted = FALSE LIMIT ${Number(
-          paginationData.pageSize
-        )} OFFSET ${Number(paginationData.skip)};`
+        `SELECT * FROM customers  WHERE isDeleted = FALSE 
+        AND (email LIKE ? OR billingTerms LIKE ?) 
+        LIMIT ? OFFSET ?`,
+        [
+          searchTerm.trim(),
+          searchTerm.trim(),
+          paginationData.pageSize,
+          paginationData.skip,
+        ]
       ),
       connection.query(
-        `SELECT COUNT(*) AS totalCount FROM customers WHERE isDeleted = FALSE;`
+        `SELECT COUNT(*) AS totalCount FROM customers 
+        WHERE  isDeleted = FALSE AND (email LIKE ? OR billingTerms LIKE ?)`,
+        [process, searchTerm, searchTerm]
       ),
+
+      // connection.query(
+      //   `SELECT * FROM customers WHERE isDeleted = FALSE LIMIT ${Number(
+      //     paginationData.pageSize
+      //   )} OFFSET ${Number(paginationData.skip)};`
+      // ),
+      // connection.query(
+      //   `SELECT COUNT(*) AS totalCount FROM customers WHERE isDeleted = FALSE;`
+      // ),
     ]);
     const paginationObj = {
       page: paginationData.page,
@@ -1215,6 +1277,3 @@ module.exports = {
   checkToken,
   // supplierOrder,
 };
-
-
-

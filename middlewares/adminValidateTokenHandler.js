@@ -9,15 +9,12 @@ const adminValidateToken = async (req, res, next) => {
     token = authHeader.split(" ")[1];
     let connection;
     try {
-      console.log('tokentokentoken',token)
       connection = await pool.getConnection();
-
       const [rows] = await connection.query(
         `SELECT * FROM admins WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
         [token]
       );
 
-      console.log("rowsrows", rows);
       if (rows.length > 0) {
         jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
           if (err) {
