@@ -539,37 +539,36 @@ const workInstructionList = async (req, res) => {
     //   totalCounts: totalCounts[0].totalCount,
     //   pagination: getPagination,
     // });
-    const connection = await pool.getConnection();
-    const paginationData = await paginationQuery(req.query);
-    const { process = "", search = "" } = req.query;
-    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
-    const [[workInstructionData], [totalCounts]] = await Promise.all([
-      connection.query(
-        `SELECT * FROM work_instructions 
-        WHERE process = ${process?.trim()} AND isDeleted = FALSE 
-        AND (workInstruction LIKE ? OR part LIKE ?)
-        LIMIT ? OFFSET ?`,
-              [
-                `%${searchTerm.trim()}%`,
-                `%${searchTerm.trim()}%`,
-                paginationData.pageSize,
-                paginationData.skip,
-              ]
-            ),
+   const connection = await pool.getConnection();
+const paginationData = await paginationQuery(req.query);
+const { process = "", search = "" } = req.query;
+const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
 
-      connection.query(
-        `SELECT COUNT(*) AS totalCount FROM work_instructions 
-          WHERE process = ${process} AND isDeleted = FALSE 
-          AND (workInstruction LIKE ? OR part LIKE ?)`,
-                [`%${searchTerm.trim()}%`, `%${searchTerm.trim()}%`]
-              ),
-    ]);
+const [[workInstructionData], [totalCounts]] = await Promise.all([
+  connection.query(
+    `SELECT * FROM work_instructions 
+     WHERE (process = ? OR ? = '') 
+     AND isDeleted = FALSE 
+     AND (workInstruction LIKE ? OR part LIKE ?)
+     LIMIT ? OFFSET ?`,
+    [process.trim(), process.trim(), searchTerm, searchTerm, paginationData.pageSize, paginationData.skip]
+  ),
 
-    const paginationObj = {
-      page: paginationData.page,
-      pageSize: paginationData.pageSize,
-      total: totalCounts[0].totalCount,
-    };
+  connection.query(
+    `SELECT COUNT(*) AS totalCount FROM work_instructions 
+     WHERE (process = ? OR ? = '') 
+     AND isDeleted = FALSE 
+     AND (workInstruction LIKE ? OR part LIKE ?)`,
+    [process.trim(), process.trim(), searchTerm, searchTerm]
+  ),
+]);
+
+const paginationObj = {
+  page: paginationData.page,
+  pageSize: paginationData.pageSize,
+  total: totalCounts[0].totalCount,
+};
+
 
     const getPagination = await pagination(paginationObj);
 
