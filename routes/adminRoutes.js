@@ -1,5 +1,5 @@
 const express = require('express')
-const { login, forgetPassword, validOtp, resetPassword,  workInstruction, getWorkDetail, updateWorkInstruction, addSuppliers, 
+const { login, forgetPassword, validOtp, resetPassword,  workInstruction, getWorkDetail, updateWorkInstruction,  
     getSuppliers,
     editSupplierDetail,
     deleteSupplier,
@@ -47,10 +47,10 @@ router.get("/get-work-detail/:id",adminValidateToken,getWorkDetail)
 router.put("/update-work-instruction/:id",adminValidateToken,updateWorkInstruction)
 router.get('/work-instruction-list',adminValidateToken,workInstructionList)
 router.put('/delete-work-instruction/:id',adminValidateToken,deleteWorkInstruction)
-router.post("/add-supplier",adminValidateToken,addSuppliers)
-router.get("/get-supplier-list",adminValidateToken,getSuppliers)
-router.put("/edit-supplier-detail/:id",adminValidateToken,editSupplierDetail)
-router.delete("/delete-supplier/:id",adminValidateToken,deleteSupplier)
+// router.post("/add-supplier",adminValidateToken,addSuppliers)
+// router.get("/get-supplier-list",adminValidateToken,getSuppliers)
+// router.put("/edit-supplier-detail/:id",adminValidateToken,editSupplierDetail)
+// router.delete("/delete-supplier/:id",adminValidateToken,deleteSupplier)
 // router.post("/add-supplier-order",supplierOrder)
 router.post("/create-customer",adminValidateToken,createCustomer)
 router.get("/get-customer-detail/:id",adminValidateToken,customerDetail)
@@ -71,7 +71,6 @@ router.get("/check-token", adminValidateToken, checkToken);
 // router.post("/add-worked-instruction",adminValidateToken,addWorkInstruction)
 // router.put("/edit-worked-instruction/:id",adminValidateToken,editWorkInstruction)
 module.exports = router
-
 
 
 

@@ -42,6 +42,17 @@ const directory = path.join(__dirname, "public");
 app.use(express.static(directory));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/user", require("./routes/userRoutes"));
+app.get("/ping", (req, res) => {
+  res.send("✅ Server is running!");
+});
+
+app.get("/ss", (req, res) => {
+  res.send("✅ Server1 is running!");
+});
+
+app.get("/mm", (req, res) => {
+  res.send("✅ Server2 is running!");
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });

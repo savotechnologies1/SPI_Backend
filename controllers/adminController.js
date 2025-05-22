@@ -56,12 +56,64 @@ const login = async (req, res) => {
       token,
     });
   } catch (err) {
-    console.log("login eerrror", err);
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
   }
 };
+
+// const login = async (req, res) => {
+//   const errors = validationResult(req);
+//   const checkValid = await checkValidations(errors);
+//   if (checkValid.type === "error") {
+//     return res.status(400).json({ message: checkValid.errors.msg });
+//   }
+
+//   const { userName, password } = req.body;
+//   const connection = await pool.getConnection();
+
+//   try {
+//     // Select only needed fields
+//     const [rows] = await connection.query(
+//       `SELECT id, password, roles FROM admins
+//        WHERE (email = ? OR phoneNumber = ?) AND isDeleted = FALSE`,
+//       [userName.trim().toLowerCase(), userName.trim()]
+//     );
+
+//     if (rows.length === 0) {
+//       return res.status(404).json({ message: "User not found." });
+//     }
+
+//     const user = rows[0];
+
+//     // Compare md5 hash of password
+//     if (user.password !== md5(password)) {
+//       return res.status(401).json({ message: "Invalid credentials." });
+//     }
+
+//     // Generate JWT token with minimal payload
+//     const payload = { id: user.id, roles: user.roles };
+//     const token = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
+//       expiresIn: "5d",
+//     });
+
+//     // Append token to tokens JSON array
+//     await connection.query(
+//       `UPDATE admins SET tokens = JSON_ARRAY_APPEND(COALESCE(tokens, JSON_ARRAY()), '$', ?) WHERE id = ?`,
+//       [token, user.id]
+//     );
+
+//     return res.status(200).json({
+//       message: "You have successfully logged in.",
+//       token,
+//     });
+//   } catch (err) {
+//     console.error("Login error:", err);
+//     return res.status(500).json({ message: "Something went wrong, please try again later." });
+//   } finally {
+//     connection.release();
+//   }
+// };
 
 const forgetPassword = async (req, res) => {
   try {
@@ -195,16 +247,14 @@ const resetPassword = async (req, res) => {
 const selectProcessProcess = async (req, res) => {
   try {
     await createTable("work", [
-      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "instructionId", type: "CHAR(36) PRIMARY KEY" },
       { name: "process", type: "VARCHAR(255)" },
       { name: "product", type: "VARCHAR(255)" },
-      { name: "instructionId", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
     ]);
 
     const { process, product } = req.body;
     const { id: userId } = req.user;
-
     const instructionId = uuidv4();
 
     const connection = await pool.getConnection();
@@ -233,7 +283,7 @@ const workInstruction = async (req, res) => {
   try {
     await createTable("work_instructions", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-      { name: "instructionId", type: "VARCHAR(255)" },
+      { name: "instructionId", type: "CHAR(36)" },
       { name: "process", type: "VARCHAR(255)" },
       { name: "part", type: "VARCHAR(255)" },
       { name: "stepNumber", type: "INT" },
@@ -241,7 +291,12 @@ const workInstruction = async (req, res) => {
       { name: "workInstructionImg", type: "VARCHAR(255)" },
       { name: "workInstructionVideo", type: "VARCHAR(255)" },
       { name: "createdBy", type: "VARCHAR(255)" },
+      {
+        name: "FOREIGN KEY",
+        type: "(instructionId) REFERENCES work(instructionId)",
+      },
     ]);
+
     let fileData;
     fileData = await fileUploadFunc(req, res);
     if (fileData && fileData?.type !== "success") {
@@ -446,7 +501,6 @@ const getWorkDetail = async (req, res) => {
       `SELECT * FROM work_instructions WHERE id = ? AND isDeleted = FALSE`,
       id
     );
-    console.log('data.lengthdata.lengthdata.length',data.length)
     if (data.length === 0) {
       return res.status(404).send({
         message: "Record not found .",
@@ -539,36 +593,42 @@ const workInstructionList = async (req, res) => {
     //   totalCounts: totalCounts[0].totalCount,
     //   pagination: getPagination,
     // });
-   const connection = await pool.getConnection();
-const paginationData = await paginationQuery(req.query);
-const { process = "", search = "" } = req.query;
-const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
+    const connection = await pool.getConnection();
+    const paginationData = await paginationQuery(req.query);
+    const { process = "", search = "" } = req.query;
+    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
 
-const [[workInstructionData], [totalCounts]] = await Promise.all([
-  connection.query(
-    `SELECT * FROM work_instructions 
+    const [[workInstructionData], [totalCounts]] = await Promise.all([
+      connection.query(
+        `SELECT * FROM work_instructions 
      WHERE (process = ? OR ? = '') 
      AND isDeleted = FALSE 
      AND (workInstruction LIKE ? OR part LIKE ?)
      LIMIT ? OFFSET ?`,
-    [process.trim(), process.trim(), searchTerm, searchTerm, paginationData.pageSize, paginationData.skip]
-  ),
+        [
+          process.trim(),
+          process.trim(),
+          searchTerm,
+          searchTerm,
+          paginationData.pageSize,
+          paginationData.skip,
+        ]
+      ),
 
-  connection.query(
-    `SELECT COUNT(*) AS totalCount FROM work_instructions 
+      connection.query(
+        `SELECT COUNT(*) AS totalCount FROM work_instructions 
      WHERE (process = ? OR ? = '') 
      AND isDeleted = FALSE 
      AND (workInstruction LIKE ? OR part LIKE ?)`,
-    [process.trim(), process.trim(), searchTerm, searchTerm]
-  ),
-]);
+        [process.trim(), process.trim(), searchTerm, searchTerm]
+      ),
+    ]);
 
-const paginationObj = {
-  page: paginationData.page,
-  pageSize: paginationData.pageSize,
-  total: totalCounts[0].totalCount,
-};
-
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCounts[0].totalCount,
+    };
 
     const getPagination = await pagination(paginationObj);
 
@@ -579,7 +639,6 @@ const paginationObj = {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("errorerrorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -603,121 +662,120 @@ const deleteWorkInstruction = async (req, res) => {
   }
 };
 
-const addSuppliers = async (req, res) => {
-  try {
-    await createTable("supplier", [
-      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-      { name: "firstName", type: "VARCHAR(255)" },
-      { name: "lastName", type: "VARCHAR(255)" },
-      { name: "email", type: "VARCHAR(255)" },
+// const addSuppliers = async (req, res) => {
+//   try {
+//     await createTable("supplier", [
+//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+//       { name: "firstName", type: "VARCHAR(255)" },
+//       { name: "lastName", type: "VARCHAR(255)" },
+//       { name: "email", type: "VARCHAR(255)" },
+//       { name: "address", type: "VARCHAR(255)" },
+//       { name: "billingTerms", type: "VARCHAR(255)" },
+//       { name: "submittedBy", type: "VARCHAR(255)" },
+//       { name: "submittedDate", type: "VARCHAR(255)" },
+//     ]);
+//     const connection = await pool.getConnection();
+//     const [data] = await connection.query(`SELECT name FROM admins`);
+//     const submittedBy = data[0].name;
+//     const { firstName, lastName, email, address, billingTerms } = req.body;
+//     connection
+//       .query(
+//         "INSERT INTO supplier (firstName, lastName, email,address,billingTerms,submittedBy) VALUES (?,?,?,?,?,?)",
+//         [
+//           firstName.trim(),
+//           lastName.trim(),
+//           email.trim(),
+//           address.trim(),
+//           billingTerms.trim(),
+//           submittedBy.trim(),
+//         ]
+//       )
+//       .then();
+//     return res.status(201).json({
+//       message: "Suppliers added successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again .",
+//     });
+//   }
+// };
 
-      { name: "address", type: "VARCHAR(255)" },
-      { name: "billingTerms", type: "VARCHAR(255)" },
-      { name: "submittedBy", type: "VARCHAR(255)" },
-      { name: "submittedDate", type: "VARCHAR(255)" },
-    ]);
-    const connection = await pool.getConnection();
-    const [data] = await connection.query(`SELECT name FROM admins`);
-    const submittedBy = data[0].name;
-    const { firstName, lastName, email, address, billingTerms } = req.body;
-    connection
-      .query(
-        "INSERT INTO supplier (firstName, lastName, email,address,billingTerms,submittedBy) VALUES (?,?,?,?,?,?)",
-        [
-          firstName.trim(),
-          lastName.trim(),
-          email.trim(),
-          address.trim(),
-          billingTerms.trim(),
-          submittedBy.trim(),
-        ]
-      )
-      .then();
-    return res.status(201).json({
-      message: "Suppliers added successfully !",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again .",
-    });
-  }
-};
+// const getSuppliers = async (req, res) => {
+//   try {
+//     const connection = await pool.getConnection();
+//     const { page, pageSize, skip } = await paginationQuery(req.query);
+//     const [[supplierResult], [totalCountResult]] = await Promise.all([
+//       connection.query(
+//         `SELECT * FROM supplier WHERE isDeleted = FALSE LIMIT ${Number(
+//           pageSize
+//         )} OFFSET ${Number(skip)};`
+//       ),
+//       connection.query(
+//         `SELECT COUNT(*) AS totalCount FROM supplier WHERE isDeleted = FALSE`
+//       ),
+//     ]);
+//     const paginationObj = {
+//       page,
+//       pageSize,
+//       total: totalCountResult[0].totalCount,
+//     };
+//     const getPagination = await pagination(paginationObj);
+//     return res.status(200).json({
+//       message: "Suppliers list retrieved successfully!",
+//       data: supplierResult,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
-const getSuppliers = async (req, res) => {
-  try {
-    const connection = await pool.getConnection();
-    const { page, pageSize, skip } = await paginationQuery(req.query);
-    const [[supplierResult], [totalCountResult]] = await Promise.all([
-      connection.query(
-        `SELECT * FROM supplier WHERE isDeleted = FALSE LIMIT ${Number(
-          pageSize
-        )} OFFSET ${Number(skip)};`
-      ),
-      connection.query(
-        `SELECT COUNT(*) AS totalCount FROM supplier WHERE isDeleted = FALSE`
-      ),
-    ]);
-    const paginationObj = {
-      page,
-      pageSize,
-      total: totalCountResult[0].totalCount,
-    };
-    const getPagination = await pagination(paginationObj);
-    return res.status(200).json({
-      message: "Suppliers list retrieved successfully!",
-      data: supplierResult,
-      pagination: getPagination,
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+// const editSupplierDetail = async (req, res) => {
+//   try {
+//     const { firstName, lastName, email, address, billingTerms } = req.body;
+//     const id = req.params.id;
+//     const connection = await pool.getConnection();
+//     connection
+//       .query(
+//         `UPDATE supplier 
+//       SET firstName = ?, 
+//       lastName = ?, 
+//       email = ?, 
+//       address = ?,
+//       billingTerms = ?
+//       WHERE id = ? AND isDeleted = FALSE`,
+//         [firstName, lastName, email, address, billingTerms, id]
+//       )
+//       .then();
+//     return res.status(201).json({
+//       message: "Supplier detail edit successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
-const editSupplierDetail = async (req, res) => {
-  try {
-    const { firstName, lastName, email, address, billingTerms } = req.body;
-    const id = req.params.id;
-    const connection = await pool.getConnection();
-    connection
-      .query(
-        `UPDATE supplier 
-      SET firstName = ?, 
-      lastName = ?, 
-      email = ?, 
-      address = ?,
-      billingTerms = ?
-      WHERE id = ? AND isDeleted = FALSE`,
-        [firstName, lastName, email, address, billingTerms, id]
-      )
-      .then();
-    return res.status(201).json({
-      message: "Supplier detail edit successfully !",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
-
-const deleteSupplier = async (req, res) => {
-  try {
-    const id = req?.params?.id;
-    const connection = await pool.getConnection();
-    connection
-      .query(`DELETE FROM supplier WHERE isDeleted = FALSE AND id = ?;`, id)
-      .then();
-    return res.status(200).json({
-      message: "Supplier delete successfully !",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+// const deleteSupplier = async (req, res) => {
+//   try {
+//     const id = req?.params?.id;
+//     const connection = await pool.getConnection();
+//     connection
+//       .query(`DELETE FROM supplier WHERE isDeleted = FALSE AND id = ?;`, id)
+//       .then();
+//     return res.status(200).json({
+//       message: "Supplier delete successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
 const createCustomer = async (req, res) => {
   try {
@@ -761,7 +819,6 @@ const customerList = async (req, res) => {
     const paginationData = await paginationQuery(req.query);
     const { process = "", search = "" } = req.query;
     const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
-    console.log("searchsearchsearch", search);
     const [[customerData], [totalCounts]] = await Promise.all([
       connection.query(
         `SELECT * FROM customers  WHERE isDeleted = FALSE 
@@ -802,7 +859,6 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("customer error : ", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -940,7 +996,6 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("customer error : ", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1199,7 +1254,6 @@ const deleteProfile = async (req, res) => {
       message: "Your profile deleted successfully .",
     });
   } catch (error) {
-    console.log("eerrrrrrrrro", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1253,10 +1307,6 @@ module.exports = {
   updateWorkInstruction,
   workInstructionList,
   deleteWorkInstruction,
-  addSuppliers,
-  getSuppliers,
-  editSupplierDetail,
-  deleteSupplier,
   createCustomer,
   customerDetail,
   editCustomerDetail,

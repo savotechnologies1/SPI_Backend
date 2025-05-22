@@ -29,7 +29,6 @@ async function createTable(tableName, columns) {
       );
     `;
 
-    console.log("createTableQuery:", createTableQuery);
     await connection.execute(createTableQuery);
   } catch (err) {
     console.error("Error creating table:", err);
@@ -47,17 +46,19 @@ const connectDb = async () => {
     console.log("connection established");
 
     await connection.query(`
-          CREATE TABLE IF NOT EXISTS admins (
-        id CHAR(36) PRIMARY KEY DEFAULT (UUID()),  
-        name VARCHAR(255),
-        email VARCHAR(255),
-        password VARCHAR(255),
-        roles VARCHAR(50),
-        phoneNumber VARCHAR(20),
+        CREATE TABLE IF NOT EXISTS admins (
+        id CHAR(36) PRIMARY KEY, 
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        roles ENUM('admin') DEFAULT 'admin',
+        phoneNumber VARCHAR(20) UNIQUE,
         isDeleted BOOLEAN DEFAULT FALSE,
         tokens JSON,
-        otp TEXT,
-        token TEXT
+        otp VARCHAR(10), 
+        resetToken CHAR(36), 
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       );
 
     `);
