@@ -1,37 +1,41 @@
 const jwt = require("jsonwebtoken");
 const { pool } = require("../config/dbConnection");
+
 const validateToken = async (req, res, next) => {
   let token;
-  let authHeader = req.headers.Authorization || req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer")) {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     token = authHeader.split(" ")[1];
-    const connection = await pool.getConnection();
-    const [data] = await connection.query(
-      `SELECT * FROM admins 
-       WHERE tokens = ? 
-       AND isDeleted = FALSE`,
-      token
-    );
-    // const userData = await User.countDocuments({
-    //   tokens: { $elemMatch: { $eq: token } },isDeleted:false
-    // });
-    if (userData) {
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          return res.status(401).json({ message: "User is not authorized" });
-        }
-        req.user = decoded.user;
-        next();
-      });
-    } else {
-      return res
-        .status(400)
-        .json({ message: "Token expired please re-login ." });
+    let connection;
+    try {
+      connection = await pool.getConnection();
+      const [rows] = await connection.query(
+        `SELECT * FROM users WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
+        [token]
+      );
+
+      if (rows.length > 0) {
+        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+          if (err) {
+            return res.status(401).json({ message: "User is not authorized" });
+          }
+          req.user = decoded.user;
+          next();
+        });
+      } else {
+        return res
+          .status(401)
+          .json({ message: "Token expired or invalid. Please re-login." });
+      }
+    } catch (error) {
+      return res.status(500).json({ message: "Internal Server Error" });
+    } finally {
+      if (connection) connection.release();
     }
   } else {
-    return res
-      .status(401)
-      .json({ message: "User is not authorized or token is missing" });
+    return res.status(401).json({
+      message: "Authorization header missing or improperly formatted",
+    });
   }
 };
 

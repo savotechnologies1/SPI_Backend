@@ -8,6 +8,8 @@ const storage = multer.diskStorage({
       cb(null, "./public/uploads/workInstructionVideo");
     } else if (file?.fieldname === "profileImg") {
       cb(null, "./public/uploads/profileImg");
+    } else if (file?.fieldname === "partImg") {
+      cb(null, "./public/uploads/partImg");
     } else {
       cb(new Error("Invalid file fieldname"), false);
     }
@@ -20,7 +22,7 @@ const storage = multer.diskStorage({
     );
     let data = req?.user?.id;
     if (
-      ["profileImg", "workInstructionImg", "workInstructionVideo"].includes(
+      ["profileImg", "workInstructionImg", "workInstructionVideo","partImg"].includes(
         file?.fieldname
       )
     ) {
@@ -64,6 +66,7 @@ const upload = multer({
   },
   { name: "workInstructionVideo" },
   { name: "profileImg" },
+  { name: "partImg" },
 ]);
 
 module.exports = upload;

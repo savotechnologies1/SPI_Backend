@@ -21,7 +21,11 @@ const { login, forgetPassword, validOtp, resetPassword,  workInstruction, getWor
     selectProcessProcess,
     workInstructionList,
     deleteWorkInstruction,
-    checkToken} = require('../controllers/adminController')
+    checkToken,
+    addProductNumber,
+    productNumberList,
+    productDetail,
+    editPartNumber} = require('../controllers/adminController')
 const { forgotPass, userOTPVerify, resetPass, adminLogin } = require('../validations/validations')
 const adminValidateToken = require('../middlewares/adminValidateTokenHandler')
 const upload = require('../functions/upload')
@@ -68,6 +72,10 @@ router.put("/profile-update",adminValidateToken,profileUpdate)
 router.get("/profile-detail",adminValidateToken,profileDetail)
 router.put("/profile-delete",adminValidateToken,deleteProfile)
 router.get("/check-token", adminValidateToken, checkToken);
+router.post("/add-product-number", adminValidateToken, addProductNumber);
+router.get('/product-number-list',adminValidateToken,productNumberList)
+router.get('/product-detail/:id',adminValidateToken,productDetail)
+router.put('/edit-part-number/:id',adminValidateToken,editPartNumber)
 // router.post("/add-worked-instruction",adminValidateToken,addWorkInstruction)
 // router.put("/edit-worked-instruction/:id",adminValidateToken,editWorkInstruction)
 module.exports = router

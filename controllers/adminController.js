@@ -272,7 +272,6 @@ const selectProcessProcess = async (req, res) => {
       instructionId: instructionId,
     });
   } catch (error) {
-    console.error("Error selecting process/product:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -332,7 +331,6 @@ const workInstruction = async (req, res) => {
       .status(201)
       .json({ message: `Step ${stepNumber} added successfully!` });
   } catch (error) {
-    console.error("Error inserting work instruction step:", error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -740,10 +738,10 @@ const deleteWorkInstruction = async (req, res) => {
 //     const connection = await pool.getConnection();
 //     connection
 //       .query(
-//         `UPDATE supplier 
-//       SET firstName = ?, 
-//       lastName = ?, 
-//       email = ?, 
+//         `UPDATE supplier
+//       SET firstName = ?,
+//       lastName = ?,
+//       email = ?,
 //       address = ?,
 //       billingTerms = ?
 //       WHERE id = ? AND isDeleted = FALSE`,
@@ -1089,9 +1087,9 @@ const deleteProcess = async (req, res) => {
   }
 };
 
-const addPartNumber = async (req, res) => {
+const addProductNumber = async (req, res) => {
   try {
-    await createTable("product", [
+    await createTable("product_number", [
       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
       { name: "partFamily", type: "VARCHAR(255)" },
       { name: "metaDescription", type: "VARCHAR(500)" },
@@ -1119,7 +1117,7 @@ const addPartNumber = async (req, res) => {
     const connection = await pool.getConnection();
     connection
       .query(
-        `INSERT INTO product (partFamily,metaDescription,cost,leadTime,supplierOrderQuantity,
+        `INSERT INTO product_number (partFamily,metaDescription,cost,leadTime,supplierOrderQuantity,
       companyName,miniumStock,availStock,cycleTime) VALUES (?,?,?,?,?,?,?,?,?)`,
         [
           partFamily?.trim(),
@@ -1135,6 +1133,122 @@ const addPartNumber = async (req, res) => {
       )
       .then();
     return res.status(201).json({
+      message: "Product number added successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const productNumberList = async (req, res) => {
+  try {
+    const paginationData = paginationQuery(req.query);
+    const connection = await pool.getConnection();
+    const [[productNumberData], [totalCounts]] = await Promise.all([
+      connection.query(
+        `SELECT * FROM  product_number WHERE  isDeleted = FALSE LIMIT ${Number(
+          paginationData.pageSize
+        )} OFFSET ${Number(paginationData.skip)} `
+      ),
+      connection.query(
+        `SELECT COUNT(*) AS totalCount FROM product_number WHERE isDeleted = FALSE; `
+      ),
+    ]);
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCounts[0].totalCount,
+    };
+    const getPagination = await pagination(paginationObj);
+    return res.status(200).json({
+      message: "All process retrived successfully !",
+      productNumberData: productNumberData,
+      totalCount: totalCounts[0].totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const productDetail = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const connection = await pool.getConnection();
+    const [data] = await connection.query(
+      `SELECT * FROM product_number WHERE isDeleted = FALSE AND id = ?`,
+      id
+    );
+    return res.status(200).json({
+      message: "Process detail retrived successfully !",
+      data: data[0],
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again .",
+    });
+  }
+};
+
+const addPartNumber = async (req, res) => {
+  try {
+    await createTable("part_number", [
+      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "partFamily", type: "VARCHAR(255)" },
+      { name: "metaDescription", type: "VARCHAR(500)" },
+      { name: "cost", type: "VARCHAR(255)" },
+      { name: "leadTime", type: "VARCHAR(255)" },
+      { name: "supplierOrderQuantity", type: "VARCHAR(255)" },
+      { name: "companyName", type: "VARCHAR(255)" },
+      { name: "minStock", type: "INT" },
+      { name: "availStock", type: "INT" },
+      { name: "cycleTime", type: "VARCHAR(255)" },
+      { name: "processOrderRequired", type: "VARCHAR(255)" },
+      { name: "partImg", type: "VARCHAR(255)" },
+      { name: "createdBy", type: "VARCHAR(255)" },
+    ]);
+    let fileData;
+    fileData = await fileUploadFunc(req, res);
+    if (fileData && fileData?.type !== "success") {
+      return res.status(400).send({ message: fileData.type });
+    }
+   
+    const partImgFilename = fileData?.data?.partImg[0].filename;
+    const {
+      partFamily,
+      metaDescription,
+      cost,
+      leadTime,
+      supplierOrderQuantity,
+      companyName,
+      minimumStock,
+      availStock,
+      cycleTime,
+    } = req.body;
+    const connection = await pool.getConnection();
+    connection
+      .query(
+        `INSERT INTO part_number (partFamily,metaDescription,cost,leadTime,supplierOrderQuantity,
+      companyName,minStock,availStock,cycleTime,partImg) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [
+          partFamily?.trim(),
+          metaDescription?.trim(),
+          cost?.trim(),
+          leadTime?.trim(),
+          supplierOrderQuantity?.trim(),
+          companyName?.trim(),
+          minimumStock?.trim(),
+          availStock?.trim(),
+          cycleTime?.trim(),
+          partImgFilename,
+        ]
+      )
+      .then();
+    return res.status(201).json({
       message: "Part number added successfully !",
     });
   } catch (error) {
@@ -1144,6 +1258,56 @@ const addPartNumber = async (req, res) => {
   }
 };
 
+const editPartNumber = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const {
+      partFamily,
+      metaDescription,
+      cost,
+      leadTime,
+      supplierOrderQuantity,
+      companyName,
+      minimumStock,
+      availStock,
+      cycleTime,
+    } = req.body;
+    const connection = await pool.getConnection();
+    connection
+      .query(
+        `UPDATE part_number 
+        SET partFamily = ?, 
+        metaDescription = ?, 
+        cost = ?, 
+        leadTime = ?,
+        supplierOrderQuantity = ?,
+        companyName = ?,
+        minimumStock = ?,
+        availStock = ?,
+        cycleTime = ?,
+        WHERE id = ? AND isDeleted = FALSE`,
+        [
+          partFamily,
+          metaDescription,
+          cost,
+          leadTime,
+          supplierOrderQuantity,
+          companyName,
+          minimumStock,
+          availStock,
+          cycleTime,
+          id,
+        ]
+      ).then();
+    return res.status(201).json({
+      message: "Process edit successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again .",
+    });
+  }
+};
 const profileUpdate = async (req, res) => {
   try {
     let fileData;
@@ -1152,7 +1316,6 @@ const profileUpdate = async (req, res) => {
       return res.status(400).send({ message: fileData.type });
     }
     const profileImgFilename = fileData?.data?.profileImg[0].filename;
-
     const {
       name,
       email,
@@ -1167,7 +1330,7 @@ const profileUpdate = async (req, res) => {
     const { id } = req.user;
     const connection = await pool.getConnection();
     const columnsToCheck = [
-      { name: "address", definition: `VARCHAR(255) ` },
+      { name: "address", definition: `VARCHAR(255)` },
       { name: "country", definition: "VARCHAR(255)" },
       { name: "state", definition: "VARCHAR(255)" },
       { name: "city", definition: "VARCHAR(255)" },
@@ -1183,6 +1346,7 @@ const profileUpdate = async (req, res) => {
         [column.name]
       );
 
+
       if (columnExists.length === 0) {
         await connection.query(
           `ALTER TABLE admins ADD COLUMN ${column.name} ${column.definition}`
@@ -1191,9 +1355,7 @@ const profileUpdate = async (req, res) => {
     }
     connection
       .query(
-        `UPDATE admins 
-     SET name = ?, email = ?, phoneNumber = ?, address = ?, country = ?, state = ?, city = ?, zipcode = ?, about = ?,
-     profileImg = ? 
+        `UPDATE admins SET name = ?, email = ?, phoneNumber = ?, address = ?, country = ?, state = ?, city = ?, zipcode = ?, about = ?,profileImg = ? 
      WHERE id = ? AND isDeleted = FALSE`,
         [
           name,
@@ -1286,6 +1448,7 @@ const checkToken = async (req, res) => {
   }
 };
 
+
 module.exports = {
   login,
   forgetPassword,
@@ -1324,5 +1487,10 @@ module.exports = {
   deleteProfile,
   selectProcessProcess,
   checkToken,
+  addProductNumber,
+  productNumberList,
+  productDetail,
+  editPartNumber,
   // supplierOrder,
 };
+
