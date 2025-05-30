@@ -595,7 +595,6 @@ const workInstructionList = async (req, res) => {
     const paginationData = await paginationQuery(req.query);
     const { process = "", search = "" } = req.query;
     const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
-
     const [[workInstructionData], [totalCounts]] = await Promise.all([
       connection.query(
         `SELECT * FROM work_instructions 
