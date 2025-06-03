@@ -17,7 +17,7 @@ const register = async (req, res) => {
       { name: "email", type: "VARCHAR(255)" },
       { name: "password", type: "VARCHAR(255)" },
       { name: "tokens", type: "JSON" },
-      { name: "roles", type: "VARCHAR(255)" },
+      { name: "roles", type: "VARCHAR(255) DEFAULT 'front-line'" }, // default role set here
     ]);
 
     const connection = await pool.getConnection();
@@ -126,6 +126,7 @@ const login = async (req, res) => {
       [email.trim().toLowerCase(), md5(password)]
     );
 
+    console.log("datadata", data);
     if (data.length === 0) {
       return res.status(404).json({ message: "User not found." });
     }
@@ -152,6 +153,7 @@ const login = async (req, res) => {
       token,
     });
   } catch (err) {
+    console.log(err);
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
@@ -494,7 +496,7 @@ const addSupplier = async (req, res) => {
 
 const allSupplier = async (req, res) => {
   try {
-     const connection = await pool.getConnection();
+    const connection = await pool.getConnection();
     const paginationData = await paginationQuery(req.query);
     const { process = "", search = "" } = req.query;
     const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
@@ -612,7 +614,6 @@ const deleteSupplier = async (req, res) => {
   }
 };
 
-
 // const allSupplier = async (req, res) => {
 //   try {
 //     const paginationData = paginationQuery(req.query);
@@ -681,5 +682,5 @@ module.exports = {
   allSupplier,
   getSupplierDetail,
   editSupplier,
-  deleteSupplier
+  deleteSupplier,
 };

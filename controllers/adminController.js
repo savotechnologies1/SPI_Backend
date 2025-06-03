@@ -10,18 +10,18 @@ const {
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const { pool, createTable } = require("../config/dbConnection");
+let connection;
 
 const login = async (req, res) => {
-  const errors = validationResult(req);
-  const checkValid = await checkValidations(errors);
-  if (checkValid.type === "error") {
-    return res.status(400).send({
-      message: checkValid.errors.msg,
-    });
-  }
-  const { userName, password } = req.body;
-  const connection = await pool.getConnection();
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { userName, password } = req.body;
+    connection = await pool.getConnection();
+    
     const [data] = await connection.query(
       `SELECT * FROM admins 
        WHERE (email = ? OR phoneNumber = ?) 
@@ -31,132 +31,95 @@ const login = async (req, res) => {
     );
 
     if (data.length === 0) {
-      return res.status(404).json({ message: "User not found." });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const user = {
-      id: data[0].id,
-      password: data[0].password,
-      roles: data[0].roles,
-    };
-    const token = jwt.sign({ user: user }, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: "5d",
-    });
-    connection
-      .query(
-        `UPDATE admins 
-      SET tokens = JSON_ARRAY_APPEND(COALESCE(tokens, JSON_ARRAY()), '$', ?) 
-      WHERE id = ?`,
-        [token, user.id]
-      )
-      .then();
+    const user = data[0];
+    const token = jwt.sign(
+      { 
+        id: user.id,
+        roles: user.roles 
+      }, 
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "5d" }
+    );
+
+    await connection.query(
+      `UPDATE admins 
+       SET tokens = JSON_ARRAY_APPEND(COALESCE(tokens, JSON_ARRAY()), '$', ?) 
+       WHERE id = ?`,
+      [token, user.id]
+    );
 
     return res.status(200).json({
-      message: "You have successfully logged in.",
+      message: "Login successful",
       token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        roles: user.roles
+      }
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ message: "Something went wrong . please try again later ." });
+    console.error("Login error:", err);
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  } finally {
+    console.log('reeeeeeeeeeeee');
+    
+    if (connection) await connection.release();
   }
 };
-
-// const login = async (req, res) => {
-//   const errors = validationResult(req);
-//   const checkValid = await checkValidations(errors);
-//   if (checkValid.type === "error") {
-//     return res.status(400).json({ message: checkValid.errors.msg });
-//   }
-
-//   const { userName, password } = req.body;
-//   const connection = await pool.getConnection();
-
-//   try {
-//     // Select only needed fields
-//     const [rows] = await connection.query(
-//       `SELECT id, password, roles FROM admins
-//        WHERE (email = ? OR phoneNumber = ?) AND isDeleted = FALSE`,
-//       [userName.trim().toLowerCase(), userName.trim()]
-//     );
-
-//     if (rows.length === 0) {
-//       return res.status(404).json({ message: "User not found." });
-//     }
-
-//     const user = rows[0];
-
-//     // Compare md5 hash of password
-//     if (user.password !== md5(password)) {
-//       return res.status(401).json({ message: "Invalid credentials." });
-//     }
-
-//     // Generate JWT token with minimal payload
-//     const payload = { id: user.id, roles: user.roles };
-//     const token = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
-//       expiresIn: "5d",
-//     });
-
-//     // Append token to tokens JSON array
-//     await connection.query(
-//       `UPDATE admins SET tokens = JSON_ARRAY_APPEND(COALESCE(tokens, JSON_ARRAY()), '$', ?) WHERE id = ?`,
-//       [token, user.id]
-//     );
-
-//     return res.status(200).json({
-//       message: "You have successfully logged in.",
-//       token,
-//     });
-//   } catch (err) {
-//     console.error("Login error:", err);
-//     return res.status(500).json({ message: "Something went wrong, please try again later." });
-//   } finally {
-//     connection.release();
-//   }
-// };
-
 const forgetPassword = async (req, res) => {
+  let connection;
   try {
     const errors = validationResult(req);
-    const checkValid = await checkValidations(errors);
-    if (checkValid.type === "error") {
-      return res.status(400).send({
-        message: checkValid.errors.msg,
-      });
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
     const { email } = req.body;
-    const normalizedEmail = email.toLowerCase().trim();
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
+    
     const [data] = await connection.query(
       `SELECT * FROM admins 
        WHERE email = ? 
        AND isDeleted = FALSE`,
-      [normalizedEmail]
+      [email.toLowerCase().trim()]
     );
-    if (data.length == 0) {
-      return res.status(400).send({ message: "Admin not found" });
-    }
-    const getData = data[0];
-    const otp = generateRandomOTP();
 
-    // const mailVariables = {
-    //   "%otp%": otp,
-    // };
-    await connection.query(`UPDATE admins SET otp = ? WHERE email = ?`, [
-      otp,
-      getData.email,
-    ]);
-    // await sendMail("forget-password-otp", mailVariables, normalizedEmail);
+    if (data.length === 0) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const otp = generateRandomOTP();
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
+
+    await connection.query(
+      `UPDATE admins 
+       SET otp = ?, otpExpiry = ? 
+       WHERE email = ?`,
+      [otp, otpExpiry, email.toLowerCase().trim()]
+    );
+
+    // Uncomment and implement email sending
+    // await sendOtpEmail(email, otp);
 
     return res.status(200).json({
-      email: getData.email,
       message: "OTP sent successfully",
+      email: email.toLowerCase().trim()
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+    console.error("Forget password error:", error);
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -200,6 +163,8 @@ const validOtp = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -241,6 +206,8 @@ const resetPassword = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Something went wrong . please try again later ." });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -256,8 +223,7 @@ const selectProcessProcess = async (req, res) => {
     const { process, product } = req.body;
     const { id: userId } = req.user;
     const instructionId = uuidv4();
-
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     await connection.query(
       `INSERT INTO work 
        (process, product, instructionId, createdBy)
@@ -275,226 +241,91 @@ const selectProcessProcess = async (req, res) => {
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
 const workInstruction = async (req, res) => {
+  let connection;
   try {
-    await createTable("work_instructions", [
-      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-      { name: "instructionId", type: "CHAR(36)" },
-      { name: "process", type: "VARCHAR(255)" },
-      { name: "part", type: "VARCHAR(255)" },
-      { name: "stepNumber", type: "INT" },
-      { name: "workInstruction", type: "VARCHAR(255)" },
-      { name: "workInstructionImg", type: "VARCHAR(255)" },
-      { name: "workInstructionVideo", type: "VARCHAR(255)" },
-      { name: "createdBy", type: "VARCHAR(255)" },
-      {
-        name: "FOREIGN KEY",
-        type: "(instructionId) REFERENCES work(instructionId)",
-      },
-    ]);
-
-    let fileData;
-    fileData = await fileUploadFunc(req, res);
-    if (fileData && fileData?.type !== "success") {
-      return res.status(400).send({ message: fileData.type });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
-    const getWorkInstructionimg =
-      fileData?.data?.workInstructionImg?.[0].filename;
-    const getWorkInstructionVideo =
-      fileData?.data?.workInstructionVideo?.[0].filename;
+
+    const fileData = await fileUploadFunc(req, res);
+    if (fileData?.type !== "success") {
+      return res.status(400).json({ message: fileData?.type || "File upload failed" });
+    }
 
     const { id: userId } = req.user;
     const { instructionId, part, workInstruction, stepNumber } = req.body;
-    const connection = await pool.getConnection();
-    const [[getProcess]] = await connection.query(
-      `SELECT process FROM work WHERE  instructionId = ? AND isDeleted = FALSE`,
+    
+    connection = await pool.getConnection();
+
+    // Verify instruction exists
+    const [[instruction]] = await connection.query(
+      `SELECT process FROM work 
+       WHERE instructionId = ? AND isDeleted = FALSE`,
       [instructionId]
     );
+
+    if (!instruction) {
+      return res.status(404).json({ message: "Instruction not found" });
+    }
+
+    await createTable("work_instructions", [
+      { name: "id", type: "INT AUTO_INCREMENT PRIMARY KEY" },
+      { name: "instructionId", type: "CHAR(36) NOT NULL" },
+      { name: "process", type: "VARCHAR(255) NOT NULL" },
+      { name: "part", type: "VARCHAR(255) NOT NULL" },
+      { name: "stepNumber", type: "INT NOT NULL" },
+      { name: "workInstruction", type: "VARCHAR(255) NOT NULL" },
+      { name: "workInstructionImg", type: "VARCHAR(255)" },
+      { name: "workInstructionVideo", type: "VARCHAR(255)" },
+      { name: "createdBy", type: "VARCHAR(255) NOT NULL" },
+      { name: "isDeleted", type: "TINYINT(1) DEFAULT 0" },
+      { name: "createdAt", type: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
+      { name: "updatedAt", type: "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
+      { name: "CONSTRAINT fk_instruction", type: "FOREIGN KEY (instructionId) REFERENCES work(instructionId)" }
+    ]);
+
     await connection.query(
-      `INSERT INTO work_instructions (instructionId, process,stepNumber, part, workInstruction,workInstructionImg,workInstructionVideo,createdBy)
-       VALUES (?, ?,?, ?,?, ?,?,?)`,
+      `INSERT INTO work_instructions 
+       (instructionId, process, stepNumber, part, workInstruction, workInstructionImg, workInstructionVideo, createdBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         instructionId,
-        getProcess.process,
+        instruction.process,
         stepNumber,
         part?.trim(),
         workInstruction?.trim(),
-        getWorkInstructionimg,
-        getWorkInstructionVideo,
-        userId,
+        fileData.data?.workInstructionImg?.[0]?.filename,
+        fileData.data?.workInstructionVideo?.[0]?.filename,
+        userId
       ]
     );
-    return res
-      .status(201)
-      .json({ message: `Step ${stepNumber} added successfully!` });
+
+    return res.status(201).json({
+      message: `Step ${stepNumber} added successfully!`
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Something went wrong" });
+    console.error("Work instruction error:", error);
+    return res.status(500).json({ 
+      message: "Internal server error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }finally {
+    console.log('reeeeeeeeeeeee');
+    
+    if (connection) await connection.release();
   }
 };
-
-// const workInstruction = async (req, res) => {
-//   const { instructionId, process, product, part, steps } = req.body; // steps: array of { stepNumber, workInstruction }
-//   const userId = req.user.id;
-
-//   if (!instructionId || !process || !product || !part || !steps?.length) {
-//     return res.status(400).json({ message: "Missing required fields" });
-//   }
-
-//   const connection = await pool.getConnection();
-
-//   try {
-//     await connection.beginTransaction();
-
-//     // Insert each step as separate row
-//     for (const step of steps) {
-//       await connection.query(
-//         `INSERT INTO work
-//          (instructionId, process, product, part, stepNumber, workInstruction, createdBy)
-//          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-//         [instructionId, process, product, part, step.stepNumber, step.workInstruction.trim(), userId]
-//       );
-//     }
-
-//     await connection.commit();
-//     connection.release();
-
-//     return res.status(201).json({ message: "Work instruction steps added successfully!" });
-//   } catch (err) {
-//     await connection.rollback();
-//     connection.release();
-//     console.error(err);
-//     return res.status(500).json({ message: "Something went wrong" });
-//   }
-// };
-
-// const workInstruction = async (req, res) => {
-//   let connection;
-//   try {
-//     const { instructionId, part, workInstruction, steps } = req.body;
-//     const userId = req.user.id;
-
-//     connection = await pool.getConnection();
-//     await connection.beginTransaction();
-
-//     // 1. Update work table
-//     const [updateResult] = await connection.query(
-//       `UPDATE work
-//        SET part = ?, workInstruction = ?, createdBy = ?
-//        WHERE instructionId = ? AND isDeleted = FALSE`,
-//       [part?.trim(), workInstruction?.trim(), userId, instructionId]
-//     );
-
-//     if (updateResult.affectedRows === 0) {
-//       await connection.rollback();
-//       return res.status(404).json({ message: "Work instruction not found." });
-//     }
-
-//     // 2. Delete existing steps (optional – if you're replacing all)
-//     await connection.query(
-//       `DELETE FROM work_steps WHERE instruction_id = ?`,
-//       [instructionId]
-//     );
-
-//     // 3. Insert new steps
-//     for (const step of steps) {
-//       const { stepNo, title, description } = step;
-//       await connection.query(
-//         `INSERT INTO work_steps (instruction_id, step_no, step, description)
-//          VALUES (?, ?, ?, ?)`,
-//         [instructionId, stepNo, title, description]
-//       );
-//     }
-
-//     await connection.commit();
-//     connection.release();
-
-//     return res.status(200).json({
-//       message: `Work instruction and ${steps.length} steps saved successfully!`,
-//     });
-//   } catch (error) {
-//     if (connection) await connection.rollback();
-//     console.error("Error saving work instruction:", error);
-//     return res.status(500).json({ message: "Something went wrong." });
-//   }
-// };
-
-// const workInstruction = async (req, res) => {
-//   try {
-//     const { part, stepNumber, workInstruction, step, instructionId } = req.body;
-//     const userId = req.user.id;
-
-//     console.log("instructionId", instructionId);
-//     const connection = await pool.getConnection();
-//     const [result] = await connection.query(
-//       `UPDATE work
-//    SET part = ?,
-//        workInstruction = ?,
-//        createdBy = ?
-//    WHERE instructionId = ? AND isDeleted = FALSE`,
-//       [part?.trim(), workInstruction?.trim(), userId, instructionId]
-//     );
-
-//     if (result.affectedRows === 0) {
-//       console.log("No matching record found to update.");
-//     }
-
-//     return res.status(201).json({
-//       message: `Step ${stepNumber} for part '${part}' created successfully!`,
-//     });
-//   } catch (err) {
-//     console.error("Error in createWorkInstruction:", err);
-//     return res.status(500).json({ message: "Internal Server Error" });
-//   }
-// };
-
-// const workInstruction = async (req, res) => {
-//   try {
-//     await createTable("work", [
-//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-//       { name: "part", type: "VARCHAR(255)" },
-//       { name: "stepNumber", type: "VARCHAR(100)" },
-//       { name: "workInstruction", type: "VARCHAR(255)" },
-//       { name: "createdBy", type: "VARCHAR(255)" },
-//       { name: "isDeleted", type: "TINYINT(1) DEFAULT 0" },
-//       { name: "createdAt", type: "DATETIME DEFAULT CURRENT_TIMESTAMP" },
-//       {
-//         name: "updatedAt",
-//         type: "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-//       },
-//     ]);
-
-//     const {
-//       part,
-//       stepNumber,
-//       workInstruction,
-//       imageWorkInstruction,
-//       videoWorkInstruction,
-//       createdBy,
-//     } = req.body;
-//     const userId = req.user.id;
-//     const connection = await pool.getConnection();
-//     await connection.query(
-//       "INSERT INTO work (part, stepNumber, workInstruction,createdBy) VALUES (?, ?, ?,?)",
-//       [part.trim(), stepNumber.trim(), workInstruction.trim(), userId]
-//     );
-
-//     return res.status(201).json({
-//       message: "work instruction created successfully!",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
 const getWorkDetail = async (req, res) => {
   try {
     const id = req.params.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     const [data] = await connection.query(
       `SELECT * FROM work_instructions WHERE id = ? AND isDeleted = FALSE`,
       id
@@ -512,6 +343,8 @@ const getWorkDetail = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -527,7 +360,7 @@ const updateWorkInstruction = async (req, res) => {
     const getWorkInstructionVideo =
       fileData?.data?.workInstructionVideo?.[0].filename;
     const id = req.params.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     const { part, stepNumber, workInstruction } = req.body;
     connection
       .query(
@@ -556,42 +389,14 @@ const updateWorkInstruction = async (req, res) => {
     return res.status(500).send({
       message: "Sometthing went wrong .",
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
-
 const workInstructionList = async (req, res) => {
+  
   try {
-    // const connection = await pool.getConnection();
-    // const paginationData = await paginationQuery(req.query);
-    // const { process } = req.query;
-    // const [[workInstructionData], [totalCounts]] = await Promise.all([
-    //   connection.query(
-    //     `SELECT * FROM work_instructions WHERE process = ? AND isDeleted = FALSE LIMIT ? OFFSET ?`,
-    //     [
-    //       Number(process),
-    //       Number(paginationData.pageSize),
-    //       Number(paginationData.skip),
-    //     ]
-    //   ),
-    //   connection.query(
-    //     `SELECT COUNT(*) AS totalCount FROM work_instructions WHERE process = ? AND isDeleted = FALSE`,
-    //     [Number(process)]
-    //   ),
-    // ]);
-
-    // const paginationObj = {
-    //   page: paginationData.page,
-    //   pageSize: paginationData.pageSize,
-    //   total: totalCounts[0].totalCount,
-    // };
-    // const getPagination = await pagination(paginationObj);
-    // return res.status(200).json({
-    //   message: "Work Instructions list retrived successfully !",
-    //   data: workInstructionData,
-    //   totalCounts: totalCounts[0].totalCount,
-    //   pagination: getPagination,
-    // });
-    const connection = await pool.getConnection();
+    await pool.getConnection();
     const paginationData = await paginationQuery(req.query);
     const { process = "", search = "" } = req.query;
     const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
@@ -639,13 +444,15 @@ const workInstructionList = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
 const deleteWorkInstruction = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const id = req?.params?.id;
-    const connection = await pool.getConnection();
     connection
       .query(`UPDATE work_instructions SET isDeleted = TRUE WHERE id = ?`, [id])
       .then();
@@ -656,123 +463,11 @@ const deleteWorkInstruction = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  } finally {
+    if (connection) await connection.release();
   }
 };
 
-// const addSuppliers = async (req, res) => {
-//   try {
-//     await createTable("supplier", [
-//       { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-//       { name: "firstName", type: "VARCHAR(255)" },
-//       { name: "lastName", type: "VARCHAR(255)" },
-//       { name: "email", type: "VARCHAR(255)" },
-//       { name: "address", type: "VARCHAR(255)" },
-//       { name: "billingTerms", type: "VARCHAR(255)" },
-//       { name: "submittedBy", type: "VARCHAR(255)" },
-//       { name: "submittedDate", type: "VARCHAR(255)" },
-//     ]);
-//     const connection = await pool.getConnection();
-//     const [data] = await connection.query(`SELECT name FROM admins`);
-//     const submittedBy = data[0].name;
-//     const { firstName, lastName, email, address, billingTerms } = req.body;
-//     connection
-//       .query(
-//         "INSERT INTO supplier (firstName, lastName, email,address,billingTerms,submittedBy) VALUES (?,?,?,?,?,?)",
-//         [
-//           firstName.trim(),
-//           lastName.trim(),
-//           email.trim(),
-//           address.trim(),
-//           billingTerms.trim(),
-//           submittedBy.trim(),
-//         ]
-//       )
-//       .then();
-//     return res.status(201).json({
-//       message: "Suppliers added successfully !",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again .",
-//     });
-//   }
-// };
-
-// const getSuppliers = async (req, res) => {
-//   try {
-//     const connection = await pool.getConnection();
-//     const { page, pageSize, skip } = await paginationQuery(req.query);
-//     const [[supplierResult], [totalCountResult]] = await Promise.all([
-//       connection.query(
-//         `SELECT * FROM supplier WHERE isDeleted = FALSE LIMIT ${Number(
-//           pageSize
-//         )} OFFSET ${Number(skip)};`
-//       ),
-//       connection.query(
-//         `SELECT COUNT(*) AS totalCount FROM supplier WHERE isDeleted = FALSE`
-//       ),
-//     ]);
-//     const paginationObj = {
-//       page,
-//       pageSize,
-//       total: totalCountResult[0].totalCount,
-//     };
-//     const getPagination = await pagination(paginationObj);
-//     return res.status(200).json({
-//       message: "Suppliers list retrieved successfully!",
-//       data: supplierResult,
-//       pagination: getPagination,
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const editSupplierDetail = async (req, res) => {
-//   try {
-//     const { firstName, lastName, email, address, billingTerms } = req.body;
-//     const id = req.params.id;
-//     const connection = await pool.getConnection();
-//     connection
-//       .query(
-//         `UPDATE supplier
-//       SET firstName = ?,
-//       lastName = ?,
-//       email = ?,
-//       address = ?,
-//       billingTerms = ?
-//       WHERE id = ? AND isDeleted = FALSE`,
-//         [firstName, lastName, email, address, billingTerms, id]
-//       )
-//       .then();
-//     return res.status(201).json({
-//       message: "Supplier detail edit successfully !",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
-// const deleteSupplier = async (req, res) => {
-//   try {
-//     const id = req?.params?.id;
-//     const connection = await pool.getConnection();
-//     connection
-//       .query(`DELETE FROM supplier WHERE isDeleted = FALSE AND id = ?;`, id)
-//       .then();
-//     return res.status(200).json({
-//       message: "Supplier delete successfully !",
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
 
 const createCustomer = async (req, res) => {
   try {
@@ -787,7 +482,7 @@ const createCustomer = async (req, res) => {
     ]);
     const { firstName, lastName, email, address, billingTerms } = req.body;
     const userId = req.user.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     connection.query(
       "INSERT INTO customers (firstName, lastName, email,address,billingTerms,createdBy) VALUES (?,?,?,?,?,?)",
       [
@@ -807,12 +502,14 @@ const createCustomer = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
 const customerList = async (req, res) => {
   try {
-    const connection = await pool.getConnection();
+     connection = await pool.getConnection();
     const paginationData = await paginationQuery(req.query);
     const { process = "", search = "" } = req.query;
     const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
@@ -856,15 +553,19 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log(error);
+    
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
 const customerDetail = async (req, res) => {
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     const id = req.params.id;
     const [data] = await connection.query(
       `SELECT * FROM customers WHERE id = ? AND isDeleted = FALSE`,
@@ -878,6 +579,8 @@ const customerDetail = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later.",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -885,7 +588,7 @@ const editCustomerDetail = async (req, res) => {
   try {
     const { firstName, lastName, email, address, billingTerms } = req.body;
     const id = req.params?.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     connection
       .query(
         `UPDATE customers 
@@ -905,13 +608,15 @@ const editCustomerDetail = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
 const deleteCustomer = async (req, res) => {
   try {
     const id = req.params.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     const data = await connection.query(
       `UPDATE customers SET isDeleted = TRUE WHERE id = ?`,
       [id]
@@ -923,6 +628,8 @@ const deleteCustomer = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -941,7 +648,7 @@ const addProcess = async (req, res) => {
     const { processName, machineName, ratePerHour, cycleTime, orderNeeded } =
       req.body;
 
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     connection
       .query(
         `INSERT INTO process (processName , machineName , cycleTime , ratePerHour,orderNeeded,
@@ -963,13 +670,15 @@ const addProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
 const processList = async (req, res) => {
   try {
     const paginationData = paginationQuery(req.query);
-    const connection = await pool.getConnection();
+     connection = await pool.getConnection();
     const [[processData], [totalCounts]] = await Promise.all([
       connection.query(
         `SELECT * FROM  process WHERE  isDeleted = FALSE LIMIT ${Number(
@@ -996,13 +705,15 @@ const processList = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
 const processDetail = async (req, res) => {
   try {
     const id = req.params.id;
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
     const [data] = await connection.query(
       `SELECT * FROM process WHERE isDeleted = FALSE AND id = ?`,
       id
@@ -1015,6 +726,8 @@ const processDetail = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -1038,6 +751,8 @@ const workProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -1066,6 +781,8 @@ const editProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -1083,6 +800,8 @@ const deleteProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
+  }finally {
+    if (connection) await connection.release();
   }
 };
 
@@ -1492,4 +1211,3 @@ module.exports = {
   editPartNumber,
   // supplierOrder,
 };
-

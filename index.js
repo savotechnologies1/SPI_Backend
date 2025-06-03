@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000;
 
 // Connect to Database
 connectDb().catch((err) => {
-  console.error("Failed to connect to DB:", err);
+  console.error("❌ Failed to connect to DB:", err.message);
   process.exit(1);
 });
 
@@ -23,10 +23,9 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Routes
 app.use("/api/admin", require("./routes/adminRoutes"));
-app.use("/api/user", require("./routes/userRoutes"));
+// app.use("/api/user", require("./routes/userRoutes"));
 
 // Start Server
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`🚀 Server running on port ${port}`);
 });
-
