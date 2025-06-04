@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/stepup");
+const { pool } = require("../config/connection");
 
 const adminValidateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;

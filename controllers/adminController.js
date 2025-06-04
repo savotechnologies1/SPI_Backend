@@ -10,7 +10,7 @@ const {
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const { createTable } = require("../config/dbConnection");
-const {pool}  = require("../config/stepup");
+const {pool}  = require("../config/connection");
 let connection;
 
 const login = async (req, res) => {
@@ -19,11 +19,9 @@ const login = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    console.log('login pool');
 
     const { userName, password } = req.body;
     connection = await pool.getConnection();
-      console.log('login 3333');
     const [data] = await connection.query(
       `SELECT * FROM admins 
        WHERE (email = ? OR phoneNumber = ?) 
@@ -272,7 +270,6 @@ const workInstruction = async (req, res) => {
        WHERE instructionId = ? AND isDeleted = FALSE`,
       [instructionId]
     );
-    console.log('1111');
 
     if (!instruction) {
       return res.status(404).json({ message: "Instruction not found" });
@@ -293,8 +290,6 @@ const workInstruction = async (req, res) => {
       { name: "updatedAt", type: "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
       { name: "CONSTRAINT fk_instruction", type: "FOREIGN KEY (instructionId) REFERENCES work(instructionId)" }
     ]);
-    console.log('22222');
-
     await connection.query(
       `INSERT INTO work_instructions 
        (instructionId, process, stepNumber, part, workInstruction, workInstructionImg, workInstructionVideo, createdBy)
@@ -310,7 +305,6 @@ const workInstruction = async (req, res) => {
         userId
       ]
     );
-    console.log('3333');
 
     return res.status(201).json({
       message: `Step ${stepNumber} added successfully!`
@@ -322,7 +316,6 @@ const workInstruction = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }finally {
-    console.log('reeeeeeeeeeeee');
     
     if (connection) await connection.release();
   }
@@ -558,7 +551,6 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log(error);
     
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
@@ -654,7 +646,6 @@ const addProcess = async (req, res) => {
       req.body;
 
     connection = await pool.getConnection();
-    console.log('0000000');
     
     connection
       .query(
@@ -670,7 +661,6 @@ const addProcess = async (req, res) => {
         ]
       )
       .then();
-    console.log('3333');
 
     return res.status(201).json({
       message: "Process added successfully !",
@@ -686,11 +676,9 @@ const addProcess = async (req, res) => {
 
 const processList = async (req, res) => {
   try {
-    console.log('process lissst start');
     
     const paginationData = paginationQuery(req.query);
      connection = await pool.getConnection();
-     console.log('90999');
      
     const [[processData], [totalCounts]] = await Promise.all([
       connection.query(
@@ -702,8 +690,6 @@ const processList = async (req, res) => {
         `SELECT COUNT(*) AS totalCount FROM process WHERE isDeleted = FALSE; `
       ),
     ]);
-     console.log('3333');
-
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,

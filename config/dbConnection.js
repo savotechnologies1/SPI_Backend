@@ -124,7 +124,7 @@
 const md5 = require("md5");
 const humanize = require("string-humanize");
 const crypto = require("crypto");
-const { pool } = require("./stepup");
+const { pool } = require("./connection");
 require("dotenv").config();
 
 
