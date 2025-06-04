@@ -9,7 +9,7 @@ const {
 } = require("../functions/common");
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
-const { pool, createTable } = require("../config/dbConnection");
+const { createTable, pool } = require("../config/dbConnection");
 let connection;
 
 const login = async (req, res) => {
@@ -21,6 +21,7 @@ const login = async (req, res) => {
 
     const { userName, password } = req.body;
     connection = await pool.getConnection();
+    console.log('1111');
     
     const [data] = await connection.query(
       `SELECT * FROM admins 
@@ -33,6 +34,7 @@ const login = async (req, res) => {
     if (data.length === 0) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    console.log('22221');
 
     const user = data[0];
     const token = jwt.sign(
@@ -50,6 +52,7 @@ const login = async (req, res) => {
        WHERE id = ?`,
       [token, user.id]
     );
+    console.log('33333');
 
     return res.status(200).json({
       message: "Login successful",
@@ -67,12 +70,14 @@ const login = async (req, res) => {
       message: "Internal server error",
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
-  } finally {
-    console.log('reeeeeeeeeeeee');
-    
-    if (connection) await connection.release();
-  }
-};
+  }  finally {
+  if (connection) {
+    console.log('44444');
+
+    await connection.release();
+    console.log('Connection released');
+  }}
+}
 const forgetPassword = async (req, res) => {
   let connection;
   try {
@@ -270,6 +275,7 @@ const workInstruction = async (req, res) => {
        WHERE instructionId = ? AND isDeleted = FALSE`,
       [instructionId]
     );
+    console.log('1111');
 
     if (!instruction) {
       return res.status(404).json({ message: "Instruction not found" });
@@ -290,6 +296,7 @@ const workInstruction = async (req, res) => {
       { name: "updatedAt", type: "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
       { name: "CONSTRAINT fk_instruction", type: "FOREIGN KEY (instructionId) REFERENCES work(instructionId)" }
     ]);
+    console.log('22222');
 
     await connection.query(
       `INSERT INTO work_instructions 
@@ -306,6 +313,7 @@ const workInstruction = async (req, res) => {
         userId
       ]
     );
+    console.log('3333');
 
     return res.status(201).json({
       message: `Step ${stepNumber} added successfully!`
@@ -649,6 +657,8 @@ const addProcess = async (req, res) => {
       req.body;
 
     connection = await pool.getConnection();
+    console.log('0000000');
+    
     connection
       .query(
         `INSERT INTO process (processName , machineName , cycleTime , ratePerHour,orderNeeded,
@@ -663,6 +673,8 @@ const addProcess = async (req, res) => {
         ]
       )
       .then();
+    console.log('3333');
+
     return res.status(201).json({
       message: "Process added successfully !",
     });
@@ -677,8 +689,12 @@ const addProcess = async (req, res) => {
 
 const processList = async (req, res) => {
   try {
+    console.log('process lissst start');
+    
     const paginationData = paginationQuery(req.query);
      connection = await pool.getConnection();
+     console.log('90999');
+     
     const [[processData], [totalCounts]] = await Promise.all([
       connection.query(
         `SELECT * FROM  process WHERE  isDeleted = FALSE LIMIT ${Number(
@@ -689,6 +705,8 @@ const processList = async (req, res) => {
         `SELECT COUNT(*) AS totalCount FROM process WHERE isDeleted = FALSE; `
       ),
     ]);
+     console.log('3333');
+
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,
@@ -702,10 +720,14 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+     console.log('44444');
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
   }finally {
+     console.log('888');
+
     if (connection) await connection.release();
   }
 };
