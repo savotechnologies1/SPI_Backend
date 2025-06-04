@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/dbConnection");
+const { pool } = require("../config/stepup");
 
 const adminValidateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -48,4 +48,6 @@ const adminValidateToken = async (req, res, next) => {
 };
 
 module.exports = adminValidateToken;
+
+
 

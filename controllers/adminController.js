@@ -9,7 +9,8 @@ const {
 } = require("../functions/common");
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
-const { createTable, pool } = require("../config/dbConnection");
+const { createTable } = require("../config/dbConnection");
+const {pool}  = require("../config/stepup");
 let connection;
 
 const login = async (req, res) => {
@@ -18,11 +19,11 @@ const login = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
+    console.log('login pool');
 
     const { userName, password } = req.body;
     connection = await pool.getConnection();
-    console.log('1111');
-    
+      console.log('login 3333');
     const [data] = await connection.query(
       `SELECT * FROM admins 
        WHERE (email = ? OR phoneNumber = ?) 
@@ -34,7 +35,6 @@ const login = async (req, res) => {
     if (data.length === 0) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    console.log('22221');
 
     const user = data[0];
     const token = jwt.sign(
@@ -52,7 +52,6 @@ const login = async (req, res) => {
        WHERE id = ?`,
       [token, user.id]
     );
-    console.log('33333');
 
     return res.status(200).json({
       message: "Login successful",
@@ -72,10 +71,8 @@ const login = async (req, res) => {
     });
   }  finally {
   if (connection) {
-    console.log('44444');
 
     await connection.release();
-    console.log('Connection released');
   }}
 }
 const forgetPassword = async (req, res) => {
@@ -720,13 +717,11 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-     console.log('44444');
 
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
   }finally {
-     console.log('888');
 
     if (connection) await connection.release();
   }

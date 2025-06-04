@@ -201,7 +201,7 @@ const connectDb = async () => {
 };
 
 module.exports = {
-  pool,
+ 
   connectDb,
   createTable,
 };

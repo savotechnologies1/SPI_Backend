@@ -32,6 +32,8 @@ const upload = require('../functions/upload')
 
 const router = express.Router()
 
+console.log('09-90999090-');
+
 router.post("/login",adminLogin,login)
 router.post("/forget-password",forgotPass,forgetPassword)
 router.post("/validate-otp",userOTPVerify,validOtp)

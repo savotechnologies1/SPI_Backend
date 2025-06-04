@@ -30,7 +30,6 @@
 //   console.log(`🚀 Server running on port ${port}`);
 // });
 
-
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -46,10 +45,14 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use("/api/admin", require("./routes/adminRoutes"));
 
-
-// Start server
+// Start server after DB connects
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, async () => {
-  await connectDb(); // ensures table + default data
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+
+connectDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error("❌ Failed to connect DB:", err.message);
+  process.exit(1); // Exit if DB connection fails
 });
