@@ -1,58 +1,25 @@
-// const express = require("express");
-// const cors = require("cors");
-// const path = require("path");
-// require("dotenv").config();
-// const connection = require("./config/dbConnection");
+const express = require('express');
+const dotenv = require('dotenv');
+const bodyParser = require('body-parser');
+const connectDb = require('./config/dbConnection');
+const adminRoutes = require('./routes/adminRoutes')
 
-// const app = express();
-// const port = process.env.PORT || 3000;
-
-// // Connect to Database
-// // connection().catch((err) => {
-// //   console.error("❌ Failed to connect to DB:", err.message);
-// //   process.exit(1);
-// // });
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json({ limit: "30mb" })); 
-// app.use(express.urlencoded({ extended: true, limit: "30mb" }));
-
-// // Static Files
-// app.use(express.static(path.join(__dirname, "public")));
-
-// // Routes
-// app.use("/api/admin", require("./routes/adminRoutes"));
-// // app.use("/api/user", require("./routes/userRoutes"));
-
-// // Start Server
-// app.listen(port, () => {
-//   console.log(`🚀 Server running on port ${port}`);
-// });
-
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const { connectDb } = require("./config/dbConnection");
-require("dotenv").config();
-
+dotenv.config();
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.use("/api/admin", require("./routes/adminRoutes"));
-
-// Start server after DB connects
 const PORT = process.env.PORT || 8080;
 
-connectDb().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
-  });
-}).catch((err) => {
-  console.error("❌ Failed to connect DB:", err.message);
-  process.exit(1); // Exit if DB connection fails
+app.use(bodyParser.json());
+app.use('/api/admin', adminRoutes);
+
+app.get('/', (req, res) => {
+  res.send('API is running...');
 });
+
+// Initialize DB setup and then start server
+(async () => {
+  await connectDb(); // DB setup and default admin
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+})();
