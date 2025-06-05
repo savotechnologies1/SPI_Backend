@@ -1,14 +1,17 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const bodyParser = require('body-parser');
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
 const connectDb = require('./config/dbConnection');
 const adminRoutes = require('./routes/adminRoutes')
-
-dotenv.config();
-const app = express();
+require('dotenv').config();
 const PORT = process.env.PORT || 8080;
 
+const app = express();
+app.use(cors());
 app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
