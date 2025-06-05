@@ -5,9 +5,8 @@ const { createTable } = require('../functions/createTable');
 
 const connectDb = async () => {
   try {
-      const { default: humanize } = await import('humanize-string');
+    const { default: humanize } = await import('humanize-string');
     const connection = await pool.getConnection();
-    console.log("✅ DB connected");
 
     await createTable("admin", [
       { name: "id", type: "CHAR(36) PRIMARY KEY" },
