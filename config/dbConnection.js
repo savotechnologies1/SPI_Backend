@@ -1,4 +1,4 @@
-const pool = require('./db'); // pool setup (mysql2/promise)
+const pool = require('./db'); 
 const crypto = require('crypto');
 const md5 = require('md5');
 const { createTable } = require('../functions/createTable');
@@ -34,7 +34,6 @@ const connectDb = async () => {
           "+911111111111",
         ]
       );
-      console.log("✅ Default admin created.");
     }
 
     connection.release();

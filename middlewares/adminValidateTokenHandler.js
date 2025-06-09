@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/connection");
+const db = require("../config/db");
 
 const adminValidateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -14,14 +14,15 @@ const adminValidateToken = async (req, res, next) => {
   let connection;
 
   try {
-    connection = await pool.getConnection();
+    connection = await db.getConnection();
 
     // Check if token exists in the admin's token list
     const [rows] = await connection.query(
-      `SELECT * FROM admins WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
+      `SELECT * FROM admin WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
       [token]
     );
 
+    
     if (rows.length === 0) {
       return res.status(401).json({
         message: "Token expired or invalid. Please re-login.",
@@ -29,15 +30,17 @@ const adminValidateToken = async (req, res, next) => {
     }
 
     // Validate token
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-      if (err) {
-        console.error("JWT verification failed:", err.message);
-        return res.status(401).json({ message: "User is not authorized" });
-      }
+ jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+  if (err) {
+    console.error("JWT verification failed:", err.message);
+    return res.status(401).json({ message: "User is not authorized" });
+  }
 
-      req.user = decoded.user;
-      next();
-    });
+  req.user = decoded.user || decoded;
+
+
+  next();
+});
 
   } catch (error) {
     console.error("Token validation error:", error);
