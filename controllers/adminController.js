@@ -86,7 +86,7 @@ const createCustomer = async (req, res) => {
       message: "Customer added successfully!",
     });
   } catch (error) {
-    console.error("Error creating customer:", error.sqlMessage || error.message);
+    console.error("Error creating customerd:", error.sqlMessage || error.message);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -120,14 +120,6 @@ const customerList = async (req, res) => {
         [process, searchTerm, searchTerm]
       ),
 
-      // connection.query(
-      //   `SELECT * FROM customers WHERE isDeleted = FALSE LIMIT ${Number(
-      //     paginationData.pageSize
-      //   )} OFFSET ${Number(paginationData.skip)};`
-      // ),
-      // connection.query(
-      //   `SELECT COUNT(*) AS totalCount FROM customers WHERE isDeleted = FALSE;`
-      // ),
     ]);
     const paginationObj = {
       page: paginationData.page,
