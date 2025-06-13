@@ -623,7 +623,7 @@ const createEmployee = async (req, res) => {
     const userId = req.user.id;
     connection = await db.getConnection();
     await connection.query(
-      "INSERT INTO employee (id,firstName, lastName,fullName, employeeId,hourlyRate, shift, startDate,pin,shopFloorLogin,termsAccepted ,status,createdBy) VALUES (?,?,?,?ss,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO employee (id,firstName, lastName,fullName, employeeId,hourlyRate, shift, startDate,pin,shopFloorLogin,termsAccepted ,status,createdBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
       [
         getId,
         firstName.trim(),
@@ -819,3 +819,6 @@ module.exports = {
   editEmployee,
   deleteEmployee
 };
+
+
+ 
