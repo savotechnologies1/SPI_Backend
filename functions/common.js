@@ -2,57 +2,56 @@ const multer = require("multer");
 const upload = require("./upload");
 
 module.exports.generateRandomOTP = () => {
-    try {
-      const digits = "0123456789";
-      let OTP = "";
-      for (let i = 0; i < 6; i++) {
-        OTP += digits[Math.floor(Math.random() * 10)];
-      }
-      return OTP;
-    } catch (error) {
-      throw error;
+  try {
+    const digits = "0123456789";
+    let OTP = "";
+    for (let i = 0; i < 6; i++) {
+      OTP += digits[Math.floor(Math.random() * 10)];
     }
-  };
+    return OTP;
+  } catch (error) {
+    throw error;
+  }
+};
 
+module.exports.paginationQuery = (data) => {
+  try {
+    const page = parseInt(data?.page) || 1;
+    const pageSize = parseInt(data?.limit);
+    const validPageSize = isNaN(pageSize) ? 8 : pageSize;
+    const skip = (page - 1) * validPageSize;
 
-  module.exports.paginationQuery = (data) => {
-    try {
-      const page = parseInt(data?.page) || 1;
-      const pageSize = parseInt(data?.limit);
-      const validPageSize = isNaN(pageSize) ? 8 : pageSize;
-      const skip = (page - 1) * validPageSize;
-   
-      return {
-        page,
-        pageSize: validPageSize,
-        skip,
-      };
-    } catch (error) {
-      throw error;
+    return {
+      page,
+      pageSize: validPageSize,
+      skip,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+module.exports.pagination = (data) => {
+  try {
+    let obj = {};
+    const totalPages = Math.ceil(data.total / data.pageSize);
+    if (data.page > totalPages) {
+      data.page = 1;
     }
-  };
-  
-  module.exports.pagination = (data) => {
-    try {
-      let obj = {};
-      const totalPages = Math.ceil(data.total / data.pageSize);
-      if (data.page > totalPages) {
-        data.page = 1;
-      }
-      obj = {
-        page: data.page,
-        hasPrevious: data.page > 1,
-        previous: data.page - 1,
-        hasNext: data.page < totalPages,
-        next: data.page < totalPages ? data.page + 1 : 0,
-        totalPages,
-      };
-      return obj;
-    } catch (error) {
-      throw error;
-    }
-  };
-  
+    obj = {
+      page: data.page,
+      hasPrevious: data.page > 1,
+      previous: data.page - 1,
+      hasNext: data.page < totalPages,
+      next: data.page < totalPages ? data.page + 1 : 0,
+      totalPages,
+    };
+    return obj;
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports.fileUploadFunc = (request, response) => {
   return new Promise(async function (resolve, reject) {
     try {

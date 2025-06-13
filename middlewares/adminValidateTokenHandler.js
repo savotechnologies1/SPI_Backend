@@ -15,35 +15,24 @@ const adminValidateToken = async (req, res, next) => {
 
   try {
     connection = await db.getConnection();
-
-    // Check if token exists in the admin's token list
     const [rows] = await connection.query(
       `SELECT * FROM admin WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
       [token]
     );
-
-    
     if (rows.length === 0) {
       return res.status(401).json({
         message: "Token expired or invalid. Please re-login.",
       });
     }
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: "User is not authorized" });
+      }
+      req.user = decoded.user || decoded;
 
-    // Validate token
- jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-  if (err) {
-    console.error("JWT verification failed:", err.message);
-    return res.status(401).json({ message: "User is not authorized" });
-  }
-
-  req.user = decoded.user || decoded;
-
-
-  next();
-});
-
+      next();
+    });
   } catch (error) {
-    console.error("Token validation error:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   } finally {
     if (connection) connection.release();
@@ -51,6 +40,3 @@ const adminValidateToken = async (req, res, next) => {
 };
 
 module.exports = adminValidateToken;
-
-
-

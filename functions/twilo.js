@@ -15,7 +15,6 @@ module.exports.createMessage = async(number,body)=>{
     return message;  // Return the message response
     
   } catch (err) {
-    console.error('Error sending message:', err.message);
     throw new Error('Failed to send SMS');
   }
 }

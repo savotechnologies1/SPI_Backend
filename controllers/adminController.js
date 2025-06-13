@@ -3,14 +3,14 @@ const jwt = require("jsonwebtoken");
 const db = require("../config/db");
 const { createTable } = require("../functions/createTable");
 const { paginationQuery, pagination } = require("../functions/common");
+const { v4: uuidv4 } = require("uuid");
 
 let connection;
+
 const login = async (req, res) => {
   try {
     const { userName, password } = req.body;
-
     connection = await db.getConnection();
-
     const [data] = await connection.query(
       `SELECT * FROM admin 
        WHERE (email = ? OR phoneNumber = ?) 
@@ -22,9 +22,7 @@ const login = async (req, res) => {
     if (data.length === 0) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-
     const user = data[0];
-
     const token = jwt.sign(
       {
         id: user.id,
@@ -52,7 +50,6 @@ const login = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Login error:", err);
     return res.status(500).json({
       message: "Internal server error",
       error: process.env.NODE_ENV === "development" ? err.message : undefined,
@@ -93,10 +90,6 @@ const createCustomer = async (req, res) => {
       message: "Customer added successfully!",
     });
   } catch (error) {
-    console.error(
-      "Error creating customerd:",
-      error.sqlMessage || error.message
-    );
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -142,8 +135,6 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -225,8 +216,9 @@ const deleteCustomer = async (req, res) => {
 const addSupplier = async (req, res) => {
   let connection;
   try {
+    const getId = uuidv4().slice(0, 6);
     await createTable("suppliers", [
-      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "id", type: "VARCHAR(10) PRIMARY KEY" },
       { name: "firstName", type: "VARCHAR(255)" },
       { name: "lastName", type: "VARCHAR(255)" },
       { name: "email", type: "VARCHAR(255)" },
@@ -237,9 +229,11 @@ const addSupplier = async (req, res) => {
     const { firstName, lastName, email, address, billingTerms } = req.body;
     const userId = req.user.id;
     connection = await db.getConnection();
+
     await connection.query(
-      "INSERT INTO suppliers (firstName, lastName, email, address, billingTerms, createdBy) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO suppliers (id,firstName, last Name, email, address, billingTerms, createdBy) VALUES (?,?, ?, ?, ?, ?, ?)",
       [
+        getId,
         firstName.trim(),
         lastName.trim(),
         email.trim(),
@@ -248,15 +242,10 @@ const addSupplier = async (req, res) => {
         userId,
       ]
     );
-
     return res.status(201).json({
       message: "Supplier added successfully!",
     });
   } catch (error) {
-    console.error(
-      "Error creating customerd:",
-      error.sqlMessage || error.message
-    );
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -302,8 +291,6 @@ const supplierList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("errorerrorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -332,8 +319,6 @@ const supplierDetail = async (req, res) => {
     if (connection) await connection.release();
   }
 };
-
-
 
 const editSupplierDetail = async (req, res) => {
   try {
@@ -384,15 +369,76 @@ const deleteSupplier = async (req, res) => {
   }
 };
 
-const supplierOrder = async(req,res)=>{
+const selectSupplier = async (req, res) => {
   try {
-    
-  } catch (error) {
-    return res.status(500).send({
-      message:"Something went wrong . please try again later."
-    })
+    const [rows] = await db.query(
+      "SELECT id, CONCAT(firstName, ' ', lastName) AS name FROM suppliers"
+    );
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("Error fetching suppliers:", err);
+    res.status(500).json({ message: "Server error" });
   }
-}
+};
+
+const supplierOrder = async (req, res) => {
+  try {
+    let connection;
+    await createTable("supplier_orders", [
+      { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
+      { name: "order_number", type: "VARCHAR(50)" },
+      { name: "order_date", type: "VARCHAR(50)" },
+      { name: "supplier_id", type: "VARCHAR(10)" },
+      { name: "part_name", type: "VARCHAR(255)" },
+      { name: "quantity", type: "VARCHAR(50)" },
+      { name: "cost", type: "VARCHAR(50)" },
+      { name: "need_date", type: "VARCHAR(50)" },
+      { name: "createdBy", type: "VARCHAR(255)" },
+      { name: "FOREIGN KEY (supplier_id)", type: "REFERENCES suppliers(id)" },
+    ]);
+
+    const {
+      order_number,
+      order_date,
+      supplier_id,
+      part_name,
+      quantity,
+      need_date,
+      cost,
+    } = req.body;
+
+    const { id: userId } = req.user;
+    connection = await db.getConnection();
+    const [datass] = await connection.query(
+      `SELECT * FROM suppliers WHERE id = '670b97'`
+    );
+
+    console.log("datassdatass", datass);
+    await connection.query(
+      "INSERT INTO supplier_orders (order_number, order_date, supplier_id, part_name, quantity, need_date, cost, createdBy) VALUES (?, ?, ?, ?, ?, ?,?,?)",
+      [
+        order_number.trim(),
+        order_date.trim(),
+        supplier_id.trim(),
+        part_name.trim(),
+        quantity.trim(),
+        need_date.trim(),
+        cost.trim(),
+        userId,
+      ]
+      // ← Only 7 values
+    );
+    return res.status(201).json({
+      message: "Order added successfully !",
+    });
+  } catch (error) {
+    console.log("errorrrssss areeeeeeeeeeee : ", error);
+
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+};
 
 const addProcess = async (req, res) => {
   try {
@@ -410,7 +456,7 @@ const addProcess = async (req, res) => {
       req.body;
 
     connection = await db.getConnection();
-    
+
     connection
       .query(
         `INSERT INTO process (processName , machineName , cycleTime , ratePerHour,orderNeeded,
@@ -433,18 +479,15 @@ const addProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
-  }finally {
+  } finally {
     if (connection) await connection.release();
   }
 };
 
 const processList = async (req, res) => {
   try {
-     console.log("process start")
-    
     const paginationData = paginationQuery(req.query);
-     connection = await db.getConnection();
-     console.log("process start0")
+    connection = await db.getConnection();
     const [[processData], [totalCounts]] = await Promise.all([
       connection.query(
         `SELECT * FROM  process WHERE  isDeleted = FALSE LIMIT ${Number(
@@ -455,7 +498,6 @@ const processList = async (req, res) => {
         `SELECT COUNT(*) AS totalCount FROM process WHERE isDeleted = FALSE; `
       ),
     ]);
-     console.log("process start1")
 
     const paginationObj = {
       page: paginationData.page,
@@ -470,16 +512,13 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
-  }finally {
-
+  } finally {
     if (connection) await connection.release();
   }
 };
-
 
 const processDetail = async (req, res) => {
   try {
@@ -497,11 +536,10 @@ const processDetail = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
-  }finally {
+  } finally {
     if (connection) await connection.release();
   }
 };
-
 
 const editProcess = async (req, res) => {
   try {
@@ -528,7 +566,7 @@ const editProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
-  }finally {
+  } finally {
     if (connection) await connection.release();
   }
 };
@@ -547,10 +585,215 @@ const deleteProcess = async (req, res) => {
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
-  }finally {
+  } finally {
     if (connection) await connection.release();
   }
 };
+
+const createEmployee = async (req, res) => {
+  try {
+    const getId = uuidv4().slice(0, 6);
+    await createTable("employee", [
+      { name: "id", type: "VARCHAR(10) PRIMARY KEY" },
+      { name: "firstName", type: "VARCHAR(255)" },
+      { name: "lastName", type: "VARCHAR(255)" },
+      { name: "fullName", type: "VARCHAR(255)" },
+      { name: "employeeId", type: "VARCHAR(255)" },
+      { name: "hourlyRate", type: "VARCHAR(255)" },
+      { name: "shift", type: "VARCHAR(255)" },
+      { name: "startDate", type: "VARCHAR(255)" },
+      { name: "pin", type: "VARCHAR(255)" },
+      { name: "shopFloorLogin", type: "VARCHAR(50)" },
+      { name: "termsAccepted", type: "VARCHAR(50)" },
+      { name: "status", type: "VARCHAR(255)", default: "pending" },
+      { name: "createdBy", type: "VARCHAR(255)" },
+    ]);
+    const {
+      firstName,
+      lastName,
+      fullName,
+      hourlyRate,
+      shift,
+      startDate,
+      pin,
+      shopFloorLogin,
+      termsAccepted,
+      status
+    } = req.body;
+    const userId = req.user.id;
+    connection = await db.getConnection();
+    await connection.query(
+      "INSERT INTO employee (id,firstName, lastName,fullName, employeeId,hourlyRate, shift, startDate,pin,shopFloorLogin,termsAccepted ,status,createdBy) VALUES (?,?,?,?ss,?,?,?,?,?,?,?,?,?)",
+      [
+        getId,
+        firstName.trim(),
+        lastName.trim(),
+        fullName.trim(),
+        `EMP${getId}`,
+        hourlyRate.trim(),
+        shift.trim(),
+        startDate.trim(),
+        pin.trim(),
+        shopFloorLogin,
+        termsAccepted,
+        status,
+        userId,
+      ]
+    );
+    return res.status(201).json({
+      message: "Employee added successfully!",
+    });
+  } catch (error) {
+    console.log('errorerror',error);
+    
+    return res.status(500).send({
+      message: "Something went wrong .",
+    });
+  }
+};
+
+const allEmployee = async (req, res) => {
+  try {
+    connection = await db.getConnection();
+    const paginationData = await paginationQuery(req.query);
+    const { process = "", search = "" } = req.query;
+    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
+    const [[employeeData], [totalCounts]] = await Promise.all([
+      connection.query(
+        `SELECT * FROM employee  WHERE isDeleted = FALSE 
+        AND (fullName LIKE ? OR hourlyRate LIKE ?) 
+        LIMIT ? OFFSET ?`,
+        [
+          searchTerm.trim(),
+          searchTerm.trim(),
+          paginationData.pageSize,
+          paginationData.skip,
+        ]
+      ),
+      connection.query(
+        `SELECT COUNT(*) AS totalCount FROM employee 
+        WHERE  isDeleted = FALSE AND (fullName LIKE ? OR hourlyRate LIKE ?)`,
+        [process, searchTerm, searchTerm]
+      ),
+    ]);
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCounts[0].totalCount,
+    };
+    const getPagination = await pagination(paginationObj);
+    return res.status(200).json({
+      message: "Employee list retrived successfully !",
+      data: employeeData,
+      totalCounts: totalCounts[0].totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  } finally {
+    if (connection) await connection.release();
+  }
+};
+
+const employeeDetail = async (req, res) => {
+  try {
+    const id = req.params.id;
+    connection = await db.getConnection();
+    const [data] = await connection.query(
+      `SELECT * FROM employee WHERE isDeleted = FALSE AND id = ?`,
+      id
+    );
+    return res.status(200).json({
+      message: "Process detail retrived successfully !",
+      data: data[0],
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  } finally {
+    if (connection) await connection.release();
+  }
+};
+
+const editEmployee = async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      fullName,
+      hourlyRate,
+      shift,
+      startDate,
+      pin,
+      shopFloorLogin,
+      termsAccepted, 
+    } = req.body;
+    const id = req.params?.id;
+    connection = await db.getConnection();
+    connection
+      .query(
+        `UPDATE employee 
+        SET firstName = ?, 
+        lastName = ?, 
+        fullName = ?, 
+        hourlyRate = ?,
+        shift = ?,
+        startDate = ?,
+        pin = ?,
+        shopFloorLogin = ?,
+        termsAccepted = ?
+        WHERE id = ? AND isDeleted = FALSE`,
+        [firstName, lastName,fullName, hourlyRate, shift, startDate,pin, shopFloorLogin,termsAccepted,id]
+      )
+      .then();
+    return res.status(200).send({
+      message: "Employee detail updated successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  } finally {
+    if (connection) await connection.release();
+  }
+};
+
+const deleteEmployee = async(req,res)=>{
+   try {
+  const id = req.params.id;
+  const connection = await db.getConnection();
+  console.log('idid', id);
+
+  const [[data]] = await connection.query(`SELECT id FROM employee WHERE id = ?`, [id]);
+  console.log('datadata', data);
+
+  if (!data) {
+    return res.status(404).json({ message: "Employee not found" });
+  }
+
+  await connection.query(
+    `UPDATE employee SET isDeleted = TRUE WHERE id = ?`,
+    [id]
+  );
+
+  return res.status(200).json({
+    message: "Employee deleted successfully!",
+  });
+
+} catch (error) {
+  console.log('errorerror', error);
+  return res.status(500).send({
+    message: "Something went wrong. Please try again later.",
+  });
+} finally {
+  if (connection) await connection.release();
+}
+
+}
+
 module.exports = {
   login,
   createCustomer,
@@ -563,10 +806,16 @@ module.exports = {
   supplierDetail,
   editSupplierDetail,
   deleteSupplier,
+  selectSupplier,
   supplierOrder,
   addProcess,
   processList,
   processDetail,
   editProcess,
-  deleteProcess
+  deleteProcess,
+  createEmployee,
+  allEmployee,
+  employeeDetail,
+  editEmployee,
+  deleteEmployee
 };
