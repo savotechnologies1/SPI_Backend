@@ -19,7 +19,7 @@ async function createTable(tableName, columns) {
 
     await connection.query(query);
   } catch (err) {
-    console.error(`❌ Error creating table '${tableName}':`, err);
+    console.error(` Error creating table '${tableName}':`, err);
   } finally {
     connection.release();
   }

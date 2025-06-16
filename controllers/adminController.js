@@ -4,6 +4,8 @@ const db = require("../config/db");
 const { createTable } = require("../functions/createTable");
 const { paginationQuery, pagination } = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
+const { validationResult } = require("express-validator");
+const { checkValidations } = require("../functions/checkvalidation");
 
 let connection;
 
@@ -60,6 +62,13 @@ const login = async (req, res) => {
 };
 
 const createCustomer = async (req, res) => {
+   const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({
+        message: checkValid.errors.msg,
+      });
+    }
   let connection;
   try {
     await createTable("customers", [
@@ -214,6 +223,13 @@ const deleteCustomer = async (req, res) => {
 };
 
 const addSupplier = async (req, res) => {
+  const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({
+        message: checkValid.errors.msg,
+      });
+    }
   let connection;
   try {
     const getId = uuidv4().slice(0, 6);
@@ -794,6 +810,70 @@ const deleteEmployee = async(req,res)=>{
 
 }
 
+const createProductNumber = async(req,res)=>{
+  try {
+    const getId = uuidv4().slice(0, 6);
+    await createTable("productNumber", [
+      { name: "id", type: "VARCHAR(10) PRIMARY KEY" },
+      { name: "partFamily", type: "VARCHAR(255)" },
+      { name: "productNumber", type: "VARCHAR(255)" },
+      { name: "description", type: "VARCHAR(255)" },
+      { name: "cost", type: "VARCHAR(255)" },
+      { name: "leadTime", type: "VARCHAR(255)" },
+      { name: "orderQuantity", type: "VARCHAR(255)" },
+      { name: "companyName", type: "VARCHAR(255)" },
+      { name: "minStock", type: "VARCHAR(255)" },
+      { name: "availStock", type: "VARCHAR(50)" },
+      { name: "cycleTime", type: "VARCHAR(50)" },
+      { name: "prcessOrder", type: "VARCHAR(255)"},
+      { name: "partImage", type: "VARCHAR(255)" },
+      { name: "createdBy", type: "VARCHAR(255)" },
+    ]);
+    const {
+      partFamily,
+      productNumber,
+      description,
+      cost,
+      leadTime,
+      orderQuantity,
+      companyName,
+      minStock,
+      availStock,
+      cycleTime,
+      prcessOrder,
+      partImage,
+    } = req.body;
+    const userId = req.user.id;
+    connection = await db.getConnection();
+    await connection.query(
+      "INSERT INTO productNumber (id,partFamily, productNumber,description, cost,leadTime, orderQuantity, companyName,minStock,cycleTime,prcessOrder ,createdBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      [
+        getId,
+        partFamily.trim(),
+        productNumber.trim(),
+        description.trim(),
+        cost.trim(),
+        leadTime,
+        orderQuantity,
+        companyName,
+        minStock,
+        availStock,
+        cycleTime,
+        prcessOrder,
+        userId,
+      ]
+    );
+    return res.status(201).json({
+      message: "Product number added successfully!",
+    });
+  } catch (error) {
+    console.log('errorerrorerror0',error)
+    return res.status(500).send({
+      message:"Something went wrong . please try again later ."
+    })
+  }
+}
+
 module.exports = {
   login,
   createCustomer,
@@ -817,7 +897,8 @@ module.exports = {
   allEmployee,
   employeeDetail,
   editEmployee,
-  deleteEmployee
+  deleteEmployee,
+  createProductNumber
 };
 
 
