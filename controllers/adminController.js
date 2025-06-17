@@ -247,7 +247,7 @@ const addSupplier = async (req, res) => {
     connection = await db.getConnection();
 
     await connection.query(
-      "INSERT INTO suppliers (id,firstName, last Name, email, address, billingTerms, createdBy) VALUES (?,?, ?, ?, ?, ?, ?)",
+      "INSERT INTO suppliers (id,firstName, lastName, email, address, billingTerms, createdBy) VALUES (?,?, ?, ?, ?, ?, ?)",
       [
         getId,
         firstName.trim(),
@@ -262,6 +262,8 @@ const addSupplier = async (req, res) => {
       message: "Supplier added successfully!",
     });
   } catch (error) {
+    console.log(error);
+    
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -903,3 +905,4 @@ module.exports = {
 
 
  
+
