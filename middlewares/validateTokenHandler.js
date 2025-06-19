@@ -1,41 +1,43 @@
 const jwt = require("jsonwebtoken");
-const { pool } = require("../config/dbConnection");
+const prisma = require("../config/prisma");
 
 const validateToken = async (req, res, next) => {
-  let token;
   const authHeader = req.headers.authorization || req.headers.Authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.split(" ")[1];
-    let connection;
-    try {
-      connection = await pool.getConnection();
-      const [rows] = await connection.query(
-        `SELECT * FROM users WHERE JSON_CONTAINS(tokens, JSON_QUOTE(?)) AND isDeleted = FALSE`,
-        [token]
-      );
 
-      if (rows.length > 0) {
-        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-          if (err) {
-            return res.status(401).json({ message: "User is not authorized" });
-          }
-          req.user = decoded.user;
-          next();
-        });
-      } else {
-        return res
-          .status(401)
-          .json({ message: "Token expired or invalid. Please re-login." });
-      }
-    } catch (error) {
-      return res.status(500).json({ message: "Internal Server Error" });
-    } finally {
-      if (connection) connection.release();
-    }
-  } else {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({
       message: "Authorization header missing or improperly formatted",
     });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const user = await prisma.users.findFirst({
+      where: {
+        isDeleted: false,
+        tokens: {
+          equals: [token], // For tokens stored as an array of strings
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Token expired or invalid. Please re-login.",
+      });
+    }
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: "User is not authorized" });
+      }
+      req.user = decoded.user || decoded;
+      next();
+    });
+  } catch (error) {
+    console.error("Token validation error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 

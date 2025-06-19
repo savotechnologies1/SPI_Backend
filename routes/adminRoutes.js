@@ -27,7 +27,7 @@ router.get("/all-employee",adminValidateToken,allEmployee)
 router.get("/employee-detail/:id",adminValidateToken,employeeDetail)
 router.put("/edit-employee/:id",adminValidateToken,employeeValidation,editEmployee)
 router.patch("/delete-employee/:id",adminValidateToken,deleteEmployee)
-router.post("/create-product-number",adminValidateToken,createProductNumber)
+// router.post("/create-product-number",adminValidateToken,createProductNumber)
 module.exports = router
 
  

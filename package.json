@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "^6.9.0",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -28,5 +29,9 @@
     "twilio": "^5.5.2",
     "uuid": "^11.1.0",
     "uuidv4": "^6.2.13"
+  },
+  "devDependencies": {
+    "install": "^0.13.0",
+    "prisma": "^6.9.0"
   }
 }

@@ -1,46 +1,32 @@
-const pool = require('./db'); 
-const crypto = require('crypto');
-const md5 = require('md5');
-const { createTable } = require('../functions/createTable');
+const md5 = require("md5");
+const prisma = require("./prisma");
+const { v4: uuidv4 } = require("uuid");
 
-const connectDb = async () => {
+
+const connectDB = async () => {
   try {
-    const { default: humanize } = await import('humanize-string');
-    const connection = await pool.getConnection();
-
-    await createTable("admin", [
-      { name: "id", type: "CHAR(36) PRIMARY KEY" },
-      { name: "name", type: "VARCHAR(100) NOT NULL" },
-      { name: "email", type: "VARCHAR(100) NOT NULL UNIQUE" },
-      { name: "password", type: "VARCHAR(255) NOT NULL" },
-      { name: "roles", type: "ENUM('admin','superAdmin') DEFAULT 'admin'" },
-      { name: "phoneNumber", type: "VARCHAR(20) UNIQUE" },
-      { name: "tokens", type: "JSON" },
-      { name: "otp", type: "VARCHAR(10)" },
-      { name: "resetToken", type: "CHAR(36)" }, 
-      { name: "isDeleted", type: "TINYINT(1) DEFAULT 0" },
-    ]);
-
-    const [rows] = await connection.query("SELECT COUNT(*) AS count FROM admin");
-    if (rows[0].count === 0) {
-      await connection.query(
-        `INSERT INTO admin (id, name, email, password, roles, phoneNumber) VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          crypto.randomUUID(),
-          humanize("admin"),
-          "spiadmin@gmail.com",
-          md5("Admin@123"),
-          "superAdmin",
-          "+911111111111",
-        ]
-      );
+    await prisma.$connect();
+    const getId = uuidv4().slice(0, 6);
+    const convertedPass =md5("Admin@123")
+    const adminCount = await prisma.admin.count();
+    if (adminCount === 0) {
+      await prisma.admin.create({
+        data: {
+          id :getId,
+          name: "Admin",
+          email: "spiadmin@gmail.com",
+          password: convertedPass,
+          roles: "superAdmin",
+          phoneNumber: "+911111111111",
+        },
+      });
+      console.log("Default super admin created.");
     }
 
-    connection.release();
-  } catch (err) {
-    console.error("❌ connectDb Error:", err.message);
+  } catch (error) {
+    console.error(" Database connection error:", error);
     process.exit(1);
   }
 };
 
-module.exports = connectDb;
+module.exports = connectDB;
