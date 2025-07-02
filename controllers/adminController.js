@@ -1,72 +1,209 @@
 const md5 = require("md5");
 const jwt = require("jsonwebtoken");
-const { paginationQuery, pagination } = require("../functions/common");
+const {
+  paginationQuery,
+  pagination,
+  generateRandomOTP,
+} = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
+const { sendMail } = require("../functions/mailer");
 let connection;
 
 const login = async (req, res) => {
   try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({
+        message: checkValid.errors.msg,
+      });
+    }
+
     const { userName, password } = req.body;
-    const user = await prisma.admin.findFirst({
-      where: {
-        AND: [
-          {
-            OR: [
-              { email: userName.trim().toLowerCase() },
-              { phoneNumber: userName.trim() },
-            ],
-          },
-          { password: md5(password) },
-          {
-            isDeleted: false,
-          },
-        ],
+
+    const user = await prisma.admin.findUnique({
+      where: { email: userName },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        tokens: true,
+        isDeleted: true,
       },
     });
 
-    if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+    if (!user || user.password !== md5(password) || user.isDeleted) {
+      return res.status(400).send({ message: "Invalid Username and Password" });
     }
-    const token = jwt.sign(
-      {
-        id: user.id,
-        roles: user.roles,
-      },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "5d" }
-    );
 
-    const updatedTokens = Array.isArray(user.tokens)
-      ? [...user.tokens, token]
-      : [token];
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.ACCESS_TOKEN_SECRET,
+      {
+        expiresIn: "30d",
+      }
+    );
 
     await prisma.admin.update({
       where: { id: user.id },
       data: {
-        tokens: updatedTokens,
+        tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
       },
     });
 
-    const get = await prisma.admin.findMany();
-    console.log("getget", get);
+    return res.status(201).json({
+      message: "Admin login successfully!",
+      token,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({
+      message: "Something went wrong.",
+    });
+  }
+};
+
+const sendForgotPasswordOTP = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+
+    const { email } = req.body;
+    const user = await prisma.admin.findFirst({
+      where: {
+        email: email.toLowerCase().trim(),
+        isDeleted: false,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).send({ message: "Admin not found" });
+    }
+
+    const otp = generateRandomOTP();
+
+    await sendMail("otp-verify", { "%otp%": otp }, user.email);
+
+    await prisma.admin.update({
+      where: { id: user.id },
+      data: { otp },
+    });
 
     return res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        roles: user.roles,
+      id: user.id,
+      email: user.email,
+      message: "OTP sent Successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong",
+      error: error.message,
+    });
+  }
+};
+
+const validOtp = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).send({ message: "Email and OTP are required" });
+    }
+
+    const user = await prisma.admin.findFirst({
+      where: {
+        email: email.toLowerCase().trim(),
+        isDeleted: false,
       },
     });
-  } catch (err) {
-    return res.status(500).json({
-      message: "Something went wrong . please try again later .",
+
+    if (!user || !user.otp || user.otp !== otp) {
+      return res.status(400).send({ message: "Invalid OTP" });
+    }
+
+    const token = uuidv4();
+
+    await prisma.admin.update({
+      where: { id: user.id },
+      data: {
+        resetToken: token,
+        otp: null,
+      },
     });
+
+    return res.status(200).json({
+      message: "OTP verified successfully",
+      id: user.id,
+      resetToken: token,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+
+    const { token, newPassword, confirmPassword } = req.body;
+
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).send({
+        message: "New password and confirm password must be provided.",
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).send({
+        message: "Passwords do not match.",
+      });
+    }
+
+    const user = await prisma.admin.findFirst({
+      where: {
+        resetToken: token === "null" ? null : token?.toLowerCase().trim(),
+        isDeleted: false,
+      },
+    });
+
+    if (!user) {
+      return res
+        .status(404)
+        .send({ message: "Admin not found or invalid token." });
+    }
+
+    await prisma.admin.update({
+      where: { id: user.id },
+      data: {
+        password: md5(newPassword),
+        resetToken: null,
+      },
+    });
+
+    return res.status(200).json({ message: "Password reset successfully." });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error.", error: error.message });
   }
 };
 
@@ -79,17 +216,32 @@ const createCustomer = async (req, res) => {
     });
   }
   try {
-    const { firstName, lastName, email, address, billingTerms } = req.body;
+    const { firstName, lastName, email, address, customerPhone, billingTerms } =
+      req.body;
     const userId = req.user.id;
-    const getId = uuidv4().slice(0, 6);
+    let getId = uuidv4().slice(0, 6);
+    const existingCustomer = await prisma.customers.findFirst({
+      where: {
+        isDeleted: false,
+        OR: [{ email: email }, { customerPhone: customerPhone }],
+      },
+    });
+
+    if (existingCustomer) {
+      return res.status(400).json({
+        message: "Customer with this email or phone number already exists.",
+      });
+    }
+
     await prisma.customers.create({
       data: {
         id: getId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
-        address: address.trim(),
-        billingTerms: billingTerms.trim(),
+        address: address?.trim() || "",
+        customerPhone: customerPhone?.trim(),
+        billingTerms: billingTerms?.trim() || "",
         createdBy: userId,
       },
     });
@@ -116,6 +268,9 @@ const customerList = async (req, res) => {
           },
           isDeleted: false,
         },
+        orderBy: {
+          createdAt: "desc",
+        },
         skip: paginationData.skip,
         take: paginationData.pageSize,
       }),
@@ -125,6 +280,9 @@ const customerList = async (req, res) => {
             contains: search,
           },
           isDeleted: false,
+        },
+        orderBy: {
+          createdAt: "desc",
         },
       }),
     ]);
@@ -168,8 +326,20 @@ const customerDetail = async (req, res) => {
 
 const editCustomerDetail = async (req, res) => {
   try {
-    const { firstName, lastName, email, address, billingTerms } = req.body;
-    const id = req.params?.id;
+    const id = req.params.id;
+    const { firstName, lastName, email, customerPhone, address, billingTerms } =
+      req.body;
+    const existingCustomer = await prisma.customers.findFirst({
+      where: {
+        isDeleted: false,
+        OR: [{ email: email }, { customerPhone: customerPhone }],
+      },
+    });
+    if ((existingCustomer && existingCustomer.id !== id) === true) {
+      return res.status(400).json({
+        message: "Customer with this email or phone number already exists.",
+      });
+    }
     prisma.customers
       .update({
         where: {
@@ -178,8 +348,10 @@ const editCustomerDetail = async (req, res) => {
         },
         data: {
           firstName: firstName,
+
           lastName: lastName,
           email: email,
+          customerPhone: customerPhone,
           address: address,
           billingTerms: billingTerms,
         },
@@ -234,7 +406,17 @@ const addSupplier = async (req, res) => {
   try {
     const { firstName, lastName, email, address, billingTerms } = req.body;
     const getId = uuidv4().slice(0, 6);
-
+    const existingCustomer = await prisma.suppliers.findFirst({
+      where: {
+        isDeleted: false,
+        email: email,
+      },
+    });
+    if (existingCustomer) {
+      return res.status(400).json({
+        message: "Supplier with this email  already exists.",
+      });
+    }
     await prisma.suppliers
       .create({
         data: {
@@ -253,8 +435,6 @@ const addSupplier = async (req, res) => {
       message: "Supplier added successfully!",
     });
   } catch (error) {
-    console.log(error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -328,10 +508,22 @@ const supplierDetail = async (req, res) => {
 const editSupplierDetail = async (req, res) => {
   try {
     const { firstName, lastName, email, address, billingTerms } = req.body;
+    const id = req.params?.id;
+    const existingCustomer = await prisma.suppliers.findFirst({
+      where: {
+        isDeleted: false,
+        email: email,
+      },
+    });
+    if ((existingCustomer && existingCustomer.id !== id) === true) {
+      return res.status(400).json({
+        message: "Supplier with this email already exists.",
+      });
+    }
     prisma.suppliers
       .update({
         where: {
-          id: req.params?.id,
+          id: id,
           isDeleted: false,
           createdBy: req.user.id,
         },
@@ -393,30 +585,14 @@ const selectSupplier = async (req, res) => {
       id: supplier.id,
       name: `${supplier.firstName} ${supplier.lastName}`,
     }));
-
     res.status(200).json(formattedSuppliers);
   } catch (error) {
-    console.error("Error fetching suppliers:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
 const supplierOrder = async (req, res) => {
   try {
-    let connection;
-    // await createTable("supplier_orders", [
-    //   { name: "id", type: "INT PRIMARY KEY AUTO_INCREMENT" },
-    //   { name: "order_number", type: "VARCHAR(50)" },
-    //   { name: "order_date", type: "VARCHAR(50)" },
-    //   { name: "supplier_id", type: "VARCHAR(10)" },
-    //   { name: "part_name", type: "VARCHAR(255)" },
-    //   { name: "quantity", type: "VARCHAR(50)" },
-    //   { name: "cost", type: "VARCHAR(50)" },
-    //   { name: "need_date", type: "VARCHAR(50)" },
-    //   { name: "createdBy", type: "VARCHAR(255)" },
-    //   { name: "FOREIGN KEY (supplier_id)", type: "REFERENCES suppliers(id)" },
-    // ]);
-
     const {
       order_number,
       order_date,
@@ -444,8 +620,6 @@ const supplierOrder = async (req, res) => {
       message: "Order added successfully !",
     });
   } catch (error) {
-    console.log("errorrrssss areeeeeeeeeeee : ", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later.",
     });
@@ -454,8 +628,14 @@ const supplierOrder = async (req, res) => {
 
 const addProcess = async (req, res) => {
   try {
-    const { processName, machineName, ratePerHour, cycleTime, orderNeeded } =
-      req.body;
+    const {
+      processName,
+      machineName,
+      ratePerHour,
+      cycleTime,
+      partFamily,
+      orderNeeded,
+    } = req.body;
     const getId = uuidv4().slice(0, 6);
     await prisma.process.create({
       data: {
@@ -463,8 +643,9 @@ const addProcess = async (req, res) => {
         processName: processName.trim(),
         machineName: machineName.trim(),
         ratePerHour: ratePerHour.trim(),
+        partFamily: partFamily.trim(),
         cycleTime: cycleTime.trim(),
-        orderNeeded: orderNeeded.trim(),
+        orderNeeded: Boolean(orderNeeded),
         createdBy: req.user?.id,
       },
     });
@@ -473,6 +654,8 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
+    console.log(error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -601,6 +784,7 @@ const createEmployee = async (req, res) => {
       firstName,
       lastName,
       fullName,
+      email,
       hourlyRate,
       shift,
       startDate,
@@ -610,75 +794,98 @@ const createEmployee = async (req, res) => {
       status,
     } = req.body;
 
-    prisma.employee
-      .create({
-        data: {
-          id: getId,
-          firstName: firstName,
-          lastName: lastName,
-          fullName: fullName,
-          employeeId: `EMP${getId}`,
-          hourlyRate: hourlyRate,
-          shift: shift,
-          startDate: startDate,
-          pin: pin,
-          shopFloorLogin: shopFloorLogin,
-          role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
-          termsAccepted: termsAccepted,
-          status: status,
-          createdBy: req.user.id,
-        },
-      })
-      .then();
+    await prisma.employee.create({
+      data: {
+        firstName: firstName,
+        lastName: lastName,
+        fullName: fullName,
+        email,
+        employeeId: `EMP${getId}`,
+        hourlyRate: hourlyRate,
+        shift: shift,
+        startDate: startDate,
+        pin: pin,
+        shopFloorLogin: shopFloorLogin,
+        role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
+        termsAccepted: termsAccepted,
+        status: status,
+        password: "",
+        createdBy: req.user.id,
+      },
+    });
     return res.status(201).json({
       message: "Employee added successfully!",
     });
   } catch (error) {
     return res.status(500).send({
-      message: "Something went wrong .",
+      message: "Something went wrong . please try again later .",
     });
   }
 };
 
 const allEmployee = async (req, res) => {
   try {
-    connection = await db.getConnection();
     const paginationData = await paginationQuery(req.query);
-    const { process = "", search = "" } = req.query;
-    const searchTerm = `%${search.replace(/[%_]/g, "\\$&")}%`;
-    const [[employeeData], [totalCounts]] = await Promise.all([
-      connection.query(
-        `SELECT * FROM employee  WHERE isDeleted = FALSE 
-        AND (fullName LIKE ? OR hourlyRate LIKE ?) 
-        LIMIT ? OFFSET ?`,
-        [
-          searchTerm.trim(),
-          searchTerm.trim(),
-          paginationData.pageSize,
-          paginationData.skip,
-        ]
-      ),
-      connection.query(
-        `SELECT COUNT(*) AS totalCount FROM employee 
-        WHERE  isDeleted = FALSE AND (fullName LIKE ? OR hourlyRate LIKE ?)`,
-        [process, searchTerm, searchTerm]
-      ),
+    const { search = "" } = req.query;
+
+    const data = await prisma.employee.findMany();
+    const [employeeData, totalCount] = await Promise.all([
+      prisma.employee.findMany({
+        where: {
+          isDeleted: false,
+          // OR: [
+          //   {
+          //     fullName: {
+          //       contains: search,
+          //     },
+          //   },
+          //   {
+          //     hourlyRate: {
+          //       contains: search,
+          //     },
+          //   },
+          // ],
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+      }),
+      prisma.employee.count({
+        where: {
+          isDeleted: false,
+          // OR: [
+          //   {
+          //     fullName: {
+          //       contains: search,
+          //     },
+          //   },
+          //   {
+          //     hourlyRate: {
+          //       contains: search,
+          //     },
+          //   },
+          // ],
+        },
+      }),
     ]);
+
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,
-      total: totalCounts[0].totalCount,
+      total: totalCount,
     };
+
     const getPagination = await pagination(paginationObj);
+
     return res.status(200).json({
-      message: "Employee list retrived successfully !",
+      message: "Employee list retrieved successfully!",
       data: employeeData,
-      totalCounts: totalCounts[0].totalCount,
+      totalCounts: totalCount,
       pagination: getPagination,
     });
   } catch (error) {
+    console.error("Employee Fetch Error:", error);
     return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
@@ -690,7 +897,6 @@ const employeeDetail = async (req, res) => {
       where: {
         id: id,
         isDeleted: false,
-        createdBy: req.user.id,
       },
     });
 
@@ -708,37 +914,40 @@ const employeeDetail = async (req, res) => {
 const editEmployee = async (req, res) => {
   try {
     const id = req.params.id;
+    const getId = uuidv4().slice(0, 6);
     const {
       firstName,
       lastName,
       fullName,
+      email,
       hourlyRate,
       shift,
       startDate,
       pin,
       shopFloorLogin,
+      status,
       termsAccepted,
     } = req.body;
-    prisma.process
-      .update({
-        where: {
-          id: id,
-          isDeleted: false,
-          createdBy: req.user.id,
-        },
-        data: {
-          firstName: firstName,
-          lastName: lastName,
-          fullName: fullName,
-          hourlyRate: hourlyRate,
-          shift: shift,
-          startDate: startDate,
-          pin: pin,
-          shopFloorLogin: shopFloorLogin,
-          termsAccepted: termsAccepted,
-        },
-      })
-      .then();
+    await prisma.employee.update({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      data: {
+        firstName: firstName,
+        lastName: lastName,
+        fullName: fullName,
+        email: email,
+        hourlyRate: hourlyRate,
+        employeeId: `EMP${getId}`,
+        shift: shift,
+        startDate: startDate,
+        pin: pin,
+        status: status,
+        shopFloorLogin: shopFloorLogin,
+        termsAccepted: termsAccepted,
+      },
+    });
     return res.status(200).json({
       message: "Employee edit successfully !",
     });
@@ -768,6 +977,328 @@ const deleteEmployee = async (req, res) => {
       message: "Employee delete successfully !",
     });
   } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const createStockOrder = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+    const {
+      orderNumber,
+      orderDate,
+      shipDate,
+      customerName,
+      customerEmail,
+      customerPhone,
+      productNumber,
+      cost,
+      productDescription,
+      productQuantity,
+      customerId,
+    } = req.body;
+
+    let firstName = "";
+    let lastName = "";
+    if (customerName) {
+      const nameParts = customerName.trim().split(" ");
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(" ");
+    }
+    const isCustomerAvl = await prisma.customers.findFirst({
+      where: {
+        id: customerId,
+      },
+    });
+
+    if (isCustomerAvl === null) {
+      const existingCustomer = await prisma.customers.findFirst({
+        where: {
+          isDeleted: false,
+          OR: [{ email: customerEmail }, { customerPhone: customerPhone }],
+        },
+      });
+
+      if (existingCustomer) {
+        return res.status(400).json({
+          message: "Customer with this email or phone number already exists.",
+        });
+      }
+      await prisma.customers.create({
+        data: {
+          id: customerId,
+          firstName: firstName,
+          lastName: lastName,
+          email: customerEmail,
+          customerPhone: customerPhone,
+          createdBy: req.user.id,
+        },
+      });
+    }
+    const checkStockOrder = await prisma.stockOrder.findFirst({
+      where: {
+        orderNumber: orderNumber,
+      },
+    });
+
+    if (checkStockOrder) {
+      return res.status(401).send({
+        message:
+          "This order number already exists. Please try a different order number.",
+      });
+    }
+
+    await prisma.stockOrder.create({
+      data: {
+        orderNumber: orderNumber,
+        orderDate: orderDate,
+        shipDate: shipDate,
+        customerName: customerName,
+        customerEmail: customerEmail,
+        customerPhone: customerPhone,
+        productNumber: productNumber,
+        productDescription: productDescription,
+        productQuantity: Number(productQuantity),
+        cost: cost,
+        customerId: customerId,
+        createdBy: req.user.id,
+      },
+    });
+    return res.status(201).json({
+      message: "Stock order created successfully!",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const selectCustomer = async (req, res) => {
+  try {
+    const customer = await prisma.customers.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+    });
+
+    const formattedSuppliers = customer.map((customer) => ({
+      id: customer.id,
+      name: `${customer.firstName} ${customer.lastName}`,
+    }));
+    res.status(200).json(formattedSuppliers);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const selectProcess = async (req, res) => {
+  try {
+    const process = await prisma.process.findMany({
+      select: {
+        id: true,
+        processName: true,
+        partFamily: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+    });
+
+    const formattedProcess = process.map((process) => ({
+      id: process.id,
+      name: process.processName,
+      partFamily: process.partFamily,
+    }));
+    res.status(200).json(formattedProcess);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const selectPartNumber = async (req, res) => {
+  try {
+    const process = await prisma.partNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+    });
+
+    const formattedProcess = process.map((process) => ({
+      id: process.part_id,
+      partNumber: process.partNumber,
+    }));
+    res.status(200).json({
+      data: formattedProcess,
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({ message: "Server error" });
+  }
+};
+const customeOrder = async (req, res) => {
+  try {
+    const {
+      orderNumber,
+      orderDate,
+      shipDate,
+      customerName,
+      customerEmail,
+      customerPhone,
+      productNumber,
+      cost,
+      productDescription,
+      productQuantity,
+      processAssign,
+      totalTime,
+      process,
+      customerId,
+    } = req.body;
+
+    await prisma.customOrder.create({
+      data: {
+        orderNumber: orderNumber,
+        orderDate: orderDate,
+        shipDate: shipDate,
+        customerName: customerName,
+        customerEmail: customerEmail,
+        customerPhone: customerPhone,
+        productNumber: productNumber,
+        cost: cost,
+        productDescription: productDescription,
+        productQuantity: productQuantity,
+        processAssign: processAssign,
+        process: process,
+        totalTime: totalTime,
+        customerId: customerId,
+      },
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const createPartNumber = async (req, res) => {
+  try {
+    const {
+      partFamily,
+      partNumber,
+      partDescription,
+      cost,
+      leadTime,
+      supplierOrderQty,
+      companyName,
+      minStock,
+      availableStock,
+      cycleTime,
+      processOrderRequired,
+      processId,
+      processDesc,
+    } = req.body;
+    const getId = uuidv4().slice(0, 6);
+    const existingPart = await prisma.partNumber.findUnique({
+      where: {
+        partNumber: partNumber,
+      },
+    });
+
+    if (existingPart) {
+      return res.status(400).json({
+        message: "Part Number already exists.",
+      });
+    }
+
+    await prisma.partNumber.create({
+      data: {
+        part_id: getId,
+        partFamily,
+        partNumber,
+        partDescription,
+        cost,
+        leadTime,
+        supplierOrderQty,
+        companyName,
+        minStock,
+        availableStock,
+        cycleTime,
+        processOrderRequired,
+        processId,
+        processDesc,
+        type: "part",
+        submittedBy: req.user.id,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Part number created successfully!",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const partNumberList = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.partNumber.findMany({
+        where: {
+          type: "part",
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        include: {
+          process: {
+            select: {
+              processName: true,
+            },
+          },
+        },
+      }),
+      prisma.partNumber.count({
+        where: {
+          type: "part",
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Part number retrieved successfully!",
+      data: allProcess,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
     console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
@@ -775,72 +1306,282 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+const createProductNumber = async (req, res) => {
+  try {
+    const {
+      partFamily,
+      productNumber,
+      partDescription,
+      cost,
+      leadTime,
+      supplierOrderQty,
+      companyName,
+      minStock,
+      availStock,
+      cycleTime,
+      processOrderRequired,
+      processId,
+      part_id,
+      partQuantity,
+      processDesc,
+      workInstruction,
+      parts = [], // ✅ array of parts from payload
+    } = req.body;
+
+    const existingPart = await prisma.partNumber.findUnique({
+      where: {
+        partNumber: productNumber,
+      },
+    });
+
+    if (existingPart) {
+      return res.status(400).json({
+        message: "Product Number already exists.",
+      });
+    }
+
+    const getId = uuidv4().slice(0, 6); // used as part_id / product_id
+
+    // ✅ Step 1: Create the Product Number
+    await prisma.partNumber.create({
+      data: {
+        part_id: getId,
+        partFamily,
+        partNumber: productNumber,
+        partDescription,
+        cost,
+        leadTime,
+        supplierOrderQty,
+        companyName,
+        minStock,
+        availStock,
+        cycleTime,
+        processOrderRequired,
+        processId,
+        processDesc,
+        type: "product",
+        submittedBy: req.user.id,
+      },
+    });
+
+    for (const part of parts) {
+      await prisma.productTree.create({
+        data: {
+          product_id: getId,
+          part_id: part.partNumber,
+          partQuantity: part.qty,
+        },
+      });
+      if (part.workInstruction === "Yes" || part.workInstruction === true) {
+        await prisma.workInstruction.create({
+          data: {
+            partId: part.partNumber,
+          },
+        });
+      }
+    }
+
+    return res.status(201).json({
+      message: "Product number and parts added successfully!",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
 // const createProductNumber = async (req, res) => {
 //   try {
-//     const getId = uuidv4().slice(0, 6);
-//     await createTable("productNumber", [
-//       { name: "id", type: "VARCHAR(10) PRIMARY KEY" },
-//       { name: "partFamily", type: "VARCHAR(255)" },
-//       { name: "productNumber", type: "VARCHAR(255)" },
-//       { name: "description", type: "VARCHAR(255)" },
-//       { name: "cost", type: "VARCHAR(255)" },
-//       { name: "leadTime", type: "VARCHAR(255)" },
-//       { name: "orderQuantity", type: "VARCHAR(255)" },
-//       { name: "companyName", type: "VARCHAR(255)" },
-//       { name: "minStock", type: "VARCHAR(255)" },
-//       { name: "availStock", type: "VARCHAR(50)" },
-//       { name: "cycleTime", type: "VARCHAR(50)" },
-//       { name: "prcessOrder", type: "VARCHAR(255)" },
-//       { name: "partImage", type: "VARCHAR(255)" },
-//       { name: "createdBy", type: "VARCHAR(255)" },
-//     ]);
 //     const {
 //       partFamily,
 //       productNumber,
-//       description,
+//       partDescription,
 //       cost,
 //       leadTime,
-//       orderQuantity,
+//       supplierOrderQty,
 //       companyName,
 //       minStock,
 //       availStock,
 //       cycleTime,
-//       prcessOrder,
-//       partImage,
+//       processOrderRequired,
+//       processId,
+//       part_id,
+//       partQuantity,
+//       workInstruction,
 //     } = req.body;
-//     const userId = req.user.id;
-//     connection = await db.getConnection();
-//     await connection.query(
-//       "INSERT INTO productNumber (id,partFamily, productNumber,description, cost,leadTime, orderQuantity, companyName,minStock,cycleTime,prcessOrder ,createdBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-//       [
-//         getId,
-//         partFamily.trim(),
-//         productNumber.trim(),
-//         description.trim(),
-//         cost.trim(),
+
+//     console.log("req.bodyreq.body", req.body.parts);
+//     const existingPart = await prisma.partNumber.findUnique({
+//       where: {
+//         partNumber: productNumber,
+//       },
+//     });
+
+//     if (existingPart) {
+//       return res.status(400).json({
+//         message: "Product Number already exists.",
+//       });
+//     }
+//     const getId = uuidv4().slice(0, 6);
+//     await prisma.partNumber.create({
+//       data: {
+//         part_id: getId,
+//         partFamily,
+//         partNumber: productNumber,
+//         partDescription,
+//         cost,
 //         leadTime,
-//         orderQuantity,
+//         supplierOrderQty,
 //         companyName,
 //         minStock,
 //         availStock,
 //         cycleTime,
-//         prcessOrder,
-//         userId,
-//       ]
-//     );
+//         processOrderRequired,
+//         processId,
+//         processDesc: req?.body?.processDesc,
+//         type: "product",
+//         submittedBy: req.user.id,
+//       },
+//     });
+//     await prisma.productTree.create({
+//       data: {
+//         product_id: getId,
+//         part_id,
+//         partQuantity,
+//       },
+//     });
+//     if (workInstruction === true) {
+//       await prisma.workInstruction.create({
+//         data: {
+//           partId: getId,
+//         },
+//       });
+//     }
+
 //     return res.status(201).json({
-//       message: "Product number added successfully!",
+//       message: "Product number created successfully!",
 //     });
 //   } catch (error) {
-//     console.log("errorerrorerror0", error);
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
+//     console.error(error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
 //     });
 //   }
 // };
 
+const createProductTree = async (req, res) => {
+  try {
+    const { product_id, part_id, quantity } = req.body;
+    const partExists = await prisma.partNumber.findUnique({
+      where: { part_id },
+    });
+
+    if (!partExists) {
+      return res
+        .status(404)
+        .json({ message: "Part not found with given part_id." });
+    }
+    const getId = uuidv4().slice(0, 6);
+    await prisma.productTree.create({
+      data: {
+        id: getId,
+        product_id,
+        part_id,
+        quantity,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Product tree entry created successfully.",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const bomDataList = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.partNumber.findMany({
+        where: {
+          type: "part",
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        include: {
+          process: {
+            select: {
+              processName: true,
+            },
+          },
+        },
+      }),
+      prisma.partNumber.count({
+        where: {
+          type: "part",
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Part number retrieved successfully!",
+      data: allProcess,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const partNumberDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await prisma.partNumber.findFirst({
+      where: {
+        partNumber: id,
+      },
+      select: {
+        part_id: true,
+        process: true,
+        processId: true,
+        supplierOrderQty: true,
+        cycleTime: true,
+      },
+    });
+    return res.status(200).json({
+      message: "Part number detail retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+};
 module.exports = {
   login,
+  sendForgotPasswordOTP,
+  validOtp,
+  resetPassword,
   createCustomer,
   customerList,
   customerDetail,
@@ -863,6 +1604,16 @@ module.exports = {
   employeeDetail,
   editEmployee,
   deleteEmployee,
-  // createProductNumber,
+  createStockOrder,
+  selectCustomer,
+  customeOrder,
+  createPartNumber,
+  createProductNumber,
+  createProductTree,
+  selectProcess,
+  partNumberList,
+  bomDataList,
+  selectPartNumber,
+  selectPartNumber,
+  partNumberDetail,
 };
-

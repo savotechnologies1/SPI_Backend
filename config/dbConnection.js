@@ -2,17 +2,16 @@ const md5 = require("md5");
 const prisma = require("./prisma");
 const { v4: uuidv4 } = require("uuid");
 
-
 const connectDB = async () => {
   try {
     await prisma.$connect();
     const getId = uuidv4().slice(0, 6);
-    const convertedPass =md5("Admin@123")
+    const convertedPass = md5("Admin@123");
     const adminCount = await prisma.admin.count();
     if (adminCount === 0) {
       await prisma.admin.create({
         data: {
-          id :getId,
+          id: getId,
           name: "Admin",
           email: "spiadmin@gmail.com",
           password: convertedPass,
@@ -20,9 +19,40 @@ const connectDB = async () => {
           phoneNumber: "+911111111111",
         },
       });
-      console.log("Default super admin created.");
     }
 
+    const templateCount = await prisma.mailTemplate.count();
+
+    if (templateCount === 0) {
+      await prisma.mailTemplate.create({
+        data: {
+          templateEvent: "otp-verify",
+          subject: "SPI OTP Verification",
+          mailVariables: "%otp%",
+          htmlBody: `<!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>OTP Verification</title>
+          </head>
+          <body style="font-family: Arial, sans-serif; background-color: #f4f7fc; margin: 0; padding: 0;">
+            <div style="width: 100%; max-width: 600px; margin: 40px auto; background-color: #ffffff; padding: 30px 0px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center;">
+              <h1 style="font-size: 28px; color: #2c3e50; margin-bottom: 20px">Verify Your Identity</h1>
+              <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Hello,</p>
+              <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Your One-Time Password (OTP) for verification is:</p>
+              <div style="font-size: 40px; font-weight: bold; color: rgb(5 44 137 /1); margin: 30px 0; background-color: #f1f8ff; padding: 10px 30px; border-radius: 5px; display: inline-block;">%otp%</div>
+              <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Please use this OTP to complete your verification.</p>
+              <div style="margin-top: 40px; font-size: 14px; color: #bdc3c7; border-top: 1px solid #f1f1f1; padding-top: 20px;">
+                <p style="margin: 0">&copy; GMKC Logistics. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>`,
+          textBody: "Your SPI Verification code is %otp%.",
+        },
+      });
+    }
   } catch (error) {
     console.error(" Database connection error:", error);
     process.exit(1);

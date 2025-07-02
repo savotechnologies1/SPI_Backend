@@ -16,7 +16,7 @@ const adminValidateToken = async (req, res, next) => {
     const admin = await prisma.admin.findFirst({
       where: {
         tokens: {
-          equals: [token], // If tokens is a string array
+          array_contains: token,
         },
         isDeleted: false,
       },

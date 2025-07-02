@@ -22,20 +22,23 @@ model admin {
 }
 
 model customers {
-  id           String   @id @default(uuid()) @db.Char(36)
-  firstName    String
-  lastName     String
-  email        String   @unique
-  address      String
-  billingTerms String
-  createdBy    String // assuming it's a user ID or name
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  isDeleted    Boolean  @default(false)
+  id            String        @id @default(uuid()) @db.Char(36)
+  firstName     String
+  lastName      String
+  email         String
+  address       String?
+  customerPhone String?
+  billingTerms  String?
+  createdBy     String // assuming it's a user ID or name
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  isDeleted     Boolean       @default(false)
+  StockOrder    StockOrder[]
+  CustomOrder   CustomOrder[]
 }
 
 model employee {
-  id             String    @id @db.VarChar(10)
+  id             String    @id @default(uuid()) @db.Char(36)
   firstName      String?   @db.VarChar(255)
   lastName       String?   @db.VarChar(255)
   fullName       String?   @db.VarChar(255)
@@ -45,7 +48,13 @@ model employee {
   startDate      String?   @db.VarChar(255)
   pin            String?   @db.VarChar(255)
   shopFloorLogin String?   @db.VarChar(50)
-  role           String?   @db.VarChar(50)
+  role           String    @default("shopfloor")
+  phoneNumber    String?   @unique(map: "phoneNumber") @db.VarChar(20)
+  email          String?   @unique(map: "email") @db.VarChar(100)
+  password       String    @db.VarChar(255)
+  tokens         Json?
+  otp            String?   @db.VarChar(10)
+  resetToken     String?   @db.Char(36)
   termsAccepted  Boolean?  @db.TinyInt()
   status         String?   @db.VarChar(255)
   createdBy      String?   @db.VarChar(255)
@@ -57,34 +66,18 @@ model employee {
 model process {
   id          String    @id @db.VarChar(10)
   processName String?   @db.VarChar(255)
+  partFamily  String?   @db.VarChar(255)
   machineName String?   @db.VarChar(255)
   cycleTime   String?   @db.VarChar(255)
   ratePerHour String?   @db.VarChar(255)
-  orderNeeded String?   @db.VarChar(255)
+  orderNeeded Boolean
   createdBy   String?   @db.VarChar(255)
   isDeleted   Boolean?  @default(false)
   createdAt   DateTime? @default(now()) @db.DateTime(0)
   updatedAt   DateTime? @default(now()) @db.DateTime(0)
-}
 
-model productnumber {
-  id            String    @id @db.VarChar(10)
-  partFamily    String?   @db.VarChar(255)
-  productNumber String?   @db.VarChar(255)
-  description   String?   @db.VarChar(255)
-  cost          String?   @db.VarChar(255)
-  leadTime      String?   @db.VarChar(255)
-  orderQuantity String?   @db.VarChar(255)
-  companyName   String?   @db.VarChar(255)
-  minStock      String?   @db.VarChar(255)
-  availStock    String?   @db.VarChar(50)
-  cycleTime     String?   @db.VarChar(50)
-  prcessOrder   String?   @db.VarChar(255)
-  partImage     String?   @db.VarChar(255)
-  createdBy     String?   @db.VarChar(255)
-  isDeleted     Boolean?  @default(false)
-  createdAt     DateTime? @default(now()) @db.DateTime(0)
-  updatedAt     DateTime? @default(now()) @db.DateTime(0)
+  PartNumber      PartNumber[]
+  WorkInstruction WorkInstruction[]
 }
 
 model suppliers {
@@ -99,32 +92,148 @@ model suppliers {
   createdAt    DateTime? @default(now()) @db.DateTime(0)
   updatedAt    DateTime? @default(now()) @db.DateTime(0)
 
-  orders       supplier_orders[]
-}
-model supplier_orders {
-  id           Int       @id @default(autoincrement())
-  order_number String?   @db.VarChar(50)
-  order_date   String?   @db.VarChar(50)
-  supplier_id  String?   @db.VarChar(10)
-  supplier     suppliers? @relation(fields: [supplier_id], references: [id])
-  part_name    String?   @db.VarChar(255)
-  quantity     String?   @db.VarChar(50)
-  cost         String?   @db.VarChar(50)
-  need_date    String?   @db.VarChar(50)
-  createdBy    String?   @db.VarChar(255)
-  isDeleted    Boolean?  @default(false)
-  createdAt    DateTime? @default(now()) @db.DateTime(0)
-  updatedAt    DateTime? @default(now()) @db.DateTime(0)
+  orders supplier_orders[]
 }
 
+model supplier_orders {
+  id           Int        @id @default(autoincrement())
+  order_number String?    @db.VarChar(50)
+  order_date   String?    @db.VarChar(50)
+  supplier_id  String?    @db.VarChar(10)
+  supplier     suppliers? @relation(fields: [supplier_id], references: [id])
+  part_name    String?    @db.VarChar(255)
+  quantity     String?    @db.VarChar(50)
+  cost         String?    @db.VarChar(50)
+  need_date    String?    @db.VarChar(50)
+  createdBy    String?    @db.VarChar(255)
+  isDeleted    Boolean?   @default(false)
+  createdAt    DateTime?  @default(now()) @db.DateTime(0)
+  updatedAt    DateTime?  @default(now()) @db.DateTime(0)
+}
 
 model users {
-  id    Int     @id @default(autoincrement())
-  name  String? @db.VarChar(100)
-  email String? @unique(map: "email") @db.VarChar(100)
+  id          String   @id @default(uuid()) @db.Char(36)
+  name        String?  @db.VarChar(100)
+  email       String?  @unique(map: "email") @db.VarChar(100)
+  password    String   @db.VarChar(255)
+  role        String   @default("shopfloor")
+  phoneNumber String?  @unique(map: "phoneNumber") @db.VarChar(20)
+  tokens      Json?
+  otp         String?  @db.VarChar(10)
+  resetToken  String?  @db.Char(36)
+  isDeleted   Boolean? @default(false)
+}
+
+model mailTemplate {
+  id            String   @id @default(uuid()) @db.Char(36)
+  templateEvent String   @unique
+  active        Boolean  @default(true)
+  subject       String?
+  mailVariables String?
+  htmlBody      String?  @db.LongText
+  textBody      String?  @db.Text
+  isDeleted     Boolean  @default(false)
+  createdBy     String?  @db.Char(36)
+  updatedBy     String?  @db.Char(36)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 enum admin_roles {
   admin
   superAdmin
+}
+
+model StockOrder {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  orderNumber        String   @unique
+  orderDate          String?
+  shipDate           String?
+  customerId         String
+  customerName       String
+  customerEmail      String
+  customerPhone      String
+  productNumber      String
+  productDescription String
+  cost               String
+  productQuantity    Int
+  createdBy          String?  @db.Char(36)
+  isDeleted          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  customer customers? @relation(fields: [customerId], references: [id])
+}
+
+model CustomOrder {
+  id                 String     @id @default(uuid()) @db.Char(36)
+  orderNumber        String     @unique
+  orderDate          String?
+  shipDate           String?
+  customerId         String
+  customerName       String
+  customerEmail      String
+  customerPhone      String
+  productNumber      String
+  productDescription String
+  cost               String
+  productQuantity    Int
+  processAssign      Json
+  totalTime          String
+  isDeleted          Boolean    @default(false)
+  createdBy          String?    @db.Char(36)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  customer           customers? @relation(fields: [customerId], references: [id])
+}
+
+model PartNumber {
+  part_id              String   @id @default(uuid()) @db.Char(36)
+  partFamily           String   @db.Char(36)
+  partNumber           String   @unique @db.Char(36)
+  partDescription      String   @db.VarChar(255)
+  cost                 Float
+  leadTime             Int
+  supplierOrderQty     Int?
+  cycleTime            Int?
+  companyName          String   @db.VarChar(100)
+  minStock             Int
+  availStock           Int?
+  processOrderRequired Boolean  @default(false)
+  processId            String   @db.VarChar(10)
+  process              process  @relation(fields: [processId], references: [id])
+  processDesc          String?  @db.VarChar(255)
+  type                 String   @db.VarChar(100)
+  partImg              String?  @db.VarChar(255)
+  submittedBy          String?  @db.VarChar(100)
+  isDeleted            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  productTree     productTree[]
+  WorkInstruction WorkInstruction[]
+}
+
+model productTree {
+  id           String @id @default(uuid()) @db.Char(36)
+  product_id   String @db.Char(36)
+  part_id      String @db.Char(36)
+  partQuantity Int
+
+  part PartNumber @relation(fields: [part_id], references: [part_id])
+
+  @@index([part_id])
+}
+
+model WorkInstruction {
+  id        String     @id @default(uuid()) @db.Char(36)
+  processId String     @db.Char(36)
+  partId    String     @db.Char(36)
+  process   process    @relation(fields: [processId], references: [id])
+  part      PartNumber @relation(fields: [partId], references: [part_id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([processId])
+  @@index([partId])
 }

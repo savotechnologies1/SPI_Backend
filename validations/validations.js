@@ -24,7 +24,7 @@ const userRegister = [
     ),
 ];
 
-const userOTPVerify = [
+const otpVerify = [
   body("otp").exists({ checkFalsy: true }).withMessage("OTP is required"),
 ];
 const userOTPVerified = [
@@ -105,18 +105,25 @@ const customerValidation = [
   body("firstName")
     .exists({ checkFalsy: true })
     .withMessage("Please enter the first name"),
+
   body("lastName")
     .exists({ checkFalsy: true })
     .withMessage("Please enter the last name"),
+
   body("email")
     .exists({ checkFalsy: true })
     .withMessage("Please enter the email"),
-  body("address")
-    .exists({ checkFalsy: true })
-    .withMessage("Please enter the address"),
-  body("billingTerms")
-    .exists({ checkFalsy: true })
-    .withMessage("Please enter the billing terms"),
+
+  body("customerPhone")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the customer phone number.")
+    .isNumeric()
+    .withMessage(
+      "Phone number must contain digits only (no spaces or symbols)."
+    )
+    .isLength({ min: 7, max: 15 })
+    .withMessage("Phone number must be between 7 to 15 digits."),
 ];
 
 const supplierValidation = [
@@ -158,22 +165,15 @@ const processValidation = [
     .withMessage("Please select whether order is needed or not."),
 ];
 
-
 const employeeValidation = [
   body("firstName")
     .trim()
     .notEmpty()
     .withMessage("Please enter the first name."),
 
-  body("lastName")
-    .trim()
-    .notEmpty()
-    .withMessage("Please enter the last name."),
+  body("lastName").trim().notEmpty().withMessage("Please enter the last name."),
 
-  body("fullName")
-    .trim()
-    .notEmpty()
-    .withMessage("Please enter the full name."),
+  body("fullName").trim().notEmpty().withMessage("Please enter the full name."),
 
   body("hourlyRate")
     .notEmpty()
@@ -181,37 +181,89 @@ const employeeValidation = [
     .isNumeric()
     .withMessage("Hourly rate must be a number."),
 
-  body("shift")
-    .notEmpty()
-    .withMessage("Please select any one shift."),
+  body("shift").notEmpty().withMessage("Please select any one shift."),
 
-  body("startDate")
-    .notEmpty()
-    .withMessage("Please select start date."),
+  body("startDate").notEmpty().withMessage("Please select start date."),
 
-  body("pin")
-    .notEmpty()
-    .withMessage("Please enter the pin."),
+  body("pin").notEmpty().withMessage("Please enter the pin."),
 
   body("shopFloorLogin")
     .notEmpty()
     .withMessage("Please select if shop floor login is enabled or not."),
 
-  body("status")
-    .notEmpty()
-    .withMessage("Please select employee status."),
+  body("status").notEmpty().withMessage("Please select employee status."),
 
   body("termsAccepted")
     .equals("true")
-    .withMessage("You must accept the terms and conditions.")
+    .withMessage("You must accept the terms and conditions."),
 ];
 
-module.exports = { employeeValidation };
+const stockOrderValidation = [
+  body("orderNumber")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the first name."),
 
+  body("orderDate").trim().notEmpty().withMessage("Please select order date ."),
+
+  body("shipDate").trim().notEmpty().withMessage("Please select ship date ."),
+
+  body("customerName")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the customer name."),
+
+  body("customerEmail")
+    .exists({ checkFalsy: true })
+    .withMessage("Please enter the email")
+    .matches(
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+    )
+    .withMessage("Please enter valid email id"),
+
+  body("customerPhone")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the customer phone number.")
+    .isNumeric()
+    .withMessage(
+      "Phone number must contain digits only (no spaces or symbols)."
+    )
+    .isLength({ min: 7, max: 15 })
+    .withMessage("Phone number must be between 7 to 15 digits."),
+
+  body("orderDate").trim().notEmpty().withMessage("Please select order date ."),
+
+  body("productNumber")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the product number."),
+
+  body("cost")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the cost.")
+    .isNumeric()
+    .withMessage("Cost must contain digits only (no spaces or symbols)."),
+
+  body("productDescription")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the product description."),
+
+  body("productQuantity")
+    .trim()
+    .notEmpty()
+    .withMessage("Please enter the product quantity.")
+    .isNumeric()
+    .withMessage(
+      "Product quantity must contain digits only (no spaces or symbols)."
+    ),
+];
 module.exports = {
   adminLogin,
   userRegister,
-  userOTPVerify,
+  otpVerify,
   userOTPVerified,
   forgotPass,
   resetPass,
@@ -221,4 +273,5 @@ module.exports = {
   supplierValidation,
   processValidation,
   employeeValidation,
+  stockOrderValidation,
 };

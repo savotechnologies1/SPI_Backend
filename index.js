@@ -19,6 +19,7 @@ const directory = path.join(__dirname, "public");
 app.use(express.static(directory));
 
 app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/shopFloor", require("./routes/shopFloorRoutes"));
 
 app.listen(port, () => {
   console.log(` Server running on port ${port}`);

@@ -95,3 +95,20 @@ module.exports.fileUploadFunc = (request, response) => {
     }
   });
 };
+
+const isValidPhoneNumber = (phoneNumber) => {
+  if (!phoneNumber) return false;
+  const phoneRegex = /^\d+$/;
+  return phoneRegex.test(phoneNumber);
+};
+
+module.exports.validatePhoneInput = (res, phoneNumber) => {
+  const checkPhone = isValidPhoneNumber(phoneNumber);
+  if (!checkPhone) {
+    res.status(400).json({
+      message: "Phone number must contain digits only (no spaces or symbols).",
+    });
+    return false;
+  }
+  return true;
+};

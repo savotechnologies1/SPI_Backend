@@ -17,7 +17,7 @@ const validateToken = async (req, res, next) => {
       where: {
         isDeleted: false,
         tokens: {
-          equals: [token], // For tokens stored as an array of strings
+          equals: [token],
         },
       },
     });
