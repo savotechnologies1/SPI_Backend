@@ -9,6 +9,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 connectDB();
+console.log("database", process.env.DATABASE_URL);
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
