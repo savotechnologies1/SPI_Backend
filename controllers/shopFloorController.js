@@ -127,7 +127,7 @@ const sendForgotPasswordOTP = async (req, res) => {
     }
     const otp = sendForgotPasswordOTP();
     await sendMail("otp-verify", { "%otp%": otp }, user.email);
-    await pr
+    await pr;
   } catch (error) {
     res.status(500).send({
       message: "Something went wrong . please try again later .",

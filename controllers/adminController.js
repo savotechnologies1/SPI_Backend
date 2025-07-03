@@ -1152,6 +1152,35 @@ const selectPartNumber = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+const selectProductNumber = async (req, res) => {
+  try {
+    const process = await prisma.PartNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+      },
+      where: {
+        type: "product",
+        isDeleted: false,
+      },
+    });
+
+    const formattedProcess = process.map((process) => ({
+      id: process.part_id,
+      productNumber: process.partNumber,
+    }));
+    res.status(200).json({
+      data: formattedProcess,
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({ message: "Something went wrong . please try again later ." });
+  }
+};
+
 const customeOrder = async (req, res) => {
   try {
     const {
@@ -1214,7 +1243,7 @@ const createPartNumber = async (req, res) => {
       processDesc,
     } = req.body;
     const getId = uuidv4().slice(0, 6);
-    const existingPart = await prisma.partNumber.findUnique({
+    const existingPart = await prisma.PartNumber.findUnique({
       where: {
         partNumber: partNumber,
       },
@@ -1226,7 +1255,7 @@ const createPartNumber = async (req, res) => {
       });
     }
 
-    await prisma.partNumber.create({
+    await prisma.PartNumber.create({
       data: {
         part_id: getId,
         partFamily,
@@ -1325,7 +1354,7 @@ const createProductNumber = async (req, res) => {
       partQuantity,
       processDesc,
       workInstruction,
-      parts = [], // ✅ array of parts from payload
+      parts = [],
     } = req.body;
 
     const existingPart = await prisma.partNumber.findUnique({
@@ -1340,10 +1369,9 @@ const createProductNumber = async (req, res) => {
       });
     }
 
-    const getId = uuidv4().slice(0, 6); // used as part_id / product_id
-
-    // ✅ Step 1: Create the Product Number
-    await prisma.partNumber.create({
+    const getId = uuidv4().slice(0, 6);
+    console.log("req.bodyreq.body", req.body);
+    await prisma.PartNumber.create({
       data: {
         part_id: getId,
         partFamily,
@@ -1363,29 +1391,32 @@ const createProductNumber = async (req, res) => {
         submittedBy: req.user.id,
       },
     });
+    console.log("partpart", parts);
 
     for (const part of parts) {
+      console.log("partsparts", part);
+
       await prisma.productTree.create({
         data: {
           product_id: getId,
-          part_id: part.partNumber,
-          partQuantity: part.qty,
+          part_id: part.part_id,
+          partQuantity: Number(part.qty),
         },
       });
-      if (part.workInstruction === "Yes" || part.workInstruction === true) {
-        await prisma.workInstruction.create({
-          data: {
-            partId: part.partNumber,
-          },
-        });
-      }
+      // if (part.workInstruction === "Yes" || part.workInstruction === true) {
+      //   await prisma.workInstruction.create({
+      //     data: {
+      //       partId: part.partNumber,
+      //     },
+      //   });
+      // }
     }
 
     return res.status(201).json({
       message: "Product number and parts added successfully!",
     });
   } catch (error) {
-    console.error(error);
+    console.error("errorerror", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -1474,7 +1505,7 @@ const createProductNumber = async (req, res) => {
 const createProductTree = async (req, res) => {
   try {
     const { product_id, part_id, quantity } = req.body;
-    const partExists = await prisma.partNumber.findUnique({
+    const partExists = await prisma.PartNumber.findUnique({
       where: { part_id },
     });
 
@@ -1503,15 +1534,110 @@ const createProductTree = async (req, res) => {
     });
   }
 };
+const getProductTree = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+
+    const [productTrees, totalCount] = await Promise.all([
+      prisma.productTree.findMany({
+        where: {
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        include: {
+          part: {
+            select: {
+              partNumber: true,
+              partFamily: true,
+              process: {
+                select: {
+                  id: true,
+                  processName: true,
+                  machineName: true,
+                  cycleTime: true,
+                  ratePerHour: true,
+                  orderNeeded: true,
+                },
+              },
+            },
+          },
+          // ✅ Join product_id to get productNumber
+          product: {
+            select: {
+              partNumber: true, // You’ll get the productNumber here
+            },
+          },
+        },
+      }),
+      prisma.productTree.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    // Group by product_id
+    const grouped = {};
+
+    productTrees.forEach((item) => {
+      const { product_id, part_id, part, product } = item;
+
+      console.log("productproduct", product);
+
+      if (!grouped[product_id]) {
+        grouped[product_id] = {
+          product_id,
+          productNumber: product?.partNumber || null, // ✅ include productNumber
+          parts: [],
+        };
+      }
+
+      if (part) {
+        grouped[product_id].parts.push({
+          part_id,
+          partNumber: part.partNumber,
+          partFamily: part.partFamily,
+          process: part.process,
+        });
+      }
+    });
+
+    const result = Object.values(grouped).map((product) => ({
+      product_id: product.product_id,
+      productNumber: product.productNumber,
+      parts: product.parts,
+    }));
+
+    const paginated = await pagination({
+      data: result,
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: Object.keys(grouped).length,
+    });
+
+    return res.status(200).json({
+      message: "Part number retrieved successfully!",
+      result,
+      data: paginated.data,
+      totalCount,
+      pagination: paginated.pagination,
+    });
+  } catch (error) {
+    console.error("getProductTree error:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
 
 const bomDataList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
 
     const [allProcess, totalCount] = await Promise.all([
-      prisma.partNumber.findMany({
+      prisma.PartNumber.findMany({
         where: {
-          type: "part",
           isDeleted: false,
         },
         skip: paginationData.skip,
@@ -1524,9 +1650,8 @@ const bomDataList = async (req, res) => {
           },
         },
       }),
-      prisma.partNumber.count({
+      prisma.PartNumber.count({
         where: {
-          type: "part",
           isDeleted: false,
         },
       }),
@@ -1577,6 +1702,7 @@ const partNumberDetail = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -1616,4 +1742,6 @@ module.exports = {
   selectPartNumber,
   selectPartNumber,
   partNumberDetail,
+  getProductTree,
+  selectProductNumber,
 };

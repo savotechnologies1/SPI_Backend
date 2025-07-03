@@ -37,6 +37,8 @@ const {
   bomDataList,
   selectPartNumber,
   partNumberDetail,
+  getProductTree,
+  selectProductNumber,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -128,5 +130,7 @@ router.post("/create-product-tree", adminValidateToken, createProductTree);
 router.get("/part-number-list", adminValidateToken, partNumberList);
 router.get("/bom-data-list", adminValidateToken, bomDataList);
 router.get("/select-part-number", adminValidateToken, selectPartNumber);
+router.get("/select-product-number", adminValidateToken, selectProductNumber);
 router.get("/part-number-detail/:id", adminValidateToken, partNumberDetail);
+router.get("/get-product-tree", adminValidateToken, getProductTree);
 module.exports = router;
