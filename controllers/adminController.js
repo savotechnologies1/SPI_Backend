@@ -833,18 +833,6 @@ const allEmployee = async (req, res) => {
       prisma.employee.findMany({
         where: {
           isDeleted: false,
-          // OR: [
-          //   {
-          //     fullName: {
-          //       contains: search,
-          //     },
-          //   },
-          //   {
-          //     hourlyRate: {
-          //       contains: search,
-          //     },
-          //   },
-          // ],
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
@@ -852,18 +840,6 @@ const allEmployee = async (req, res) => {
       prisma.employee.count({
         where: {
           isDeleted: false,
-          // OR: [
-          //   {
-          //     fullName: {
-          //       contains: search,
-          //     },
-          //   },
-          //   {
-          //     hourlyRate: {
-          //       contains: search,
-          //     },
-          //   },
-          // ],
         },
       }),
     ]);
@@ -1359,7 +1335,7 @@ const createProductNumber = async (req, res) => {
 
     const existingPart = await prisma.partNumber.findUnique({
       where: {
-        partNumber: productNumber,
+        partNumber: productNumber.trim(),
       },
     });
 
@@ -1375,7 +1351,7 @@ const createProductNumber = async (req, res) => {
       data: {
         part_id: getId,
         partFamily,
-        partNumber: productNumber,
+        partNumber: productNumber.trim(),
         partDescription,
         cost,
         leadTime,
