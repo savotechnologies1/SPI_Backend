@@ -10,7 +10,6 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
-let connection;
 
 const login = async (req, res) => {
   try {
@@ -391,7 +390,6 @@ const deleteCustomer = async (req, res) => {
       message: "Something went wrong . please try again later .",
     });
   } finally {
-    if (connection) await connection.release();
   }
 };
 
@@ -773,7 +771,6 @@ const deleteProcess = async (req, res) => {
       message: "Something went wrong . please try again later .",
     });
   } finally {
-    if (connection) await connection.release();
   }
 };
 
