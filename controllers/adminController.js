@@ -777,187 +777,187 @@ const deleteProcess = async (req, res) => {
   }
 };
 
-const createEmployee = async (req, res) => {
-  try {
-    const getId = uuidv4().slice(0, 6);
-    const {
-      firstName,
-      lastName,
-      fullName,
-      email,
-      hourlyRate,
-      shift,
-      startDate,
-      pin,
-      shopFloorLogin,
-      termsAccepted,
-      status,
-    } = req.body;
+// const createEmployee = async (req, res) => {
+//   try {
+//     const getId = uuidv4().slice(0, 6);
+//     const {
+//       firstName,
+//       lastName,
+//       fullName,
+//       email,
+//       hourlyRate,
+//       shift,
+//       startDate,
+//       pin,
+//       shopFloorLogin,
+//       termsAccepted,
+//       status,
+//     } = req.body;
 
-    await prisma.employee.create({
-      data: {
-        firstName: firstName,
-        lastName: lastName,
-        fullName: fullName,
-        email,
-        employeeId: `EMP${getId}`,
-        hourlyRate: hourlyRate,
-        shift: shift,
-        startDate: startDate,
-        pin: pin,
-        shopFloorLogin: shopFloorLogin,
-        role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
-        termsAccepted: termsAccepted,
-        status: status,
-        password: "",
-        createdBy: req.user.id,
-      },
-    });
-    return res.status(201).json({
-      message: "Employee added successfully!",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+//     await prisma.employee.create({
+//       data: {
+//         firstName: firstName,
+//         lastName: lastName,
+//         fullName: fullName,
+//         email,
+//         employeeId: `EMP${getId}`,
+//         hourlyRate: hourlyRate,
+//         shift: shift,
+//         startDate: startDate,
+//         pin: pin,
+//         shopFloorLogin: shopFloorLogin,
+//         role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
+//         termsAccepted: termsAccepted,
+//         status: status,
+//         password: "",
+//         createdBy: req.user.id,
+//       },
+//     });
+//     return res.status(201).json({
+//       message: "Employee added successfully!",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
-const allEmployee = async (req, res) => {
-  try {
-    const paginationData = await paginationQuery(req.query);
-    const { search = "" } = req.query;
+// const allEmployee = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const { search = "" } = req.query;
 
-    const data = await prisma.employee.findMany();
-    const [employeeData, totalCount] = await Promise.all([
-      prisma.employee.findMany({
-        where: {
-          isDeleted: false,
-        },
-        skip: paginationData.skip,
-        take: paginationData.pageSize,
-      }),
-      prisma.employee.count({
-        where: {
-          isDeleted: false,
-        },
-      }),
-    ]);
+//     const data = await prisma.employee.findMany();
+//     const [employeeData, totalCount] = await Promise.all([
+//       prisma.employee.findMany({
+//         where: {
+//           isDeleted: false,
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//       }),
+//       prisma.employee.count({
+//         where: {
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
 
-    const paginationObj = {
-      page: paginationData.page,
-      pageSize: paginationData.pageSize,
-      total: totalCount,
-    };
+//     const paginationObj = {
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     };
 
-    const getPagination = await pagination(paginationObj);
+//     const getPagination = await pagination(paginationObj);
 
-    return res.status(200).json({
-      message: "Employee list retrieved successfully!",
-      data: employeeData,
-      totalCounts: totalCount,
-      pagination: getPagination,
-    });
-  } catch (error) {
-    console.error("Employee Fetch Error:", error);
-    return res.status(500).send({
-      message: "Something went wrong. Please try again later.",
-    });
-  }
-};
+//     return res.status(200).json({
+//       message: "Employee list retrieved successfully!",
+//       data: employeeData,
+//       totalCounts: totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Employee Fetch Error:", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
 
-const employeeDetail = async (req, res) => {
-  try {
-    const id = req.params.id;
-    const data = await prisma.employee.findUnique({
-      where: {
-        id: id,
-        isDeleted: false,
-      },
-    });
+// const employeeDetail = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const data = await prisma.employee.findUnique({
+//       where: {
+//         id: id,
+//         isDeleted: false,
+//       },
+//     });
 
-    return res.status(200).json({
-      message: "Process detail retrived successfully !",
-      data: data,
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+//     return res.status(200).json({
+//       message: "Process detail retrived successfully !",
+//       data: data,
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
-const editEmployee = async (req, res) => {
-  try {
-    const id = req.params.id;
-    const getId = uuidv4().slice(0, 6);
-    const {
-      firstName,
-      lastName,
-      fullName,
-      email,
-      hourlyRate,
-      shift,
-      startDate,
-      pin,
-      shopFloorLogin,
-      status,
-      termsAccepted,
-    } = req.body;
-    await prisma.employee.update({
-      where: {
-        id: id,
-        isDeleted: false,
-      },
-      data: {
-        firstName: firstName,
-        lastName: lastName,
-        fullName: fullName,
-        email: email,
-        hourlyRate: hourlyRate,
-        employeeId: `EMP${getId}`,
-        shift: shift,
-        startDate: startDate,
-        pin: pin,
-        status: status,
-        shopFloorLogin: shopFloorLogin,
-        termsAccepted: termsAccepted,
-      },
-    });
-    return res.status(200).json({
-      message: "Employee edit successfully !",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+// const editEmployee = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const getId = uuidv4().slice(0, 6);
+//     const {
+//       firstName,
+//       lastName,
+//       fullName,
+//       email,
+//       hourlyRate,
+//       shift,
+//       startDate,
+//       pin,
+//       shopFloorLogin,
+//       status,
+//       termsAccepted,
+//     } = req.body;
+//     await prisma.employee.update({
+//       where: {
+//         id: id,
+//         isDeleted: false,
+//       },
+//       data: {
+//         firstName: firstName,
+//         lastName: lastName,
+//         fullName: fullName,
+//         email: email,
+//         hourlyRate: hourlyRate,
+//         employeeId: `EMP${getId}`,
+//         shift: shift,
+//         startDate: startDate,
+//         pin: pin,
+//         status: status,
+//         shopFloorLogin: shopFloorLogin,
+//         termsAccepted: termsAccepted,
+//       },
+//     });
+//     return res.status(200).json({
+//       message: "Employee edit successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
 
-const deleteEmployee = async (req, res) => {
-  try {
-    const id = req.params.id;
-    prisma.employee
-      .update({
-        where: {
-          id: id,
-          isDeleted: false,
-        },
-        data: {
-          isDeleted: true,
-        },
-      })
-      .then();
+// const deleteEmployee = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     prisma.employee
+//       .update({
+//         where: {
+//           id: id,
+//           isDeleted: false,
+//         },
+//         data: {
+//           isDeleted: true,
+//         },
+//       })
+//       .then();
 
-    return res.status(200).json({
-      message: "Employee delete successfully !",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong. Please try again later.",
-    });
-  }
-};
+//     return res.status(200).json({
+//       message: "Employee delete successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
 
 const createStockOrder = async (req, res) => {
   try {
