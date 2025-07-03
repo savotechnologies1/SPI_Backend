@@ -35,7 +35,9 @@ const login = async (req, res) => {
     });
 
     if (!user || user.password !== md5(password) || user.isDeleted) {
-      return res.status(400).send({ message: "Invalid Username and Password" });
+      return res
+        .status(400)
+        .send({ message: "Invalid Username and Password ." });
     }
 
     const token = jwt.sign(
