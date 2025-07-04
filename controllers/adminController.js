@@ -1470,6 +1470,8 @@ const getProductTree = async (req, res) => {
             select: {
               partNumber: true,
               partFamily: true,
+              availStock: true,
+              supplierOrderQty: true,
               process: {
                 select: {
                   id: true,
@@ -1485,6 +1487,8 @@ const getProductTree = async (req, res) => {
           product: {
             select: {
               partNumber: true,
+              availStock: true,
+              supplierOrderQty: true,
             },
           },
         },
