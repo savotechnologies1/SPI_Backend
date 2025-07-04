@@ -55,6 +55,8 @@ module.exports.pagination = (data) => {
 module.exports.fileUploadFunc = (request, response) => {
   return new Promise(async function (resolve, reject) {
     try {
+      console.log("requestrequest", request);
+
       upload(request, response, (err) => {
         if (request.files && !Object.keys(request.files).length) {
           return resolve({
