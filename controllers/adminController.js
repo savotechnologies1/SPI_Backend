@@ -1431,7 +1431,7 @@ const createProductTree = async (req, res) => {
     if (!partExists) {
       return res
         .status(404)
-        .json({ message: "Part not found with given part_id." });
+        .json({ message: "Part not found with given part id" });
     }
     const getId = uuidv4().slice(0, 6);
     await prisma.productTree.create({
