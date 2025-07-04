@@ -64,18 +64,20 @@ model employee {
 }
 
 model process {
-  id          String    @id @db.VarChar(10)
-  processName String?   @db.VarChar(255)
-  partFamily  String?   @db.VarChar(255)
-  machineName String?   @db.VarChar(255)
-  cycleTime   String?   @db.VarChar(255)
-  ratePerHour String?   @db.VarChar(255)
-  orderNeeded Boolean
-  processDesc String?   @db.VarChar(255)
-  createdBy   String?   @db.VarChar(255)
-  isDeleted   Boolean?  @default(false)
-  createdAt   DateTime? @default(now()) @db.DateTime(0)
-  updatedAt   DateTime? @default(now()) @db.DateTime(0)
+  id           String    @id @db.VarChar(10)
+  processName  String?   @db.VarChar(255)
+  partFamily   String?   @db.VarChar(255)
+  machineName  String?   @db.VarChar(255)
+  cycleTime    String?   @db.VarChar(255)
+  ratePerHour  String?   @db.VarChar(255)
+  orderNeeded  Boolean
+  type         String    @default("") @db.VarChar(50)
+  isProcessReq Boolean   @default(false)
+  processDesc  String?   @db.VarChar(255)
+  createdBy    String?   @db.VarChar(255)
+  isDeleted    Boolean?  @default(false)
+  createdAt    DateTime? @default(now()) @db.DateTime(0)
+  updatedAt    DateTime? @default(now()) @db.DateTime(0)
 
   PartNumber      PartNumber[]
   WorkInstruction WorkInstruction[]
