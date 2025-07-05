@@ -39,12 +39,8 @@ const {
   partNumberDetail,
   getProductTree,
   selectProductNumber,
-  partDetail,
-  productDetail,
-  getSingleProductTree,
-  updatePartNumber,
-  updateProductNumber,
-  deletePartNumber,
+  selectCustomerForStockOrder,
+  selectProductNumberForStockOrder,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -58,7 +54,6 @@ const {
   resetPass,
   stockOrderValidation,
 } = require("../validations/validations");
-const upload = require("../functions/upload");
 
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -122,13 +117,10 @@ router.put("/delete-process/:id", adminValidateToken, deleteProcess);
 //   editEmployee
 // );
 // router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
-router.post(
-  "/create-stock-order",
-  adminValidateToken,
-  stockOrderValidation,
-  createStockOrder
-);
+router.post("/create-stock-order", adminValidateToken, stockOrderValidation, createStockOrder);
 router.get("/select-customer", adminValidateToken, selectCustomer);
+router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
+router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
 router.get("/select-process", adminValidateToken, selectProcess);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
@@ -140,13 +132,6 @@ router.get("/select-part-number", adminValidateToken, selectPartNumber);
 router.get("/select-product-number", adminValidateToken, selectProductNumber);
 router.get("/part-number-detail/:id", adminValidateToken, partNumberDetail);
 router.get("/get-product-tree", adminValidateToken, getProductTree);
-router.get("/get-part-detail/:id", adminValidateToken, partDetail);
-router.get("/get-product-detail/:id", adminValidateToken, getSingleProductTree);
-router.put("/update-part-number/:id", adminValidateToken, updatePartNumber);
-router.put(
-  "/update-product-number/:id",
-  adminValidateToken,
-  updateProductNumber
-);
-router.patch("/delete-part-number/:id", adminValidateToken, deletePartNumber);
+
+
 module.exports = router;

@@ -1,48 +1,72 @@
 const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
-const path = require("path");
-
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const allowedTypes = ["image/jpg", "image/png", "image/jpeg", "image/webp"];
-
-    if (
-      file?.fieldname === "partImages" &&
-      allowedTypes.includes(file.mimetype)
-    ) {
-      return cb(null, "./public/uploads/partImages");
+    if (file?.fieldname === "workInstructionImg") {
+      cb(null, "./public/uploads/workInstructionImg");
+    } else if (file?.fieldname === "workInstructionVideo") {
+      cb(null, "./public/uploads/workInstructionVideo");
+    } else if (file?.fieldname === "profileImg") {
+      cb(null, "./public/uploads/profileImg");
+    } else if (file?.fieldname === "partImg") {
+      cb(null, "./public/uploads/partImg");
+    } else {
+      cb(new Error("Invalid file fieldname"), false);
     }
-
-    cb(new Error("Invalid file type"), false);
   },
 
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const uniqueId = uuidv4();
-
-    cb(null, `${uniqueId}${ext}`);
+    const fileExtension = file.originalname.substr(
+      file.originalname.lastIndexOf(".") + 1,
+      file.originalname.length
+    );
+    let data = req?.user?.id;
+    if (
+      ["profileImg", "workInstructionImg", "workInstructionVideo","partImg"].includes(
+        file?.fieldname
+      )
+    ) {
+      data = uuidv4();
+    }
+    cb(null, `${data}.${fileExtension}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpg", "image/png", "image/jpeg", "image/webp"];
+  const allowedImageTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ];
+  const allowedVideoTypes = [
+    "video/mp4",
+    "video/mpeg",
+    "video/webm",
+    "video/ogg",
+  ];
 
-  if (["partImages"].includes(file.fieldname)) {
-    if (allowedTypes.includes(file.mimetype)) {
-      return cb(null, true);
-    } else {
-      req.fileValidationError = "Invalid file format.";
-      return cb(null, false);
-    }
+  if (
+    allowedImageTypes.includes(file.mimetype) ||
+    allowedVideoTypes.includes(file.mimetype)
+  ) {
+    return cb(null, true);
   }
 
-  req.fileValidationError = "Unexpected field";
-  return cb(null, false);
+  return cb(new Error("Invalid file type"), false);
 };
 
 const upload = multer({
-  storage,
-  fileFilter,
-}).fields([{ name: "partImages", maxCount: 5 }]);
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).fields([
+  {
+    name: "workInstructionImg",
+  },
+  { name: "workInstructionVideo" },
+  { name: "profileImg" },
+  { name: "partImg" },
+]);
 
 module.exports = upload;
