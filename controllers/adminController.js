@@ -1519,7 +1519,7 @@ const createProductTree = async (req, res) => {
     if (!partExists) {
       return res
         .status(404)
-        .json({ message: "Part not found with given part_id." });
+        .json({ message: "Part not found with given part id" });
     }
     const getId = uuidv4().slice(0, 6);
     await prisma.productTree.create({
@@ -1557,6 +1557,8 @@ const getProductTree = async (req, res) => {
             select: {
               partNumber: true,
               partFamily: true,
+              availStock: true,
+              supplierOrderQty: true,
               process: {
                 select: {
                   id: true,
@@ -1572,7 +1574,9 @@ const getProductTree = async (req, res) => {
           // ✅ Join product_id to get productNumber
           product: {
             select: {
-              partNumber: true, // You’ll get the productNumber here
+              partNumber: true,
+              availStock: true,
+              supplierOrderQty: true,
             },
           },
         },
