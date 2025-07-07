@@ -1137,23 +1137,43 @@ const selectProcess = async (req, res) => {
 
 const selectPartNumber = async (req, res) => {
   try {
-    const process = await prisma.partNumber.findMany({
-      select: {
-        part_id: true,
-        partNumber: true,
-      },
-      where: {
-        isDeleted: false,
-      },
-    });
+    console.log("0808");
 
-    const formattedProcess = process.map((process) => ({
-      id: process.part_id,
-      partNumber: process.partNumber,
-    }));
-    res.status(200).json({
-      data: formattedProcess,
-    });
+    // Step 1: Get all part_ids that are already used in productTree
+ const usedParts = await prisma.productTree.findMany({
+  select: { part_id: true },
+  where: {
+    isDeleted: false,
+  },
+});
+
+const usedPartIds = usedParts.map((item) => item.part_id);
+
+const process = await prisma.partNumber.findMany({
+  select: {
+    part_id: true,
+    partNumber: true,
+  },
+  where: {
+    type: "part",
+    isDeleted: false,
+    NOT: {
+      part_id: {
+        in: usedPartIds,
+      },
+    },
+  },
+});
+
+const formattedProcess = process.map((item) => ({
+  id: item.part_id,
+  partNumber: item.partNumber,
+}));
+
+res.status(200).json({
+  data: formattedProcess,
+});
+
   } catch (error) {
     console.log(error);
 
