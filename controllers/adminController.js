@@ -976,6 +976,7 @@ const createStockOrder = async (req, res) => {
       customerPhone,
       productNumber,
       cost,
+      totalCost,
       productDescription,
       productQuantity,
       customerId,
@@ -1043,6 +1044,7 @@ const createStockOrder = async (req, res) => {
         productDescription: productDescription,
         productQuantity: Number(productQuantity),
         cost: cost,
+        totalCost: totalCost,
         customerId: customerId,
         createdBy: req.user.id,
       },
@@ -1232,6 +1234,8 @@ const customeOrder = async (req, res) => {
 };
 
 const createPartNumber = async (req, res) => {
+  console.log("createPartNumber", req.body);
+
   try {
     const {
       partFamily,
