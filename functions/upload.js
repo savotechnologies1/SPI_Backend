@@ -58,6 +58,22 @@ const fileFilter = (req, file, cb) => {
 
   return cb(new Error("Invalid file type"), false);
 };
-const upload = multer({ storage, fileFilter }).any();
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).fields([
+  {
+    name: "workInstructionImg",
+    maxCount: 5,
+  },
+  {
+    name: "workInstructionVideo", // ✅ must be present exactly like this
+    maxCount: 1,
+  },
+
+  { name: "partImages", maxCount: 5 },
+]);
 
 module.exports = upload;

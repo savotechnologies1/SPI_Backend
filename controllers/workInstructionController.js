@@ -106,46 +106,45 @@ const createWorkInstruction = async (req, res) => {
     });
   }
 };
-const createWorkInstructionDetail = async (req, res) => {
-  try {
-    const fileData = await fileUploadFunc(req, res);
-    const getWorkImages = fileData?.data?.workInstructionImg || [];
-    const getWorkVideo = fileData?.data;
+// const createWorkInstructionDetail = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     const getWorkImages = fileData?.data?.workInstructionImg || [];
+//     const getWorkVideo = fileData?.data;
 
-    const { stepNumber, processId, partId, title, instruction } = req.body;
-    console.log("partIdpartId", String(partId));
-    console.log("Creating workInstruction with partId:", partId);
-    const partCheck = await prisma.partNumber.findUnique({
-      where: { part_id: partId },
-    });
-    console.log("partCheckpartCheck", partCheck);
-    if (!partCheck) {
-      return res
-        .status(400)
-        .json({ message: "Invalid partId. Not found in DB." });
-    }
+//     const { stepNumber, processId, partId, title, instruction } = req.body;
+//     console.log("partIdpartId", String(partId));
+//     console.log("Creating workInstruction with partId:", partId);
+//     const partCheck = await prisma.partNumber.findUnique({
+//       where: { par: partId },
+//     });
+//     if (!partCheck) {
+//       return res
+//         .status(400)
+//         .json({ message: "Invalid partId. Not found in DB." });
+//     }
 
-    await prisma.workInstruction.create({
-      data: {
-        stepNumber: Number(stepNumber),
-        processId,
-        part_id: String(partId), // <-- Ensure this is not an array
-        title,
-        instruction,
-      },
-    });
+//     await prisma.workInstruction.create({
+//       data: {
+//         stepNumber: Number(stepNumber),
+//         processId,
+//         part_id: String(partId), // <-- Ensure this is not an array
+//         title,
+//         instruction,
+//       },
+//     });
 
-    return res.status(201).send({
-      message: "Work instruction created successfully!",
-    });
-  } catch (error) {
-    console.log("errorerror", error);
+//     return res.status(201).send({
+//       message: "Work instruction created successfully!",
+//     });
+//   } catch (error) {
+//     console.log("errorerror", error);
 
-    return res.status(500).send({
-      message: "Something went wrong. Please try again later.",
-    });
-  }
-};
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
 
 // const createWorkInstructionDetail = async (req, res) => {
 //   try {
@@ -226,6 +225,83 @@ const createWorkInstructionDetail = async (req, res) => {
 //     });
 //   }
 // };
+
+const createWorkInstructionDetail = async (req, res) => {
+  try {
+    const fileData = await fileUploadFunc(req, res);
+    console.log("fileData?.datafileData?.data", fileData?.data);
+
+    const getWorkImages = fileData?.data?.workInstructionImg || [];
+    const getWorkVideo =
+      (fileData?.data?.workInstructionVideo || [])[0] || null;
+
+    const { processId, part_id, stepNumber, title, instruction } = req.body;
+
+    const stepNumbers = Array.isArray(stepNumber) ? stepNumber : [stepNumber];
+    const titles = Array.isArray(title) ? title : [title];
+    const instructions = Array.isArray(instruction)
+      ? instruction
+      : [instruction];
+
+    const partExists = await prisma.partNumber.findUnique({
+      where: { part_id: part_id },
+    });
+    const processExists = await prisma.process.findUnique({
+      where: { id: processId },
+    });
+
+    if (!partExists)
+      return res.status(400).json({ message: "Invalid part_id" });
+    if (!processExists)
+      return res.status(400).json({ message: "Invalid processId" });
+
+    // Create each instruction individually so we get its ID
+    const createdInstructions = await Promise.all(
+      stepNumbers.map((stepNo, i) =>
+        prisma.workInstruction.create({
+          data: {
+            processId,
+            part_id,
+            stepNumber: Number(stepNo),
+            title: titles[i],
+            instruction: instructions[i],
+          },
+        })
+      )
+    );
+    console.log("11111");
+
+    console.log("getWorkImagesgetWorkImages", getWorkImages);
+    // Add image(s) to the first instruction (or you can loop over if image per step)
+    if (getWorkImages.length > 0) {
+      const imageData = getWorkImages.map((img) => ({
+        workInstructionId: createdInstructions[0].id, // change if needed
+        imagePath: img.filename,
+      }));
+      console.log("imageDataimageData", imageData);
+
+      await prisma.instructionImage.createMany({ data: imageData });
+    }
+
+    // Add video to the first instruction (or loop if video per step)
+    if (getWorkVideo) {
+      await prisma.instructionVideo.create({
+        data: {
+          workInstructionId: createdInstructions[0].id, // change if needed
+          videoPath: getWorkVideo.filename,
+        },
+      });
+    }
+
+    res.status(201).json({
+      message: "✅ Work instructions created successfully",
+      data: createdInstructions,
+    });
+  } catch (error) {
+    console.error("❌ Error creating work instruction:", error);
+    res.status(500).json({ message: "Internal Server Error", error });
+  }
+};
 
 const allWorkInstructions = async (req, res) => {
   try {
