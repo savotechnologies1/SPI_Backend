@@ -39,6 +39,14 @@ const {
   partNumberDetail,
   getProductTree,
   selectProductNumber,
+  partDetail,
+  productDetail,
+  getSingleProductTree,
+  updatePartNumber,
+  updateProductNumber,
+  deletePartNumber,
+  deleteProductPartNumber,
+  deletePartImage,
   selectCustomerForStockOrder,
   selectProductNumberForStockOrder,
 } = require("../controllers/adminController");
@@ -54,6 +62,15 @@ const {
   resetPass,
   stockOrderValidation,
 } = require("../validations/validations");
+const upload = require("../functions/upload");
+const {
+  createWorkInstruction,
+  createWorkInstructionDetail,
+  workInstructionProcess,
+  productRelatedParts,
+  allWorkInstructions,
+  selectInstructionPartNumber,
+} = require("../controllers/workInstructionController");
 
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -118,11 +135,12 @@ router.put("/delete-process/:id", adminValidateToken, deleteProcess);
 // );
 // router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
 
+
 router.post("/create-stock-order", adminValidateToken, stockOrderValidation, createStockOrder);
 router.get("/select-customer", adminValidateToken, selectCustomer);
+router.get("/select-process", adminValidateToken, selectProcess);
 router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
 router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
-router.get("/select-process", adminValidateToken, selectProcess);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
 router.post("/create-product-number", adminValidateToken, createProductNumber);
@@ -133,6 +151,44 @@ router.get("/select-part-number", adminValidateToken, selectPartNumber);
 router.get("/select-product-number", adminValidateToken, selectProductNumber);
 router.get("/part-number-detail/:id", adminValidateToken, partNumberDetail);
 router.get("/get-product-tree", adminValidateToken, getProductTree);
+router.get("/get-part-detail/:id", adminValidateToken, partDetail);
+router.get("/get-product-detail/:id", adminValidateToken, getSingleProductTree);
+router.put("/update-part-number/:id", adminValidateToken, updatePartNumber);
+router.put(
+  "/update-product-number/:id",
+  adminValidateToken,
+  updateProductNumber
+);
+router.patch("/delete-part-number/:id", adminValidateToken, deletePartNumber);
+// router.post("/add-work-instruction", adminValidateToken, createWorkInstruction);
+router.post(
+  "/create-work-instruction",
+  adminValidateToken,
+  createWorkInstruction
+);
 
+router.post(
+  "/create-work-instruction-detail",
+  adminValidateToken,
+  createWorkInstructionDetail
+);
+router.get(
+  "/select-instruction-process",
+  adminValidateToken,
+  workInstructionProcess
+);
+router.get("/product-related-parts", adminValidateToken, productRelatedParts);
+router.get("/all-work-instructions", adminValidateToken, allWorkInstructions);
+router.delete(
+  "/product-part-deleted/:id",
+  adminValidateToken,
+  deleteProductPartNumber
+);
 
+router.delete("/delete-part-image/:id", adminValidateToken, deletePartImage);
+router.get(
+  "/get-instructin-parts",
+  adminValidateToken,
+  selectInstructionPartNumber
+);
 module.exports = router;

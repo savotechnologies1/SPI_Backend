@@ -2,14 +2,16 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
+    console.log("file?.fieldnamefile?.fieldname", file?.fieldname);
+
     if (file?.fieldname === "workInstructionImg") {
       cb(null, "./public/uploads/workInstructionImg");
     } else if (file?.fieldname === "workInstructionVideo") {
       cb(null, "./public/uploads/workInstructionVideo");
     } else if (file?.fieldname === "profileImg") {
       cb(null, "./public/uploads/profileImg");
-    } else if (file?.fieldname === "partImg") {
-      cb(null, "./public/uploads/partImg");
+    } else if (file?.fieldname === "partImages") {
+      cb(null, "./public/uploads/partImages");
     } else {
       cb(new Error("Invalid file fieldname"), false);
     }
@@ -22,7 +24,7 @@ const storage = multer.diskStorage({
     );
     let data = req?.user?.id;
     if (
-      ["profileImg", "workInstructionImg", "workInstructionVideo","partImg"].includes(
+      ["workInstructionImg", "workInstructionVideo", "partImages"].includes(
         file?.fieldname
       )
     ) {
@@ -45,6 +47,7 @@ const fileFilter = (req, file, cb) => {
     "video/webm",
     "video/ogg",
   ];
+  console.log("file.mimetypefile.mimetype", file.mimetype);
 
   if (
     allowedImageTypes.includes(file.mimetype) ||
@@ -55,18 +58,6 @@ const fileFilter = (req, file, cb) => {
 
   return cb(new Error("Invalid file type"), false);
 };
-
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
-}).fields([
-  {
-    name: "workInstructionImg",
-  },
-  { name: "workInstructionVideo" },
-  { name: "profileImg" },
-  { name: "partImg" },
-]);
+const upload = multer({ storage, fileFilter }).any();
 
 module.exports = upload;
