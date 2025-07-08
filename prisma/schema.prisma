@@ -243,46 +243,45 @@ model ProductTree {
 }
 
 model WorkInstruction {
-  id          String  @id @default(uuid()) @db.Char(36)
-  processId   String  @db.Char(36)
-  part_id     String  @db.Char(36)
-  stepNumber  Int
-  title       String
-  instruction String
-  isDeleted   Boolean @default(false)
+  id                String  @id @default(uuid()) @db.Char(36)
+  processId         String  @db.Char(36)
+  part_id           String  @db.Char(36)
+  workInstructionId String? @db.Char(36)
+  stepNumber        Int
+  title             String
+  instruction       String
+  isDeleted         Boolean @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   InstructionImage InstructionImage[]
-  instructionVideo InstructionVideo[]
+  InstructionVideo InstructionVideo[]
   PartNumber       PartNumber?        @relation(fields: [part_id], references: [part_id])
-
-  process process? @relation(fields: [processId], references: [id])
+  process          process?           @relation(fields: [processId], references: [id])
 }
 
 model InstructionImage {
-  id                String @id @default(uuid()) @db.Char(36)
-  workInstructionId String @db.Char(36)
-  imagePath         String
+  id        String  @id @default(uuid()) @db.Char(36)
+  stepId    String? @db.Char(36)
+  imagePath String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workInstruction WorkInstruction @relation(fields: [workInstructionId], references: [id])
+  workInstruction WorkInstruction? @relation(fields: [stepId], references: [id])
 
-  @@index([workInstructionId])
+  @@index([stepId])
 }
 
 model InstructionVideo {
-  id                String @id @default(uuid()) @db.Char(36)
-  workInstructionId String @db.Char(36)
-  videoPath         String
+  id        String  @id @default(uuid()) @db.Char(36)
+  stepId    String? @db.Char(36)
+  videoPath String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workInstruction WorkInstruction @relation(fields: [workInstructionId], references: [id])
+  workInstruction WorkInstruction? @relation(fields: [stepId], references: [id])
 
-  @@index([workInstructionId])
+  @@index([stepId])
 }
