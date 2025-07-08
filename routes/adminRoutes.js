@@ -117,6 +117,7 @@ router.put("/delete-process/:id", adminValidateToken, deleteProcess);
 //   editEmployee
 // );
 // router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
+
 router.post("/create-stock-order", adminValidateToken, stockOrderValidation, createStockOrder);
 router.get("/select-customer", adminValidateToken, selectCustomer);
 router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
