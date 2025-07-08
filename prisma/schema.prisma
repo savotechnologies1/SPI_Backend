@@ -182,6 +182,7 @@ model CustomOrder {
   productNumber      String
   productDescription String
   cost               String
+  totalCost          String
   productQuantity    Int
   processAssign      Json
   totalTime          String
