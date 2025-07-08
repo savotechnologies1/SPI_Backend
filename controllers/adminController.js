@@ -1642,6 +1642,7 @@ const partDetail = async (req, res) => {
         },
         partImages: {
           select: {
+            id: true,
             imageUrl: true,
           },
         },
@@ -1704,11 +1705,12 @@ const productDetail = async (req, res) => {
     });
   }
 };
+
 const getSingleProductTree = async (req, res) => {
   try {
     const id = req.params.id;
 
-    const productTree = await prisma.productTree.findFirst({
+    const productTrees = await prisma.productTree.findMany({
       where: {
         product_id: id,
         isDeleted: false,
@@ -1748,33 +1750,35 @@ const getSingleProductTree = async (req, res) => {
       },
     });
 
-    if (!productTree) {
+    if (!productTrees || productTrees.length === 0) {
       return res.status(404).json({
         message: "Product not found!",
       });
     }
-    console.log(
-      "productTree.product?.supplierOrderQtyproductTree.product?.supplierOrderQty",
-      productTree.product?.supplierOrderQty
-    );
+
+    const productInfo = productTrees[0].product;
+    console.log("productInfoproductInfo", productInfo);
+
+    const parts = productTrees.map((pt) => ({
+      part_id: pt.part_id,
+      partNumber: pt.part?.partNumber || null,
+      partFamily: pt.part?.partFamily || null,
+      process: pt.part?.process || [],
+    }));
 
     const result = {
-      product_id: productTree.product_id,
-      productNumber: productTree.product?.partNumber || null,
-      partDescription: productTree.product?.partDescription || null,
-      availStock: productTree.product?.availStock || null,
-      parts: productTree.part,
-      companyName: productTree.product?.companyName || null,
-      cost: productTree.product?.cost || null,
-      cycleTime: productTree.product?.cycleTime || null,
-      leadTime: productTree.product?.leadTime || null,
-      minStock: productTree.product?.minStock || null,
-      part_id: productTree.part_id,
-      partNumber: productTree.part?.partNumber || null,
-      partFamily: productTree.part?.partFamily || null,
-      process: productTree.part?.process || [],
-      supplierOrderQty: productTree.product?.supplierOrderQty || null,
-      productImages: productTree.product?.partImages,
+      product_id: id,
+      productNumber: productInfo?.partNumber || null,
+      partDescription: productInfo?.partDescription || null,
+      availStock: productInfo?.availStock || null,
+      companyName: productInfo?.companyName || null,
+      cost: productInfo?.cost || null,
+      cycleTime: productInfo?.cycleTime || null,
+      leadTime: productInfo?.leadTime || null,
+      minStock: productInfo?.minStock || null,
+      supplierOrderQty: productInfo?.supplierOrderQty || null,
+      productImages: productInfo?.partImages,
+      parts,
     };
 
     return res.status(200).json({
@@ -1793,7 +1797,7 @@ const getSingleProductTree = async (req, res) => {
 const updatePartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    const getPartImages = fileData.data.partImages;
+    const getPartImages = fileData?.data?.partImages;
 
     const id = req.params.id;
     const {
@@ -1896,17 +1900,32 @@ const updateProductNumber = async (req, res) => {
         processId: processId || null,
       },
     });
-    if (Array.isArray(parts) && parts.length > 0) {
-      for (const item of parts) {
-        await prisma.productTree.create({
-          data: {
-            product_id: id,
-            part_id: item.part_id || item.partNumber,
-            partQuantity: parseInt(item.qty),
-          },
-        });
-      }
+
+    const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
+    console.log("parsedPartsparsedParts", parsedParts);
+
+    for (const part of parsedParts) {
+      console.log("partsparts", part);
+
+      await prisma.productTree.create({
+        data: {
+          product_id: id,
+          part_id: part.part_id,
+          partQuantity: Number(part.qty),
+        },
+      });
     }
+    // if (Array.isArray(parts) && parts.length > 0) {
+    //   for (const item of parts) {
+    //     await prisma.productTree.create({
+    //       data: {
+    //         product_id: id,
+    //         part_id: item.part_id || item.partNumber,
+    //         partQuantity: parseInt(item.qty),
+    //       },
+    //     });
+    //   }
+    // }
 
     if (getPartImages.length > 0) {
       for (const image of getPartImages) {
@@ -1961,6 +1980,45 @@ const deletePartNumber = async (req, res) => {
   }
 };
 
+const deleteProductPartNumber = async (req, res) => {
+  try {
+    const { id } = req.params; // part_id
+    const { product_id } = req.body;
+
+    await prisma.productTree.deleteMany({
+      where: {
+        part_id: id,
+        product_id: product_id,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Part removed from product successfully!",
+    });
+  } catch (error) {
+    console.error("Delete error:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again.",
+    });
+  }
+};
+
+const deletePartImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.partImage.delete({
+      where: {
+        id: id,
+      },
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2003,4 +2061,6 @@ module.exports = {
   updatePartNumber,
   deletePartNumber,
   updateProductNumber,
+  deleteProductPartNumber,
+  deletePartImage,
 };

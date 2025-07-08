@@ -241,22 +241,46 @@ model ProductTree {
 }
 
 model WorkInstruction {
-  id               String     @id @default(uuid()) @db.Char(36)
-  processId        String     @db.Char(36)
-  partId           String     @db.Char(36)
-  partNumber       String     @db.Char(36)
-  stepNumber       Int
-  title            String
-  instruction      String
-  instructionImage String?
-  instructionVideo String?
-  isDeleted        Boolean    @default(false)
-  createdBy        String?    @db.Char(36)
-  process          process    @relation(fields: [processId], references: [id])
-  part             PartNumber @relation(fields: [partId], references: [part_id])
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id          String  @id @default(uuid()) @db.Char(36)
+  processId   String  @unique @db.Char(36)
+  part_id     String  @db.Char(36)
+  stepNumber  Int
+  title       String
+  instruction String
+  isDeleted   Boolean @default(false)
 
-  @@index([processId])
-  @@index([partId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instructionImages InstructionImage[]
+  instructionVideos InstructionVideo[]
+  PartNumber        PartNumber?        @relation(fields: [part_id], references: [part_id])
+
+  process process? @relation(fields: [processId], references: [id])
+}
+
+model InstructionImage {
+  id                String @id @default(uuid()) @db.Char(36)
+  workInstructionId String @db.Char(36)
+  imagePath         String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workInstruction WorkInstruction @relation(fields: [workInstructionId], references: [id])
+
+  @@index([workInstructionId])
+}
+
+model InstructionVideo {
+  id                String @id @default(uuid()) @db.Char(36)
+  workInstructionId String @db.Char(36)
+  videoPath         String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workInstruction WorkInstruction @relation(fields: [workInstructionId], references: [id])
+
+  @@index([workInstructionId])
 }

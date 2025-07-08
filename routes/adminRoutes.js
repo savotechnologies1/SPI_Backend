@@ -45,6 +45,8 @@ const {
   updatePartNumber,
   updateProductNumber,
   deletePartNumber,
+  deleteProductPartNumber,
+  deletePartImage,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -61,6 +63,11 @@ const {
 const upload = require("../functions/upload");
 const {
   createWorkInstruction,
+  createWorkInstructionDetail,
+  workInstructionProcess,
+  productRelatedParts,
+  allWorkInstructions,
+  selectInstructionPartNumber,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -152,5 +159,35 @@ router.put(
   updateProductNumber
 );
 router.patch("/delete-part-number/:id", adminValidateToken, deletePartNumber);
-router.post("/add-work-instruction", adminValidateToken, createWorkInstruction);
+// router.post("/add-work-instruction", adminValidateToken, createWorkInstruction);
+router.post(
+  "/create-work-instruction",
+  adminValidateToken,
+  createWorkInstruction
+);
+
+router.post(
+  "/create-work-instruction-detail",
+  adminValidateToken,
+  createWorkInstructionDetail
+);
+router.get(
+  "/select-instruction-process",
+  adminValidateToken,
+  workInstructionProcess
+);
+router.get("/product-related-parts", adminValidateToken, productRelatedParts);
+router.get("/all-work-instructions", adminValidateToken, allWorkInstructions);
+router.delete(
+  "/product-part-deleted/:id",
+  adminValidateToken,
+  deleteProductPartNumber
+);
+
+router.delete("/delete-part-image/:id", adminValidateToken, deletePartImage);
+router.get(
+  "/get-instructin-parts",
+  adminValidateToken,
+  selectInstructionPartNumber
+);
 module.exports = router;

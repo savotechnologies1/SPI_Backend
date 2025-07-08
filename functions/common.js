@@ -56,6 +56,11 @@ module.exports.fileUploadFunc = (request, response) => {
   return new Promise(async function (resolve, reject) {
     try {
       upload(request, response, (err) => {
+        console.log(
+          "✅ Full req.files:",
+          JSON.stringify(request.files, null, 2)
+        );
+
         if (request.files && !Object.keys(request.files).length) {
           return resolve({
             type: "fileNotFound",
