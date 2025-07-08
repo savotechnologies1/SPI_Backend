@@ -71,6 +71,7 @@ const {
   allWorkInstructions,
   selectInstructionPartNumber,
   workInstructionList,
+  getWorkInstructionDetail,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -203,5 +204,11 @@ router.get(
   "/get-instructin-parts",
   adminValidateToken,
   selectInstructionPartNumber
+);
+
+router.get(
+  "/work-instruction-detail/:id",
+  adminValidateToken,
+  getWorkInstructionDetail
 );
 module.exports = router;

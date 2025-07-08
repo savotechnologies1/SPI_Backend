@@ -309,6 +309,147 @@ const selectInstructionPartNumber = async (req, res) => {
   }
 };
 
+const updateWorkInstructionDetail = async (req, res) => {
+  try {
+    const fileData = await fileUploadFunc(req, res);
+    const getWorkImages = fileData?.data?.workInstructionImg || [];
+    const getWorkVideo =
+      (fileData?.data?.workInstructionVideo || [])[0] || null;
+
+    const {
+      workInstructionId,
+      processId,
+      part_id,
+      stepNumber,
+      title,
+      instruction,
+    } = req.body;
+
+    const stepNumbers = Array.isArray(stepNumber) ? stepNumber : [stepNumber];
+    const titles = Array.isArray(title) ? title : [title];
+    const instructions = Array.isArray(instruction)
+      ? instruction
+      : [instruction];
+
+    const partExists = await prisma.partNumber.findUnique({
+      where: { part_id: part_id },
+    });
+    const processExists = await prisma.process.findUnique({
+      where: { id: processId },
+    });
+
+    if (!partExists)
+      return res.status(400).json({ message: "Invalid part_id" });
+    if (!processExists)
+      return res.status(400).json({ message: "Invalid processId" });
+
+    // Soft delete previous steps by workInstructionId
+    await prisma.workInstruction.updateMany({
+      where: { workInstructionId },
+      data: { isDeleted: true },
+    });
+
+    // Re-insert updated steps
+    const updatedInstructions = await Promise.all(
+      stepNumbers.map((stepNo, i) =>
+        prisma.workInstruction.create({
+          data: {
+            workInstructionId: workInstructionId,
+            processId,
+            part_id,
+            stepNumber: Number(stepNo),
+            title: titles[i],
+            instruction: instructions[i],
+          },
+        })
+      )
+    );
+
+    const newStepId = updatedInstructions[0].id;
+
+    // Optionally delete old media (if your app logic requires)
+    await prisma.instructionImage.deleteMany({
+      where: {
+        stepId: newStepId,
+      },
+    });
+
+    await prisma.instructionVideo.deleteMany({
+      where: {
+        stepId: newStepId,
+      },
+    });
+
+    if (getWorkImages.length > 0) {
+      const imageData = getWorkImages.map((img) => ({
+        stepId: newStepId,
+        imagePath: img.filename,
+      }));
+
+      await prisma.instructionImage.createMany({ data: imageData });
+    }
+
+    if (getWorkVideo) {
+      await prisma.instructionVideo.create({
+        data: {
+          stepId: newStepId,
+          videoPath: getWorkVideo.filename,
+        },
+      });
+    }
+
+    res.status(200).json({
+      message: "✅ Work instructions updated successfully",
+      data: updatedInstructions,
+    });
+  } catch (error) {
+    console.error("❌ Error updating work instruction:", error);
+    res.status(500).json({ message: "Internal Server Error", error });
+  }
+};
+
+const getWorkInstructionDetail = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const workInstructions = await prisma.workInstruction.findMany({
+      where: {
+        workInstructionId: id,
+        isDeleted: false,
+      },
+      include: {
+        InstructionImage: true,
+        InstructionVideo: true,
+      },
+      orderBy: {
+        stepNumber: "asc",
+      },
+    });
+
+    if (!workInstructions.length) {
+      return res.status(404).json({ message: "Instruction not found" });
+    }
+    const { processId, part_id } = workInstructions[0];
+
+    res.status(200).json({
+      workInstructionId: id,
+      processId,
+      part_id,
+      steps: workInstructions.map((step) => ({
+        id: step.id,
+        stepNumber: step.stepNumber,
+        title: step.title,
+        instruction: step.instruction,
+        images: step.InstructionImage?.map((img) => img.imagePath) || [],
+        video: step.InstructionVideo?.videoPath || null,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching instruction details:", error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
 module.exports = {
   workInstructionProcess,
   createWorkInstruction,
@@ -316,4 +457,6 @@ module.exports = {
   productRelatedParts,
   allWorkInstructions,
   selectInstructionPartNumber,
+  updateWorkInstructionDetail,
+  getWorkInstructionDetail,
 };
