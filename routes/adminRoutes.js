@@ -47,6 +47,8 @@ const {
   deletePartNumber,
   deleteProductPartNumber,
   deletePartImage,
+  selectCustomerForStockOrder,
+  selectProductNumberForStockOrder,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -132,14 +134,13 @@ router.put("/delete-process/:id", adminValidateToken, deleteProcess);
 //   editEmployee
 // );
 // router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
-router.post(
-  "/create-stock-order",
-  adminValidateToken,
-  stockOrderValidation,
-  createStockOrder
-);
+
+
+router.post("/create-stock-order", adminValidateToken, stockOrderValidation, createStockOrder);
 router.get("/select-customer", adminValidateToken, selectCustomer);
 router.get("/select-process", adminValidateToken, selectProcess);
+router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
+router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
 router.post("/create-product-number", adminValidateToken, createProductNumber);

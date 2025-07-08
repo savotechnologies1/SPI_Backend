@@ -977,6 +977,7 @@ const createStockOrder = async (req, res) => {
       customerPhone,
       productNumber,
       cost,
+      totalCost,
       productDescription,
       productQuantity,
       customerId,
@@ -1044,6 +1045,7 @@ const createStockOrder = async (req, res) => {
         productDescription: productDescription,
         productQuantity: Number(productQuantity),
         cost: cost,
+        totalCost: totalCost,
         customerId: customerId,
         createdBy: req.user.id,
       },
@@ -2019,6 +2021,64 @@ const deletePartImage = async (req, res) => {
   }
 };
 
+const selectCustomerForStockOrder = async (req, res) => {
+  try {
+    const customer = await prisma.customers.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        customerPhone: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+    });
+
+    const formattedSuppliers = customer.map((customer) => ({
+      id: customer.id,
+      name: `${customer.firstName} ${customer.lastName}`,
+      email: customer.email,
+      customerPhone: customer.customerPhone,
+    }));
+    res.status(200).json(formattedSuppliers);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const selectProductNumberForStockOrder = async (req, res) => {
+  try {
+    const data = await prisma.partNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+        partDescription: true,
+        availStock: true,
+        cost: true,
+        type: true,
+      },
+      where: {
+        isDeleted: false,
+      },
+      orderBy: {
+        partNumber: 'asc',
+      },
+
+    })
+
+    return res.status(200).json({
+      message: "Product number retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+}
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2063,4 +2123,6 @@ module.exports = {
   updateProductNumber,
   deleteProductPartNumber,
   deletePartImage,
+  selectCustomerForStockOrder,
+  selectProductNumberForStockOrder,
 };
