@@ -2113,6 +2113,57 @@ const selectPartNumberForCustomOrder = async (req, res) => {
   }
 }
 
+const addCustomOrder = async (req, res) => {
+  const { processDetails, ...orderData } = req.body;
+
+  if (!processDetails || !Array.isArray(processDetails) || processDetails.length === 0) {
+    return res.status(400).json({
+      message: "`processDetails` must be a non-empty array.",
+    });
+  }
+
+  try {
+    const newCustomOrder = await prisma.customOrder.create({
+      data: {
+        orderNumber: orderData.orderNumber,
+        productNumber: orderData.productNumber,
+        partNumber: orderData.partNumber,
+        customerName: orderData.customerName,
+        customerEmail: orderData.customerEmail,
+        customerPhone: orderData.customerPhone,
+        customerId: orderData.customerId,
+        orderDate: new Date(orderData.orderDate),
+        shipDate: new Date(orderData.shipDate),
+        productQuantity: parseInt(orderData.productQuantity),
+        cost: orderData.cost,
+        totalCost: orderData.totalCost,
+
+        processDetails: {
+          create: processDetails.map(detail => ({
+            process: detail.process,
+            assignTo: detail.assignTo,
+            totalTime: parseInt(detail.totalTime),
+          })),
+        },
+      },
+      include: {
+        processDetails: true,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Custom order and its details created successfully!",
+      data: newCustomOrder,
+    });
+
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+};
+
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2160,4 +2211,5 @@ module.exports = {
   selectCustomerForStockOrder,
   selectProductNumberForStockOrder,
   selectPartNumberForCustomOrder,
+  addCustomOrder,
 };

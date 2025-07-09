@@ -50,6 +50,7 @@ const {
   selectCustomerForStockOrder,
   selectProductNumberForStockOrder,
   selectPartNumberForCustomOrder,
+  addCustomOrder,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -150,6 +151,7 @@ router.get("/select-product-number-for-stock", adminValidateToken, selectProduct
 router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
 router.get("/select-part-number-for-custom-order", adminValidateToken, selectPartNumberForCustomOrder);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
+router.post("/add-custom-orders", adminValidateToken, addCustomOrder);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
 router.post("/create-product-number", adminValidateToken, createProductNumber);
 router.post("/create-product-tree", adminValidateToken, createProductTree);
