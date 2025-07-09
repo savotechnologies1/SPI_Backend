@@ -2063,10 +2063,9 @@ const selectProductNumberForStockOrder = async (req, res) => {
         isDeleted: false,
       },
       orderBy: {
-        partNumber: 'asc',
+        partNumber: "asc",
       },
-
-    })
+    });
 
     return res.status(200).json({
       message: "Product number retrived successfully !",
@@ -2077,7 +2076,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
       message: "Something went wrong . please try again later.",
     });
   }
-}
+};
 
 module.exports = {
   login,

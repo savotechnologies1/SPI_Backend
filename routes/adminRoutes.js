@@ -72,6 +72,10 @@ const {
   selectInstructionPartNumber,
   workInstructionList,
   getWorkInstructionDetail,
+  updateWorkInstructionDetail,
+  deleteWorkInstruction,
+  selectInstruction,
+  applyWorkInstruction,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -211,4 +215,24 @@ router.get(
   adminValidateToken,
   getWorkInstructionDetail
 );
+
+router.put(
+  "/update-work-instruction",
+  adminValidateToken,
+  updateWorkInstructionDetail
+);
+
+router.put(
+  "/delete-work-instruction/:id",
+  adminValidateToken,
+  deleteWorkInstruction
+);
+
+router.get("/select-work-instructiuon", adminValidateToken, selectInstruction);
+router.post(
+  "/apply-work-instruction",
+  adminValidateToken,
+  applyWorkInstruction
+);
+
 module.exports = router;

@@ -260,6 +260,10 @@ const stockOrderValidation = [
       "Product quantity must contain digits only (no spaces or symbols)."
     ),
 ];
+
+const workInstructionValidation = [
+  
+]
 module.exports = {
   adminLogin,
   userRegister,
