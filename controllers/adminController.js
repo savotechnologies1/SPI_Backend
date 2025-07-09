@@ -2061,6 +2061,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
       },
       where: {
         isDeleted: false,
+        type: "product",
       },
       orderBy: {
         partNumber: 'asc',
@@ -2070,6 +2071,39 @@ const selectProductNumberForStockOrder = async (req, res) => {
 
     return res.status(200).json({
       message: "Product number retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+}
+
+
+const selectPartNumberForCustomOrder = async (req, res) => {
+  try {
+    const data = await prisma.partNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+        partDescription: true,
+        availStock: true,
+        cost: true,
+        type: true,
+      },
+      where: {
+        isDeleted: false,
+        type: "part",
+      },
+      orderBy: {
+        partNumber: 'asc',
+      },
+
+    })
+
+    return res.status(200).json({
+      message: "Part number retrived successfully !",
       data: data,
     });
   } catch (error) {
@@ -2125,4 +2159,5 @@ module.exports = {
   deletePartImage,
   selectCustomerForStockOrder,
   selectProductNumberForStockOrder,
+  selectPartNumberForCustomOrder,
 };

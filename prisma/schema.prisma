@@ -171,26 +171,34 @@ model StockOrder {
 }
 
 model CustomOrder {
-  id                 String     @id @default(uuid()) @db.Char(36)
-  orderNumber        String     @unique
-  orderDate          String?
-  shipDate           String?
-  customerId         String
-  customerName       String
-  customerEmail      String
-  customerPhone      String
-  productNumber      String
-  productDescription String
-  cost               String
-  totalCost          String
-  productQuantity    Int
-  processAssign      Json
-  totalTime          String
-  isDeleted          Boolean    @default(false)
-  createdBy          String?    @db.Char(36)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  customer           customers? @relation(fields: [customerId], references: [id])
+  id              String          @id @default(uuid()) @db.Char(36)
+  orderNumber     String          @unique
+  orderDate       DateTime?
+  shipDate        DateTime?
+  productNumber   String
+  partNumber      String
+  productQuantity Int
+  cost            Decimal         @db.Decimal(10, 2)
+  totalCost       Decimal         @db.Decimal(10, 2)
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  customerId      String          @db.Char(36)
+  customer        customers       @relation(fields: [customerId], references: [id])
+  processDetails  ProcessDetail[]
+  isDeleted       Boolean         @default(false)
+  createdBy       String?         @db.Char(36)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model ProcessDetail {
+  id            Int         @id @default(autoincrement())
+  process       String
+  assignTo      String
+  totalTime     Int
+  customOrderId String      @db.Char(36)
+  customOrder   CustomOrder @relation(fields: [customOrderId], references: [id], onDelete: Cascade)
 }
 
 model PartNumber {
