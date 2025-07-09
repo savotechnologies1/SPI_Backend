@@ -1115,6 +1115,7 @@ const selectPartNumber = async (req, res) => {
         partNumber: true,
       },
       where: {
+        type: "part",
         isDeleted: false,
       },
     });
@@ -2064,10 +2065,9 @@ const selectProductNumberForStockOrder = async (req, res) => {
         type: "product",
       },
       orderBy: {
-        partNumber: 'asc',
+        partNumber: "asc",
       },
-
-    })
+    });
 
     return res.status(200).json({
       message: "Product number retrived successfully !",
@@ -2078,8 +2078,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
       message: "Something went wrong . please try again later.",
     });
   }
-}
-
+};
 
 const selectPartNumberForCustomOrder = async (req, res) => {
   try {
@@ -2097,10 +2096,9 @@ const selectPartNumberForCustomOrder = async (req, res) => {
         type: "part",
       },
       orderBy: {
-        partNumber: 'asc',
+        partNumber: "asc",
       },
-
-    })
+    });
 
     return res.status(200).json({
       message: "Part number retrived successfully !",
@@ -2111,7 +2109,7 @@ const selectPartNumberForCustomOrder = async (req, res) => {
       message: "Something went wrong . please try again later.",
     });
   }
-}
+};
 
 const addCustomOrder = async (req, res) => {
   const { processDetails, ...orderData } = req.body;
