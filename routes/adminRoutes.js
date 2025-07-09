@@ -71,6 +71,8 @@ const {
   productRelatedParts,
   allWorkInstructions,
   selectInstructionPartNumber,
+  workInstructionList,
+  getWorkInstructionDetail,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -136,8 +138,12 @@ router.put("/delete-process/:id", adminValidateToken, deleteProcess);
 // );
 // router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
 
-
-router.post("/create-stock-order", adminValidateToken, stockOrderValidation, createStockOrder);
+router.post(
+  "/create-stock-order",
+  adminValidateToken,
+  stockOrderValidation,
+  createStockOrder
+);
 router.get("/select-customer", adminValidateToken, selectCustomer);
 router.get("/select-process", adminValidateToken, selectProcess);
 router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
@@ -192,5 +198,11 @@ router.get(
   "/get-instructin-parts",
   adminValidateToken,
   selectInstructionPartNumber
+);
+
+router.get(
+  "/work-instruction-detail/:id",
+  adminValidateToken,
+  getWorkInstructionDetail
 );
 module.exports = router;
