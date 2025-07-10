@@ -2,15 +2,14 @@ const multer = require("multer");
 const { v4: uuidv4 } = require("uuid");
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    console.log("file?.fieldnamefile?.fieldname", file?.fieldname);
-
-    if (file?.fieldname === "workInstructionImg") {
+    // Dynamically check which fieldname the file belongs to
+    if (file.fieldname.includes("workInstructionImg")) {
       cb(null, "./public/uploads/workInstructionImg");
-    } else if (file?.fieldname === "workInstructionVideo") {
+    } else if (file.fieldname.includes("workInstructionVideo")) {
       cb(null, "./public/uploads/workInstructionVideo");
-    } else if (file?.fieldname === "profileImg") {
+    } else if (file.fieldname === "profileImg") {
       cb(null, "./public/uploads/profileImg");
-    } else if (file?.fieldname === "partImages") {
+    } else if (file.fieldname === "partImages") {
       cb(null, "./public/uploads/partImages");
     } else {
       cb(new Error("Invalid file fieldname"), false);
@@ -62,10 +61,6 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: { fileSize: 50 * 1024 * 1024 },
-}).fields([
-  { name: "workInstructionImg", maxCount: 5 },
-  { name: "workInstructionVideo", maxCount: 1 },
-  { name: "partImages", maxCount: 5 },
-]);
+}).any();
 
 module.exports = upload;

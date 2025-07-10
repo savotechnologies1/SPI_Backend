@@ -1514,7 +1514,7 @@ const getProductTree = async (req, res) => {
       if (!grouped[product_id]) {
         grouped[product_id] = {
           product_id,
-          productNumber: product?.partNumber || null, // ✅ include productNumber
+          productNumber: product?.partNumber || null,
           parts: [],
         };
       }

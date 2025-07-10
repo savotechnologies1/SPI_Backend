@@ -77,6 +77,7 @@ const {
   deleteWorkInstruction,
   selectInstruction,
   applyWorkInstruction,
+  selectWorkInstruction,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -150,9 +151,21 @@ router.post(
 );
 router.get("/select-customer", adminValidateToken, selectCustomer);
 router.get("/select-process", adminValidateToken, selectProcess);
-router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
-router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
-router.get("/select-part-number-for-custom-order", adminValidateToken, selectPartNumberForCustomOrder);
+router.get(
+  "/select-product-number-for-stock",
+  adminValidateToken,
+  selectProductNumberForStockOrder
+);
+router.get(
+  "/select-customer-for-stock-order",
+  adminValidateToken,
+  selectCustomerForStockOrder
+);
+router.get(
+  "/select-part-number-for-custom-order",
+  adminValidateToken,
+  selectPartNumberForCustomOrder
+);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
 router.post("/create-product-number", adminValidateToken, createProductNumber);
@@ -227,6 +240,12 @@ router.post(
   "/apply-work-instruction",
   adminValidateToken,
   applyWorkInstruction
+);
+
+router.get(
+  "/select-work-instruction-title",
+  adminValidateToken,
+  selectWorkInstruction
 );
 
 module.exports = router;
