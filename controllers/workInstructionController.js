@@ -645,7 +645,7 @@ const deleteWorkInstruction = async (req, res) => {
     const { id } = req.params;
     const data = await prisma.workInstruction.updateMany({
       where: {
-        workInstructionId: id,
+        id: id,
       },
       data: {
         isDeleted: true,
