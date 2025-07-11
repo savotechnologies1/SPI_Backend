@@ -1798,7 +1798,7 @@ const getSingleProductTree = async (req, res) => {
 
     const productInfo = productTrees[0].product;
     const productInfo1 = productTrees.map((item) => item);
-    console.log("productInfoproductInfo", productInfo1);
+    const instructionRequired = productTrees[0]?.instructionRequired || false;
 
     const parts = productTrees.map((pt) => ({
       id: pt.id,
@@ -1806,13 +1806,13 @@ const getSingleProductTree = async (req, res) => {
       partNumber: pt.part?.partNumber || null,
       partFamily: pt.part?.partFamily || null,
       process: pt.part?.process || [],
+      instructionRequired: pt.instructionRequired || false,
+      partQuantity: pt.partQuantity || false,
     }));
-    console.log("partsparts", parts);
-
     const result = {
       product_id: id,
       productNumber: productInfo?.partNumber || null,
-      instructionRequired: productInfo1?.instructionRequired || null,
+      instructionRequired: instructionRequired,
       partDescription: productInfo?.partDescription || null,
       availStock: productInfo?.availStock || null,
       companyName: productInfo?.companyName || null,
@@ -1946,8 +1946,6 @@ const updateProductNumber = async (req, res) => {
     });
 
     const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
-    console.log("parsedPartsparsedParts", parsedParts);
-
     for (const part of parsedParts) {
       console.log("partsparts", part);
 

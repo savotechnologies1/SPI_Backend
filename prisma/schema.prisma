@@ -246,15 +246,16 @@ model PartImage {
 }
 
 model ProductTree {
-  id                   String                 @id @default(uuid()) @db.Char(36)
-  product_id           String                 @db.Char(36)
-  part_id              String?                @db.Char(36)
-  partQuantity         Int
-  isDeleted            Boolean                @default(false)
-  instructionRequired  Boolean                @default(false)
-  createdBy            String?                @db.Char(36)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  id                  String   @id @default(uuid()) @db.Char(36)
+  product_id          String   @db.Char(36)
+  part_id             String?  @db.Char(36)
+  partQuantity        Int
+  isDeleted           Boolean  @default(false)
+  instructionRequired Boolean  @default(false)
+  createdBy           String?  @db.Char(36)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
   part                 PartNumber?            @relation(fields: [part_id], references: [part_id])
   product              PartNumber             @relation("ProductRelation", fields: [product_id], references: [part_id])
   WorkInstructionSteps WorkInstructionSteps[]
