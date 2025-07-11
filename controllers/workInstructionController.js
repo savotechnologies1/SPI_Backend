@@ -500,7 +500,6 @@ const updateWorkInstructionDetail = async (req, res) => {
 
     const steps = JSON.parse(instructionSteps);
 
-    // 1️⃣ Update main WorkInstruction
     await prisma.workInstruction.update({
       where: { id: workInstructionId },
       data: {
@@ -529,7 +528,6 @@ const updateWorkInstructionDetail = async (req, res) => {
       where: { workInstructionId },
     });
 
-    // 3️⃣ Insert updated steps
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const stepId = uuidv4();
@@ -578,7 +576,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
     return res
       .status(200)
-      .json({ message: "✅ Work instruction updated successfully!" });
+      .json({ message: " Work instruction updated successfully!" });
   } catch (error) {
     console.error("Update Error:", error);
     return res
@@ -591,7 +589,6 @@ const getWorkInstructionDetail = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Step 1: Find main work instruction
     const workInstruction = await prisma.workInstruction.findUnique({
       where: { id },
       include: {
@@ -606,12 +603,10 @@ const getWorkInstructionDetail = async (req, res) => {
       },
     });
 
-    // Step 2: If not found, return 404
     if (!workInstruction) {
       return res.status(404).json({ message: "❌ Work instruction not found" });
     }
 
-    // Step 3: Format steps
     const formattedSteps = workInstruction.steps.map((step) => ({
       id: step.id,
       part_id: step.part_id,
@@ -624,7 +619,6 @@ const getWorkInstructionDetail = async (req, res) => {
       workInstructionVideo: step.videos?.map((vid) => vid.videoPath) || [],
     }));
 
-    // Step 4: Final response
     return res.status(200).json({
       workInstructionId: workInstruction.id,
       instructionTitle: workInstruction.instructionTitle,
@@ -633,7 +627,7 @@ const getWorkInstructionDetail = async (req, res) => {
       steps: formattedSteps,
     });
   } catch (error) {
-    console.error("❌ Error fetching work instruction detail:", error);
+    console.error(" Error fetching work instruction detail:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
