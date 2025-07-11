@@ -1616,7 +1616,7 @@ const deleteProductPart = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.productTree.update({ 
+    await prisma.productTree.update({
       where: {
         id: id,
       },
@@ -1757,6 +1757,7 @@ const getSingleProductTree = async (req, res) => {
           select: {
             partNumber: true,
             partFamily: true,
+
             process: {
               select: {
                 id: true,
@@ -1765,6 +1766,7 @@ const getSingleProductTree = async (req, res) => {
                 cycleTime: true,
                 ratePerHour: true,
                 orderNeeded: true,
+                
               },
             },
           },
@@ -1803,6 +1805,7 @@ const getSingleProductTree = async (req, res) => {
       partFamily: pt.part?.partFamily || null,
       process: pt.part?.process || [],
     }));
+    console.log("partsparts", parts);
 
     const result = {
       product_id: id,
