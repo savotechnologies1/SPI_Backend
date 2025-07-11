@@ -27,14 +27,14 @@ model customers {
   lastName      String
   email         String
   address       String?
-  customerPhone String?
   billingTerms  String?
-  createdBy     String // assuming it's a user ID or name
+  createdBy     String
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   isDeleted     Boolean       @default(false)
-  StockOrder    StockOrder[]
+  customerPhone String?
   CustomOrder   CustomOrder[]
+  StockOrder    StockOrder[]
 }
 
 model employee {
@@ -50,52 +50,51 @@ model employee {
   shopFloorLogin String?   @db.VarChar(50)
   role           String    @default("shopfloor")
   phoneNumber    String?   @unique(map: "phoneNumber") @db.VarChar(20)
-  email          String?   @unique(map: "email") @db.VarChar(100)
-  password       String    @db.VarChar(255)
   tokens         Json?
   otp            String?   @db.VarChar(10)
   resetToken     String?   @db.Char(36)
-  termsAccepted  Boolean?  @db.TinyInt()
+  termsAccepted  Boolean?
   status         String?   @db.VarChar(255)
   createdBy      String?   @db.VarChar(255)
   isDeleted      Boolean?  @default(false)
   createdAt      DateTime? @default(now()) @db.DateTime(0)
   updatedAt      DateTime? @default(now()) @db.DateTime(0)
+  email          String?   @unique(map: "email") @db.VarChar(100)
+  password       String    @db.VarChar(255)
 }
 
 model process {
-  id           String    @id @db.VarChar(10)
-  processName  String?   @db.VarChar(255)
-  partFamily   String?   @db.VarChar(255)
-  machineName  String?   @db.VarChar(255)
-  cycleTime    String?   @db.VarChar(255)
-  ratePerHour  String?   @db.VarChar(255)
-  orderNeeded  Boolean
-  type         String    @default("") @db.VarChar(50)
-  isProcessReq Boolean   @default(false)
-  processDesc  String?   @db.VarChar(255)
-  createdBy    String?   @db.VarChar(255)
-  isDeleted    Boolean?  @default(false)
-  createdAt    DateTime? @default(now()) @db.DateTime(0)
-  updatedAt    DateTime? @default(now()) @db.DateTime(0)
-
-  PartNumber      PartNumber[]
-  WorkInstruction WorkInstruction[]
+  id                   String                 @id @db.VarChar(10)
+  processName          String?                @db.VarChar(255)
+  machineName          String?                @db.VarChar(255)
+  cycleTime            String?                @db.VarChar(255)
+  ratePerHour          String?                @db.VarChar(255)
+  orderNeeded          Boolean
+  createdBy            String?                @db.VarChar(255)
+  isDeleted            Boolean?               @default(false)
+  createdAt            DateTime?              @default(now()) @db.DateTime(0)
+  updatedAt            DateTime?              @default(now()) @db.DateTime(0)
+  partFamily           String?                @db.VarChar(255)
+  isProcessReq         Boolean                @default(false)
+  processDesc          String?                @db.VarChar(255)
+  type                 String                 @default("") @db.VarChar(50)
+  PartNumber           PartNumber[]
+  WorkInstruction      WorkInstruction[]
+  WorkInstructionSteps WorkInstructionSteps[]
 }
 
 model suppliers {
-  id           String    @id @db.VarChar(10)
-  firstName    String?   @db.VarChar(255)
-  lastName     String?   @db.VarChar(255)
-  email        String?   @db.VarChar(255)
-  address      String?   @db.VarChar(255)
-  billingTerms String?   @db.VarChar(10)
-  createdBy    String?   @db.VarChar(255)
-  isDeleted    Boolean?  @default(false)
-  createdAt    DateTime? @default(now()) @db.DateTime(0)
-  updatedAt    DateTime? @default(now()) @db.DateTime(0)
-
-  orders supplier_orders[]
+  id           String            @id @db.VarChar(10)
+  firstName    String?           @db.VarChar(255)
+  lastName     String?           @db.VarChar(255)
+  email        String?           @db.VarChar(255)
+  address      String?           @db.VarChar(255)
+  billingTerms String?           @db.VarChar(10)
+  createdBy    String?           @db.VarChar(255)
+  isDeleted    Boolean?          @default(false)
+  createdAt    DateTime?         @default(now()) @db.DateTime(0)
+  updatedAt    DateTime?         @default(now()) @db.DateTime(0)
+  orders       supplier_orders[]
 }
 
 model supplier_orders {
@@ -103,7 +102,6 @@ model supplier_orders {
   order_number String?    @db.VarChar(50)
   order_date   String?    @db.VarChar(50)
   supplier_id  String?    @db.VarChar(10)
-  supplier     suppliers? @relation(fields: [supplier_id], references: [id])
   part_name    String?    @db.VarChar(255)
   quantity     String?    @db.VarChar(50)
   cost         String?    @db.VarChar(50)
@@ -112,19 +110,22 @@ model supplier_orders {
   isDeleted    Boolean?   @default(false)
   createdAt    DateTime?  @default(now()) @db.DateTime(0)
   updatedAt    DateTime?  @default(now()) @db.DateTime(0)
+  supplier     suppliers? @relation(fields: [supplier_id], references: [id])
+
+  @@index([supplier_id], map: "supplier_orders_supplier_id_fkey")
 }
 
 model users {
   id          String   @id @default(uuid()) @db.Char(36)
   name        String?  @db.VarChar(100)
   email       String?  @unique(map: "email") @db.VarChar(100)
-  password    String   @db.VarChar(255)
-  role        String   @default("shopfloor")
-  phoneNumber String?  @unique(map: "phoneNumber") @db.VarChar(20)
-  tokens      Json?
-  otp         String?  @db.VarChar(10)
-  resetToken  String?  @db.Char(36)
   isDeleted   Boolean? @default(false)
+  otp         String?  @db.VarChar(10)
+  password    String   @db.VarChar(255)
+  phoneNumber String?  @unique(map: "phoneNumber") @db.VarChar(20)
+  resetToken  String?  @db.Char(36)
+  role        String   @default("shopfloor")
+  tokens      Json?
 }
 
 model mailTemplate {
@@ -142,11 +143,6 @@ model mailTemplate {
   updatedAt     DateTime @updatedAt
 }
 
-enum admin_roles {
-  admin
-  superAdmin
-}
-
 model StockOrder {
   id                 String    @id @default(uuid()) @db.Char(36)
   orderNumber        String    @unique
@@ -159,12 +155,12 @@ model StockOrder {
   productNumber      String
   productDescription String
   cost               String
-  totalCost          String
   productQuantity    Int
   createdBy          String?   @db.Char(36)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   isDeleted          Boolean   @default(false)
+  totalCost          String
   customer           customers @relation(fields: [customerId], references: [id])
 
   @@index([customerId], map: "StockOrder_customerId_fkey")
@@ -175,21 +171,23 @@ model CustomOrder {
   orderNumber     String          @unique
   orderDate       DateTime?
   shipDate        DateTime?
-  productNumber   String
-  partNumber      String
-  productQuantity Int
-  cost            Decimal         @db.Decimal(10, 2)
-  totalCost       Decimal         @db.Decimal(10, 2)
+  customerId      String          @db.Char(36)
   customerName    String
   customerEmail   String
   customerPhone   String
-  customerId      String          @db.Char(36)
-  customer        customers       @relation(fields: [customerId], references: [id])
-  processDetails  ProcessDetail[]
-  isDeleted       Boolean         @default(false)
+  productNumber   String
+  cost            Decimal         @db.Decimal(10, 2)
+  productQuantity Int
   createdBy       String?         @db.Char(36)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  isDeleted       Boolean         @default(false)
+  partNumber      String
+  totalCost       Decimal         @db.Decimal(10, 2)
+  customer        customers       @relation(fields: [customerId], references: [id])
+  processDetails  ProcessDetail[]
+
+  @@index([customerId], map: "CustomOrder_customerId_fkey")
 }
 
 model ProcessDetail {
@@ -199,98 +197,141 @@ model ProcessDetail {
   totalTime     Int
   customOrderId String      @db.Char(36)
   customOrder   CustomOrder @relation(fields: [customOrderId], references: [id], onDelete: Cascade)
+
+  @@index([customOrderId], map: "ProcessDetail_customOrderId_fkey")
 }
 
 model PartNumber {
-  part_id              String   @id @default(uuid()) @db.Char(36)
-  partFamily           String   @db.Char(36)
-  partNumber           String   @unique @db.Char(36)
-  partDescription      String   @db.VarChar(255)
+  part_id              String                 @id @default(uuid()) @db.Char(36)
+  partFamily           String                 @db.Char(36)
+  partNumber           String                 @unique @db.Char(36)
+  partDescription      String                 @db.VarChar(255)
   cost                 Float
   leadTime             Int
-  supplierOrderQty     Int?
-  cycleTime            Int?
-  companyName          String   @db.VarChar(100)
+  companyName          String                 @db.VarChar(100)
   minStock             Int
+  cycleTime            Int?
+  processId            String?                @db.VarChar(10)
+  processDesc          String?                @db.VarChar(255)
+  type                 String                 @db.VarChar(100)
+  submittedBy          String?                @db.VarChar(100)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   availStock           Int?
-  processOrderRequired Boolean  @default(false)
-  processId            String?  @db.VarChar(10)
-  process              process? @relation(fields: [processId], references: [id])
-  processDesc          String?  @db.VarChar(255)
-  type                 String   @db.VarChar(100)
-  submittedBy          String?  @db.VarChar(100)
-  isDeleted            Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  isDeleted            Boolean                @default(false)
+  processOrderRequired Boolean                @default(false)
+  supplierOrderQty     Int?
+  createdBy            String?                @db.Char(36)
+  partImages           PartImage[]
+  process              process?               @relation(fields: [processId], references: [id])
+  productTree          ProductTree[]
+  productUsedIn        ProductTree[]          @relation("ProductRelation")
+  WorkInstruction      WorkInstruction[]
+  WorkInstructionSteps WorkInstructionSteps[]
 
-  partImages      PartImage[]
-  productTree     ProductTree[]
-  WorkInstruction WorkInstruction[]
-  productUsedIn   ProductTree[]     @relation("ProductRelation")
+  @@index([processId], map: "PartNumber_processId_fkey")
 }
 
 model PartImage {
   id        String     @id @default(uuid()) @db.Char(36)
   imageUrl  String     @db.VarChar(255)
-  part      PartNumber @relation(fields: [partId], references: [part_id])
   partId    String     @db.Char(36)
   type      String     @db.VarChar(100)
   createdAt DateTime   @default(now())
+  isDeleted Boolean    @default(false)
+  updatedAt DateTime   @updatedAt
+  part      PartNumber @relation(fields: [partId], references: [part_id])
+
+  @@index([partId], map: "PartImage_partId_fkey")
 }
 
 model ProductTree {
-  id           String @id @default(uuid()) @db.Char(36)
-  product_id   String @db.Char(36)
-  part_id      String @db.Char(36)
-  partQuantity Int
+  id                  String   @id @default(uuid()) @db.Char(36)
+  product_id          String   @db.Char(36)
+  part_id             String?  @db.Char(36)
+  partQuantity        Int
+  isDeleted           Boolean  @default(false)
+  instructionRequired Boolean  @default(false)
+  createdBy           String?  @db.Char(36)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  part      PartNumber @relation(fields: [part_id], references: [part_id])
-  isDeleted Boolean    @default(false)
-  product   PartNumber @relation("ProductRelation", fields: [product_id], references: [part_id])
+  part                 PartNumber?            @relation(fields: [part_id], references: [part_id])
+  product              PartNumber             @relation("ProductRelation", fields: [product_id], references: [part_id])
+  WorkInstructionSteps WorkInstructionSteps[]
 
   @@index([part_id])
+  @@index([product_id], map: "ProductTree_product_id_fkey")
 }
 
 model WorkInstruction {
-  id                String  @id @default(uuid()) @db.Char(36)
-  processId         String  @db.Char(36)
-  part_id           String  @db.Char(36)
-  workInstructionId String? @db.Char(36)
+  id               String                 @id @default(uuid()) @db.Char(36)
+  processId        String                 @db.Char(36)
+  isDeleted        Boolean                @default(false)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  instructionTitle String?
+  productId        String                 @db.Char(36)
+  InstructionVideo InstructionVideo[]
+  process          process                @relation(fields: [processId], references: [id])
+  PartNumber       PartNumber             @relation(fields: [productId], references: [part_id])
+  steps            WorkInstructionSteps[]
+
+  @@index([processId], map: "WorkInstruction_processId_fkey")
+  @@index([productId], map: "WorkInstruction_productId_fkey")
+}
+
+model WorkInstructionSteps {
+  id                String             @id @default(uuid()) @db.Char(36)
+  workInstructionId String             @db.Char(36)
   stepNumber        Int
   title             String
   instruction       String
-  isDeleted         Boolean @default(false)
+  isDeleted         Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  processId         String?            @db.VarChar(10)
+  part_id           String             @db.Char(36)
+  productTreeId     String?            @db.Char(36)
+  images            InstructionImage[]
+  videos            InstructionVideo[]
+  part              PartNumber         @relation(fields: [part_id], references: [part_id])
+  process           process?           @relation(fields: [processId], references: [id])
+  productTree       ProductTree?       @relation(fields: [productTreeId], references: [id])
+  workInstruction   WorkInstruction    @relation(fields: [workInstructionId], references: [id])
 
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  InstructionImage InstructionImage[]
-  InstructionVideo InstructionVideo[]
-  PartNumber       PartNumber?        @relation(fields: [part_id], references: [part_id])
-  process          process?           @relation(fields: [processId], references: [id])
+  @@index([part_id], map: "WorkInstructionSteps_part_id_fkey")
+  @@index([processId], map: "WorkInstructionSteps_processId_fkey")
+  @@index([productTreeId], map: "WorkInstructionSteps_productTreeId_fkey")
+  @@index([workInstructionId], map: "WorkInstructionSteps_workInstructionId_fkey")
 }
 
 model InstructionImage {
-  id        String  @id @default(uuid()) @db.Char(36)
-  stepId    String? @db.Char(36)
+  id        String               @id @default(uuid()) @db.Char(36)
+  stepId    String               @db.Char(36)
   imagePath String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  workInstruction WorkInstruction? @relation(fields: [stepId], references: [id])
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  step      WorkInstructionSteps @relation(fields: [stepId], references: [id])
 
   @@index([stepId])
 }
 
 model InstructionVideo {
-  id        String  @id @default(uuid()) @db.Char(36)
-  stepId    String? @db.Char(36)
-  videoPath String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  workInstruction WorkInstruction? @relation(fields: [stepId], references: [id])
+  id                String               @id @default(uuid()) @db.Char(36)
+  stepId            String               @db.Char(36)
+  videoPath         String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  workInstructionId String?              @db.Char(36)
+  step              WorkInstructionSteps @relation(fields: [stepId], references: [id])
+  WorkInstruction   WorkInstruction?     @relation(fields: [workInstructionId], references: [id])
 
   @@index([stepId])
+  @@index([workInstructionId], map: "InstructionVideo_workInstructionId_fkey")
+}
+
+enum admin_roles {
+  admin
+  superAdmin
 }

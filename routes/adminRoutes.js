@@ -53,6 +53,7 @@ const {
   addCustomOrder,
   getCustomOrderById,
   searchStockOrders,
+  deleteProductPart,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -80,6 +81,7 @@ const {
   deleteWorkInstruction,
   selectInstruction,
   applyWorkInstruction,
+  selectWorkInstruction,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -153,9 +155,21 @@ router.post(
 );
 router.get("/select-customer", adminValidateToken, selectCustomer);
 router.get("/select-process", adminValidateToken, selectProcess);
-router.get("/select-product-number-for-stock", adminValidateToken, selectProductNumberForStockOrder);
-router.get("/select-customer-for-stock-order", adminValidateToken, selectCustomerForStockOrder);
-router.get("/select-part-number-for-custom-order", adminValidateToken, selectPartNumberForCustomOrder);
+router.get(
+  "/select-product-number-for-stock",
+  adminValidateToken,
+  selectProductNumberForStockOrder
+);
+router.get(
+  "/select-customer-for-stock-order",
+  adminValidateToken,
+  selectCustomerForStockOrder
+);
+router.get(
+  "/select-part-number-for-custom-order",
+  adminValidateToken,
+  selectPartNumberForCustomOrder
+);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/add-custom-orders", adminValidateToken, addCustomOrder);
 router.get("/get-customOrders/:id", adminValidateToken, getCustomOrderById);
@@ -236,4 +250,11 @@ router.post(
 
 router.get("/search-stock-order", adminValidateToken, searchStockOrders)
 
+router.get(
+  "/select-work-instruction-title",
+  adminValidateToken,
+  selectWorkInstruction
+);
+
+router.put("/delete-product-part/:id", adminValidateToken, deleteProductPart);
 module.exports = router;
