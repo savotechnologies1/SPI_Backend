@@ -253,6 +253,7 @@ const selectInstructionPartNumber = async (req, res) => {
         partNumber: true,
       },
       where: {
+        type: "product",
         isDeleted: false,
       },
     });

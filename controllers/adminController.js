@@ -1616,7 +1616,7 @@ const deleteProductPart = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.productTree.update({ 
+    await prisma.productTree.update({
       where: {
         id: id,
       },
@@ -1752,11 +1752,13 @@ const getSingleProductTree = async (req, res) => {
         product_id: id,
         isDeleted: false,
       },
+
       include: {
         part: {
           select: {
             partNumber: true,
             partFamily: true,
+
             process: {
               select: {
                 id: true,
@@ -1786,6 +1788,7 @@ const getSingleProductTree = async (req, res) => {
         },
       },
     });
+    console.log("productTreesproductTrees", productTrees);
 
     if (!productTrees || productTrees.length === 0) {
       return res.status(404).json({
@@ -1794,7 +1797,8 @@ const getSingleProductTree = async (req, res) => {
     }
 
     const productInfo = productTrees[0].product;
-    console.log("productInfoproductInfo", productInfo);
+    const productInfo1 = productTrees.map((item) => item);
+    console.log("productInfoproductInfo", productInfo1);
 
     const parts = productTrees.map((pt) => ({
       id: pt.id,
@@ -1803,10 +1807,12 @@ const getSingleProductTree = async (req, res) => {
       partFamily: pt.part?.partFamily || null,
       process: pt.part?.process || [],
     }));
+    console.log("partsparts", parts);
 
     const result = {
       product_id: id,
       productNumber: productInfo?.partNumber || null,
+      instructionRequired: productInfo1?.instructionRequired || null,
       partDescription: productInfo?.partDescription || null,
       availStock: productInfo?.availStock || null,
       companyName: productInfo?.companyName || null,
