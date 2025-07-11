@@ -2203,7 +2203,6 @@ const addCustomOrder = async (req, res) => {
   }
 };
 
-
 const getCustomOrderById = async (req, res) => {
   const { id } = req.params;
 
@@ -2228,7 +2227,6 @@ const getCustomOrderById = async (req, res) => {
       message: "Custom order retrieved successfully!",
       data: order,
     });
-
   } catch (error) {
     console.error(`Error fetching custom order with ID ${id}:`, error);
     return res.status(500).json({
@@ -2236,7 +2234,6 @@ const getCustomOrderById = async (req, res) => {
     });
   }
 };
-
 
 const searchStockOrders = async (req, res) => {
   try {
@@ -2274,12 +2271,11 @@ const searchStockOrders = async (req, res) => {
     const orders = await prisma.stockOrder.findMany({
       where: whereClause,
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       include: {
-        customer: true
+        customer: true,
       },
-
     });
 
     if (orders.length === 0) {
@@ -2293,7 +2289,6 @@ const searchStockOrders = async (req, res) => {
       message: "Stock orders retrieved successfully!",
       data: orders,
     });
-
   } catch (error) {
     console.error("Error searching stock orders:", error);
     return res.status(500).json({

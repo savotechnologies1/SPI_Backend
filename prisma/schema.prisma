@@ -153,7 +153,7 @@ model StockOrder {
   customerEmail      String
   customerPhone      String
   productNumber      String
-  productDescription String
+  productDescription String    @db.Text
   cost               String
   productQuantity    Int
   createdBy          String?   @db.Char(36)
