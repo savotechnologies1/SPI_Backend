@@ -51,6 +51,7 @@ const {
   selectProductNumberForStockOrder,
   selectPartNumberForCustomOrder,
   addCustomOrder,
+  deleteProductPart,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -250,4 +251,5 @@ router.get(
   selectWorkInstruction
 );
 
+router.put("/delete-product-part/:id", adminValidateToken, deleteProductPart);
 module.exports = router;

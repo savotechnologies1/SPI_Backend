@@ -229,6 +229,7 @@ model PartNumber {
   WorkInstruction      WorkInstruction[]
   productUsedIn        ProductTree[]          @relation("ProductRelation")
   WorkInstructionSteps WorkInstructionSteps[]
+  createdBy            String?                @db.Char(36)
 }
 
 model PartImage {
@@ -237,19 +238,25 @@ model PartImage {
   part      PartNumber @relation(fields: [partId], references: [part_id])
   partId    String     @db.Char(36)
   type      String     @db.VarChar(100)
+  isDeleted Boolean    @default(false)
   createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model ProductTree {
-  id           String @id @default(uuid()) @db.Char(36)
-  product_id   String @db.Char(36)
-  part_id      String @db.Char(36)
-  partQuantity Int
+  id                  String  @id @default(uuid()) @db.Char(36)
+  product_id          String  @db.Char(36)
+  part_id             String? @db.Char(36)
+  partQuantity        Int
+  instructionRequired Boolean @default(false)
 
-  part                 PartNumber             @relation(fields: [part_id], references: [part_id])
+  part                 PartNumber?            @relation(fields: [part_id], references: [part_id])
   isDeleted            Boolean                @default(false)
   product              PartNumber             @relation("ProductRelation", fields: [product_id], references: [part_id])
   WorkInstructionSteps WorkInstructionSteps[]
+  createdBy            String?                @db.Char(36)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([part_id])
 }

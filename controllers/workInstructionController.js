@@ -38,6 +38,7 @@ const productRelatedParts = async (req, res) => {
     const data = await prisma.productTree.findMany({
       where: {
         product_id: productId,
+        instructionRequired: true,
         isDeleted: false,
       },
       include: {

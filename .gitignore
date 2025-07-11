@@ -2,4 +2,3 @@
 .env
 public/uploads
 /generated/prisma
-prisma/migrations
