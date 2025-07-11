@@ -1209,7 +1209,7 @@ const customeOrder = async (req, res) => {
 const createPartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    const getPartImages = fileData.data.partImages;
+    const getPartImages = fileData?.data?.partImages;
     const {
       partFamily,
       partNumber,
@@ -1257,7 +1257,7 @@ const createPartNumber = async (req, res) => {
         type: "part",
         submittedBy: req.user.id,
         partImages: {
-          create: getPartImages.map((img) => ({
+          create: getPartImages?.map((img) => ({
             imageUrl: img.filename,
             type: "part",
           })),
@@ -1327,8 +1327,6 @@ const partNumberList = async (req, res) => {
 const createProductNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    console.log("fileDatafileData", fileData);
-
     const getPartImages = fileData.data.partImages;
     const {
       partFamily,
@@ -1343,10 +1341,7 @@ const createProductNumber = async (req, res) => {
       cycleTime,
       processOrderRequired,
       processId,
-      part_id,
-      partQuantity,
       processDesc,
-      workInstruction,
       parts = [],
     } = req.body;
 
@@ -1361,10 +1356,7 @@ const createProductNumber = async (req, res) => {
         message: "Product Number already exists.",
       });
     }
-    console.log("partsparts", parts);
-
     const getId = uuidv4().slice(0, 6);
-    console.log("req.bodyreq.body", req.body);
     await prisma.PartNumber.create({
       data: {
         part_id: getId,
@@ -1384,7 +1376,7 @@ const createProductNumber = async (req, res) => {
         type: "product",
         submittedBy: req.user.id,
         partImages: {
-          create: getPartImages.map((img) => ({
+          create: getPartImages?.map((img) => ({
             imageUrl: img.filename,
             type: "product",
           })),
@@ -1427,6 +1419,8 @@ const createProductNumber = async (req, res) => {
 const createProductTree = async (req, res) => {
   try {
     const { product_id, part_id, quantity } = req.body;
+    console.log("req.bodyreq.body", req.body);
+
     const partExists = await prisma.PartNumber.findUnique({
       where: { part_id },
     });
@@ -1460,94 +1454,110 @@ const createProductTree = async (req, res) => {
 const getProductTree = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    // const [productTrees, totalCount] = await Promise.all([
+    //   prisma.productTree.findMany({
+    //     where: {
+    //       isDeleted: false,
+    //     },
+    //     skip: paginationData.skip,
+    //     take: paginationData.pageSize,
+    //     include: {
+    //       part: {
+    //         select: {
+    //           partNumber: true,
+    //           partFamily: true,
+    //           availStock: true,
+    //           supplierOrderQty: true,
+    //           process: {
+    //             select: {
+    //               id: true,
+    //               processName: true,
+    //               machineName: true,
+    //               cycleTime: true,
+    //               ratePerHour: true,
+    //               orderNeeded: true,
+    //             },
+    //           },
+    //         },
+    //       },
+    //       product: {
+    //         select: {
+    //           partNumber: true,
+    //           availStock: true,
+    //           supplierOrderQty: true,
+    //         },
+    //       },
+    //     },
+    //   }),
+    //   prisma.productTree.count({
+    //     where: {
+    //       isDeleted: false,
+    //     },
+    //   }),
+    // ]);
 
-    const [productTrees, totalCount] = await Promise.all([
-      prisma.productTree.findMany({
+    // const grouped = {};
+    // productTrees.forEach((item) => {
+    //   const { product_id, part_id, part, product } = item;
+    //   if (!grouped[product_id]) {
+    //     grouped[product_id] = {
+    //       product_id,
+    //       productNumber: product?.partNumber || null,
+    //       parts: [],
+    //     };
+    //   }
+
+    //   if (part) {
+    //     grouped[product_id].parts.push({
+    //       part_id,
+    //       partNumber: part.partNumber,
+    //       partFamily: part.partFamily,
+    //       process: part.process,
+    //     });
+    //   }
+    // });
+
+    // const result = Object.values(grouped).map((product) => ({
+    //   product_id: product.product_id,
+    //   productNumber: product.productNumber,
+    //   parts: product.parts,
+    // }));
+
+    // const paginated = await pagination({
+    //   data: result,
+    //   page: paginationData.page,
+    //   pageSize: paginationData.pageSize,
+    //   total: Object.keys(grouped).length,
+    // });
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.PartNumber.findMany({
         where: {
+          type: "product",
           isDeleted: false,
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
         include: {
-          part: {
+          process: {
             select: {
-              partNumber: true,
-              partFamily: true,
-              availStock: true,
-              supplierOrderQty: true,
-              process: {
-                select: {
-                  id: true,
-                  processName: true,
-                  machineName: true,
-                  cycleTime: true,
-                  ratePerHour: true,
-                  orderNeeded: true,
-                },
-              },
-            },
-          },
-          product: {
-            select: {
-              partNumber: true,
-              availStock: true,
-              supplierOrderQty: true,
+              processName: true,
             },
           },
         },
       }),
-      prisma.productTree.count({
+      prisma.PartNumber.count({
         where: {
+          type: "product",
           isDeleted: false,
         },
       }),
     ]);
-
-    const grouped = {};
-    console.log("productTreesproductTrees", productTrees);
-
-    productTrees.forEach((item) => {
-      const { product_id, part_id, part, product } = item;
-
-      console.log("productproduct", product);
-
-      if (!grouped[product_id]) {
-        grouped[product_id] = {
-          product_id,
-          productNumber: product?.partNumber || null,
-          parts: [],
-        };
-      }
-
-      if (part) {
-        grouped[product_id].parts.push({
-          part_id,
-          partNumber: part.partNumber,
-          partFamily: part.partFamily,
-          process: part.process,
-        });
-      }
-    });
-
-    const result = Object.values(grouped).map((product) => ({
-      product_id: product.product_id,
-      productNumber: product.productNumber,
-      parts: product.parts,
-    }));
-
-    const paginated = await pagination({
-      data: result,
-      page: paginationData.page,
-      pageSize: paginationData.pageSize,
-      total: Object.keys(grouped).length,
-    });
-
     return res.status(200).json({
       message: "Part number retrieved successfully!",
-      result,
-      data: paginated.data,
-      totalCount,
-      pagination: paginated.pagination,
+      // result,
+      data: allProcess,
+      // totalCount,
+      // pagination: paginated.pagination,
     });
   } catch (error) {
     console.error("getProductTree error:", error);
@@ -1597,6 +1607,30 @@ const bomDataList = async (req, res) => {
     });
   } catch (error) {
     console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+const deleteProductPart = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.productTree.update({ 
+      where: {
+        id: id,
+      },
+      data: {
+        part_id: null,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Part deleted successfully!",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -1763,6 +1797,7 @@ const getSingleProductTree = async (req, res) => {
     console.log("productInfoproductInfo", productInfo);
 
     const parts = productTrees.map((pt) => ({
+      id: pt.id,
       part_id: pt.part_id,
       partNumber: pt.part?.partNumber || null,
       partFamily: pt.part?.partFamily || null,
@@ -2114,7 +2149,11 @@ const selectPartNumberForCustomOrder = async (req, res) => {
 const addCustomOrder = async (req, res) => {
   const { processDetails, ...orderData } = req.body;
 
-  if (!processDetails || !Array.isArray(processDetails) || processDetails.length === 0) {
+  if (
+    !processDetails ||
+    !Array.isArray(processDetails) ||
+    processDetails.length === 0
+  ) {
     return res.status(400).json({
       message: "`processDetails` must be a non-empty array.",
     });
@@ -2137,7 +2176,7 @@ const addCustomOrder = async (req, res) => {
         totalCost: orderData.totalCost,
 
         processDetails: {
-          create: processDetails.map(detail => ({
+          create: processDetails.map((detail) => ({
             process: detail.process,
             assignTo: detail.assignTo,
             totalTime: parseInt(detail.totalTime),
@@ -2153,14 +2192,12 @@ const addCustomOrder = async (req, res) => {
       message: "Custom order and its details created successfully!",
       data: newCustomOrder,
     });
-
   } catch (error) {
     return res.status(500).send({
       message: "Something went wrong . please try again later.",
     });
   }
 };
-
 
 module.exports = {
   login,
@@ -2210,4 +2247,5 @@ module.exports = {
   selectProductNumberForStockOrder,
   selectPartNumberForCustomOrder,
   addCustomOrder,
+  deleteProductPart,
 };
