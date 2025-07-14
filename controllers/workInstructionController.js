@@ -1246,7 +1246,7 @@ const getWorkInstructionDetail = async (req, res) => {
     }));
 
     return res.status(200).json({
-      message: `✅ Work Instruction fetched from ${source}`,
+      message: ` Work Instruction fetched from ${source}`,
       workInstructionId: workInstruction.id,
       instructionTitle: workInstruction.instructionTitle,
       processId: workInstruction.processId,
@@ -1255,7 +1255,7 @@ const getWorkInstructionDetail = async (req, res) => {
       steps: formattedSteps,
     });
   } catch (error) {
-    console.error("❌ Error fetching work instruction detail:", error);
+    console.error(" Error fetching work instruction detail:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,

@@ -51,6 +51,8 @@ const {
   selectProductNumberForStockOrder,
   selectPartNumberForCustomOrder,
   addCustomOrder,
+  getCustomOrderById,
+  searchStockOrders,
   deleteProductPart,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
@@ -170,6 +172,7 @@ router.get(
 );
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/add-custom-orders", adminValidateToken, addCustomOrder);
+router.get("/get-customOrders/:id", adminValidateToken, getCustomOrderById);
 router.post("/create-part-number", adminValidateToken, createPartNumber);
 router.post("/create-product-number", adminValidateToken, createProductNumber);
 router.post("/create-product-tree", adminValidateToken, createProductTree);
@@ -244,6 +247,8 @@ router.post(
   adminValidateToken,
   applyWorkInstruction
 );
+
+router.get("/search-stock-order", adminValidateToken, searchStockOrders)
 
 router.get(
   "/select-work-instruction-title",
