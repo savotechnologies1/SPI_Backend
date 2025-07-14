@@ -350,7 +350,6 @@ const editCustomerDetail = async (req, res) => {
         },
         data: {
           firstName: firstName,
-
           lastName: lastName,
           email: email,
           customerPhone: customerPhone,

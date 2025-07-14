@@ -81,6 +81,7 @@ model process {
   PartNumber           PartNumber[]
   WorkInstruction      WorkInstruction[]
   WorkInstructionSteps WorkInstructionSteps[]
+  WorkInstructionApply WorkInstructionApply[]
 }
 
 model suppliers {
@@ -228,6 +229,7 @@ model PartNumber {
   productUsedIn        ProductTree[]          @relation("ProductRelation")
   WorkInstruction      WorkInstruction[]
   WorkInstructionSteps WorkInstructionSteps[]
+  WorkInstructionApply WorkInstructionApply[]
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -265,45 +267,67 @@ model ProductTree {
 }
 
 model WorkInstruction {
-  id               String                 @id @default(uuid()) @db.Char(36)
-  processId        String                 @db.Char(36)
-  isDeleted        Boolean                @default(false)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  instructionTitle String?
-  productId        String                 @db.Char(36)
-  InstructionVideo InstructionVideo[]
-  process          process                @relation(fields: [processId], references: [id])
-  PartNumber       PartNumber             @relation(fields: [productId], references: [part_id])
-  steps            WorkInstructionSteps[]
+  id                   String                 @id @default(uuid()) @db.Char(36)
+  processId            String                 @db.Char(36)
+  isDeleted            Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  instructionTitle     String?
+  productId            String                 @db.Char(36)
+  type                 String                 @db.Char(36)
+  InstructionVideo     InstructionVideo[]
+  process              process                @relation(fields: [processId], references: [id])
+  PartNumber           PartNumber             @relation(fields: [productId], references: [part_id])
+  steps                WorkInstructionSteps[]
+  WorkInstructionApply WorkInstructionApply[]
 
   @@index([processId], map: "WorkInstruction_processId_fkey")
   @@index([productId], map: "WorkInstruction_productId_fkey")
 }
 
 model WorkInstructionSteps {
-  id                String             @id @default(uuid()) @db.Char(36)
-  workInstructionId String             @db.Char(36)
-  stepNumber        Int
-  title             String
-  instruction       String
-  isDeleted         Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  processId         String?            @db.VarChar(10)
-  part_id           String             @db.Char(36)
-  productTreeId     String?            @db.Char(36)
-  images            InstructionImage[]
-  videos            InstructionVideo[]
-  part              PartNumber         @relation(fields: [part_id], references: [part_id])
-  process           process?           @relation(fields: [processId], references: [id])
-  productTree       ProductTree?       @relation(fields: [productTreeId], references: [id])
-  workInstruction   WorkInstruction    @relation(fields: [workInstructionId], references: [id])
+  id                     String                @id @default(uuid()) @db.Char(36)
+  workInstructionId      String                @db.Char(36)
+  workInstructionApplyId String?               @db.Char(36)
+  stepNumber             Int
+  title                  String
+  instruction            String
+  isDeleted              Boolean               @default(false)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  processId              String?               @db.VarChar(10)
+  part_id                String                @db.Char(36)
+  productTreeId          String?               @db.Char(36)
+  images                 InstructionImage[]
+  videos                 InstructionVideo[]
+  part                   PartNumber            @relation(fields: [part_id], references: [part_id])
+  process                process?              @relation(fields: [processId], references: [id])
+  productTree            ProductTree?          @relation(fields: [productTreeId], references: [id])
+  workInstruction        WorkInstruction       @relation(fields: [workInstructionId], references: [id])
+  WorkInstructionApply   WorkInstructionApply? @relation(fields: [workInstructionApplyId], references: [id])
 
   @@index([part_id], map: "WorkInstructionSteps_part_id_fkey")
   @@index([processId], map: "WorkInstructionSteps_processId_fkey")
   @@index([productTreeId], map: "WorkInstructionSteps_productTreeId_fkey")
   @@index([workInstructionId], map: "WorkInstructionSteps_workInstructionId_fkey")
+  @@index([workInstructionApplyId], map: "WorkInstructionSteps_workInstructionApplyId_fkey")
+}
+
+model WorkInstructionApply {
+  id               String                 @id @default(uuid()) @db.Char(36)
+  instructionId    String                 @db.Char(36)
+  processId        String                 @db.Char(36)
+  instructionTitle String?
+  productId        String                 @db.Char(36)
+  type             String                 @db.Char(36)
+  isDeleted        Boolean                @default(false)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  workInstruction  WorkInstruction        @relation(fields: [instructionId], references: [id])
+  process          process                @relation(fields: [processId], references: [id])
+  PartNumber       PartNumber             @relation(fields: [productId], references: [part_id])
+  steps            WorkInstructionSteps[]
+  InstructionVideo InstructionVideo[]
 }
 
 model InstructionImage {
@@ -318,14 +342,16 @@ model InstructionImage {
 }
 
 model InstructionVideo {
-  id                String               @id @default(uuid()) @db.Char(36)
-  stepId            String               @db.Char(36)
-  videoPath         String
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  workInstructionId String?              @db.Char(36)
-  step              WorkInstructionSteps @relation(fields: [stepId], references: [id])
-  WorkInstruction   WorkInstruction?     @relation(fields: [workInstructionId], references: [id])
+  id                     String                @id @default(uuid()) @db.Char(36)
+  stepId                 String                @db.Char(36)
+  videoPath              String
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  workInstructionId      String?               @db.Char(36)
+  step                   WorkInstructionSteps  @relation(fields: [stepId], references: [id])
+  WorkInstruction        WorkInstruction?      @relation(fields: [workInstructionId], references: [id])
+  WorkInstructionApply   WorkInstructionApply? @relation(fields: [workInstructionApplyId], references: [id])
+  workInstructionApplyId String?               @db.Char(36)
 
   @@index([stepId])
   @@index([workInstructionId], map: "InstructionVideo_workInstructionId_fkey")
