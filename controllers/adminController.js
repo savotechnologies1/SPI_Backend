@@ -1208,7 +1208,11 @@ const customeOrder = async (req, res) => {
 const createPartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    const getPartImages = fileData?.data?.partImages;
+
+    const getPartImages = fileData?.data?.filter(
+      (file) => file.fieldname === "partImages"
+    );
+
     const {
       partFamily,
       partNumber,
@@ -1263,6 +1267,21 @@ const createPartNumber = async (req, res) => {
         },
       },
     });
+
+    console.log("getPartImagesgetPartImages", getPartImages);
+
+    if (Array.isArray(getPartImages) && getPartImages.length > 0) {
+      await Promise.all(
+        getPartImages.map((img) =>
+          prisma.PartImage.create({
+            data: {
+              imageUrl: img.filename,
+              type: "part",
+            },
+          })
+        )
+      );
+    }
 
     return res.status(201).json({
       message: "Part number created successfully!",
@@ -1326,7 +1345,9 @@ const partNumberList = async (req, res) => {
 const createProductNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    const getPartImages = fileData.data.partImages;
+    const getPartImages = fileData?.data?.filter(
+      (file) => file.fieldname === "partImages"
+    );
     const {
       partFamily,
       productNumber,
@@ -1840,7 +1861,9 @@ const getSingleProductTree = async (req, res) => {
 const updatePartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    const getPartImages = fileData?.data?.partImages;
+    const getPartImages = fileData?.data?.filter(
+      (file) => file.fieldname === "partImages"
+    );
 
     const id = req.params.id;
     const {

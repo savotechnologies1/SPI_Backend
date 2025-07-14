@@ -252,9 +252,31 @@ const createWorkInstructionDetail = async (req, res) => {
 const allWorkInstructions = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    const { search = "", productId = "" } = req.query;
+
+    const orConditions = [];
+    if (search) {
+      orConditions.push({
+        instructionTitle: {
+          contains: search,
+        },
+      });
+    }
+    if (productId) {
+      orConditions.push({
+        productId: {
+          contains: productId,
+        },
+      });
+    }
+
+    const whereFilter = {
+      isDeleted: false,
+      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
+    };
 
     const workInstructions = await prisma.workInstruction.findMany({
-      where: { isDeleted: false },
+      where: whereFilter,
       include: {
         PartNumber: { select: { partNumber: true } },
         process: { select: { processName: true } },

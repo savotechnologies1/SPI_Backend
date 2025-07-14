@@ -1,6 +1,8 @@
 const multer = require("multer");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     if (file.fieldname.includes("workInstructionImg")) {
@@ -35,7 +37,10 @@ const storage = multer.diskStorage({
   // },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const randomChars = crypto.randomBytes(4).toString("hex");
+    const extension = path.extname(file.originalname);
+
+    cb(null, `${randomChars}-${uniqueSuffix}${extension}`);
   },
 });
 
