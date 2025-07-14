@@ -1,8 +1,10 @@
 const multer = require("multer");
+const path = require("path");
 const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Dynamically check which fieldname the file belongs to
     if (file.fieldname.includes("workInstructionImg")) {
       cb(null, "./public/uploads/workInstructionImg");
     } else if (file.fieldname.includes("workInstructionVideo")) {
@@ -16,20 +18,29 @@ const storage = multer.diskStorage({
     }
   },
 
+  // filename: function (req, file, cb) {
+  //   const fileExtension = file.originalname.substr(
+  //     file.originalname.lastIndexOf(".") + 1,
+  //     file.originalname.length
+  //   );
+  //   let data = req?.user?.id;
+  //   if (
+  //     ["workInstructionImg", "workInstructionVideo", "partImages"].includes(
+  //       file?.fieldname
+  //     )
+  //   ) {
+  //     data = uuidv4();
+  //   }
+  //   console.log("22222222222222", data, fileExtension);
+
+  //   cb(null, `${data}.${fileExtension}`);
+  // },
   filename: function (req, file, cb) {
-    const fileExtension = file.originalname.substr(
-      file.originalname.lastIndexOf(".") + 1,
-      file.originalname.length
-    );
-    let data = req?.user?.id;
-    if (
-      ["workInstructionImg", "workInstructionVideo", "partImages"].includes(
-        file?.fieldname
-      )
-    ) {
-      data = uuidv4();
-    }
-    cb(null, `${data}.${fileExtension}`);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const randomChars = crypto.randomBytes(4).toString("hex");
+    const extension = path.extname(file.originalname);
+
+    cb(null, `${randomChars}-${uniqueSuffix}${extension}`);
   },
 });
 
