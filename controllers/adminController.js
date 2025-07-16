@@ -1632,6 +1632,7 @@ const bomDataList = async (req, res) => {
     });
   }
 };
+
 const deleteProductPart = async (req, res) => {
   try {
     const { id } = req.params;

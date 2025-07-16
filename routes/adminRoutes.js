@@ -82,6 +82,8 @@ const {
   selectInstruction,
   applyWorkInstruction,
   selectWorkInstruction,
+  selectByProductNumberOrDesc,
+  deleteWorkInstructionImg,
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -222,7 +224,11 @@ router.get(
   adminValidateToken,
   selectInstructionPartNumber
 );
-
+router.get(
+  "/select-product-info",
+  adminValidateToken,
+  selectByProductNumberOrDesc
+);
 router.get(
   "/work-instruction-detail/:id",
   adminValidateToken,
@@ -248,7 +254,7 @@ router.post(
   applyWorkInstruction
 );
 
-router.get("/search-stock-order", adminValidateToken, searchStockOrders)
+router.get("/search-stock-order", adminValidateToken, searchStockOrders);
 
 router.get(
   "/select-work-instruction-title",
@@ -257,4 +263,9 @@ router.get(
 );
 
 router.put("/delete-product-part/:id", adminValidateToken, deleteProductPart);
+router.delete(
+  "/delete-work-instruction-image/:id",
+  adminValidateToken,
+  deleteWorkInstructionImg
+);
 module.exports = router;
