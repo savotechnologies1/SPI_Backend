@@ -2247,6 +2247,29 @@ const searchStockOrders = async (req, res) => {
   }
 };
 
+const deleteProductTreeById = async (req, res) => {
+  try {
+    const id = req.params.id;
+    await prisma.partNumber.update({
+      where: {
+        part_id: id,
+        isDeleted: false,
+      },
+      data: {
+        isDeleted: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "deleteProductTreeById deleted successfully !",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2298,4 +2321,5 @@ module.exports = {
   getCustomOrderById,
   searchStockOrders,
   deleteProductPart,
+  deleteProductTreeById,
 };
