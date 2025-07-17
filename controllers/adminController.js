@@ -1269,14 +1269,14 @@ const createPartNumber = async (req, res) => {
     });
 
     console.log("getPartImagesgetPartImages", getPartImages);
-
     if (Array.isArray(getPartImages) && getPartImages.length > 0) {
       await Promise.all(
         getPartImages.map((img) =>
-          prisma.PartImage.create({
+          prisma.partImage.create({
             data: {
               imageUrl: img.filename,
               type: "part",
+              partId: getId,
             },
           })
         )
@@ -1474,81 +1474,7 @@ const createProductTree = async (req, res) => {
 const getProductTree = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-    // const [productTrees, totalCount] = await Promise.all([
-    //   prisma.productTree.findMany({
-    //     where: {
-    //       isDeleted: false,
-    //     },
-    //     skip: paginationData.skip,
-    //     take: paginationData.pageSize,
-    //     include: {
-    //       part: {
-    //         select: {
-    //           partNumber: true,
-    //           partFamily: true,
-    //           availStock: true,
-    //           supplierOrderQty: true,
-    //           process: {
-    //             select: {
-    //               id: true,
-    //               processName: true,
-    //               machineName: true,
-    //               cycleTime: true,
-    //               ratePerHour: true,
-    //               orderNeeded: true,
-    //             },
-    //           },
-    //         },
-    //       },
-    //       product: {
-    //         select: {
-    //           partNumber: true,
-    //           availStock: true,
-    //           supplierOrderQty: true,
-    //         },
-    //       },
-    //     },
-    //   }),
-    //   prisma.productTree.count({
-    //     where: {
-    //       isDeleted: false,
-    //     },
-    //   }),
-    // ]);
 
-    // const grouped = {};
-    // productTrees.forEach((item) => {
-    //   const { product_id, part_id, part, product } = item;
-    //   if (!grouped[product_id]) {
-    //     grouped[product_id] = {
-    //       product_id,
-    //       productNumber: product?.partNumber || null,
-    //       parts: [],
-    //     };
-    //   }
-
-    //   if (part) {
-    //     grouped[product_id].parts.push({
-    //       part_id,
-    //       partNumber: part.partNumber,
-    //       partFamily: part.partFamily,
-    //       process: part.process,
-    //     });
-    //   }
-    // });
-
-    // const result = Object.values(grouped).map((product) => ({
-    //   product_id: product.product_id,
-    //   productNumber: product.productNumber,
-    //   parts: product.parts,
-    // }));
-
-    // const paginated = await pagination({
-    //   data: result,
-    //   page: paginationData.page,
-    //   pageSize: paginationData.pageSize,
-    //   total: Object.keys(grouped).length,
-    // });
     const [allProcess, totalCount] = await Promise.all([
       prisma.PartNumber.findMany({
         where: {

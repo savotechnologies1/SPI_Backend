@@ -547,7 +547,6 @@ const selectInstructionPartNumber = async (req, res) => {
         partNumber: true,
       },
       where: {
-        type: "product",
         isDeleted: false,
       },
     });
@@ -1250,25 +1249,23 @@ const selectWorkInstruction = async (req, res) => {
 //       .json({ message: "An error occurred during the update.", error });
 //   }
 // };
-
 const updateWorkInstructionDetail = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const uploadedFiles = fileData?.data || [];
+
     const {
       workInstructionId,
       processId,
       productId,
       instructionTitle,
       instructionSteps,
-      type, // 'original' or 'applied'
+      type,
     } = req.body;
 
-    // instructionSteps ko JSON se parse karein
     const steps = JSON.parse(instructionSteps);
 
-    // 1. MUKHYA INSTRUCTION RECORD UPDATE KAREIN
-    // ---------------------------------------------
+    // 🔄 Update main instruction record
     if (type === "original") {
       await prisma.workInstruction.update({
         where: { id: workInstructionId },
@@ -1283,10 +1280,7 @@ const updateWorkInstructionDetail = async (req, res) => {
       return res.status(400).json({ message: "Invalid type provided" });
     }
 
-    // 2. STEPS KO MANAGE KAREIN (CREATE, UPDATE, DELETE)
-    // ----------------------------------------------------
-
-    // Database mein maujooda steps ke IDs prapt karein
+    // 🔍 Get existing step IDs
     const existingStepsInDb = await prisma.workInstructionSteps.findMany({
       where:
         type === "original"
@@ -1294,35 +1288,32 @@ const updateWorkInstructionDetail = async (req, res) => {
           : { workInstructionApplyId: workInstructionId },
       select: { id: true },
     });
-    const existingStepIdsInDb = new Set(existingStepsInDb.map((s) => s.id));
-    const incomingStepIds = new Set(); // Request se aa rahe steps ke IDs
 
-    // Original ID ko ek baar hi fetch karein, performance ke liye
+    const existingStepIdsInDb = new Set(existingStepsInDb.map((s) => s.id));
+    const incomingStepIds = new Set();
+
     const originalInstructionId = await getOriginalInstructionId(
       type,
       workInstructionId
     );
     if (!originalInstructionId) {
-      return res.status(404).json({
-        message:
-          "Original Work Instruction not found for this applied version.",
-      });
+      return res
+        .status(404)
+        .json({ message: "Original Work Instruction not found." });
     }
 
-    // Har step ke liye loop chalayein
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       let currentStepId;
 
-      // DATA FOR CREATE/UPDATE
       const stepData = {
-        stepNumber: i + 1, // Step number ko hamesha re-sequence karein
+        stepNumber: i + 1,
         title: step.title,
         instruction: step.workInstruction,
         processId,
       };
 
-      // Yadi step pehle se hai (update case)
+      // STEP CREATE/UPDATE
       if (step.id && existingStepIdsInDb.has(step.id)) {
         currentStepId = step.id;
         await prisma.workInstructionSteps.update({
@@ -1331,12 +1322,11 @@ const updateWorkInstructionDetail = async (req, res) => {
         });
         incomingStepIds.add(currentStepId);
       } else {
-        // Yadi naya step hai (create case)
         const newStep = await prisma.workInstructionSteps.create({
           data: {
             ...stepData,
             id: uuidv4(),
-            workInstructionId: originalInstructionId, // Hamesha original se link karein
+            workInstructionId: originalInstructionId,
             ...(type === "applied"
               ? { workInstructionApplyId: workInstructionId }
               : {}),
@@ -1345,26 +1335,13 @@ const updateWorkInstructionDetail = async (req, res) => {
         currentStepId = newStep.id;
         incomingStepIds.add(currentStepId);
       }
+      console.log("step.existingImageIdsstep.existingImageIds", step);
 
-      // 3. IMAGES AUR VIDEOS KO MANAGE KAREIN
-      // ---------------------------------------
-
-      // Purane images delete karein jo frontend se hataye gaye hain
-      // Assumption: Frontend `deletedImageIds` ka ek array bhejega.
-      // if (step.deletedImageIds && step.deletedImageIds.length > 0) {
-      //   await prisma.instructionImage.deleteMany({
-      //     where: {
-      //       id: { in: step.deletedImageIds },
-      //       stepId: currentStepId,
-      //     },
-      //   });
-      // }
-
-      // Naye images add karein
       const imageFiles = uploadedFiles.filter(
         (file) =>
           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
       );
+
       for (const img of imageFiles) {
         await prisma.instructionImage.create({
           data: {
@@ -1374,47 +1351,42 @@ const updateWorkInstructionDetail = async (req, res) => {
         });
       }
 
-      // Video ko manage karein
       const videoFile = uploadedFiles.find(
         (file) =>
           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
       );
 
-      // Agar naya video upload hua hai
       if (videoFile) {
-        // Is step ke liye purana video delete karein (agar koi hai)
         await prisma.instructionVideo.deleteMany({
           where: { stepId: currentStepId },
         });
-        // Naya video create karein
+
         await prisma.instructionVideo.create({
           data: {
             stepId: currentStepId,
-            workInstructionId: originalInstructionId, // Original ID se link karein
+            workInstructionId: originalInstructionId,
             videoPath: videoFile.filename,
           },
         });
       }
-    }
 
-    // 4. UN STEPS KO DELETE KAREIN JO REQUEST MEIN NAHI AAYE
-    // --------------------------------------------------------
-    const stepsToDelete = [...existingStepIdsInDb].filter(
-      (id) => !incomingStepIds.has(id)
-    );
+      const stepsToDelete = [...existingStepIdsInDb].filter(
+        (id) => !incomingStepIds.has(id)
+      );
 
-    if (stepsToDelete.length > 0) {
-      // Pehle in steps se jude images aur videos delete karein
-      await prisma.instructionImage.deleteMany({
-        where: { stepId: { in: stepsToDelete } },
-      });
-      await prisma.instructionVideo.deleteMany({
-        where: { stepId: { in: stepsToDelete } },
-      });
-      // Phir steps ko delete karein
-      await prisma.workInstructionSteps.deleteMany({
-        where: { id: { in: stepsToDelete } },
-      });
+      if (stepsToDelete.length > 0) {
+        await prisma.instructionImage.updateMany({
+          where: { stepId: { in: stepsToDelete } },
+          data: { stepId: currentStepId },
+        });
+
+        await prisma.instructionVideo.deleteMany({
+          where: { stepId: { in: stepsToDelete } },
+        });
+        await prisma.workInstructionSteps.deleteMany({
+          where: { id: { in: stepsToDelete } },
+        });
+      }
     }
 
     return res.status(200).json({
@@ -1428,6 +1400,7 @@ const updateWorkInstructionDetail = async (req, res) => {
     });
   }
 };
+
 const getOriginalInstructionId = async (type, workInstructionId, step) => {
   if (type === "original") return workInstructionId;
   if (step.originalWorkInstructionId) return step.originalWorkInstructionId;
