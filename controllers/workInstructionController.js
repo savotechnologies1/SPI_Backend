@@ -1864,7 +1864,6 @@ const deleteWorkInstructionImg = async (req, res) => {
     });
   }
 };
-
 const deleteWorkInstructionStepsById = async(req,res)=>{
   try {
     const id = req.params.id;
@@ -1876,7 +1875,7 @@ const deleteWorkInstructionStepsById = async(req,res)=>{
       data: {
         isDeleted: true,
       },
-    })
+    }).then();
 
     return res.status(200).json({
       message: "workInstructionStep deleted successfully !",
