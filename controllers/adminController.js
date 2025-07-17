@@ -1973,7 +1973,7 @@ const deletePartNumber = async (req, res) => {
 
 const deleteProductPartNumber = async (req, res) => {
   try {
-    const { id } = req.params; // part_id
+    const { id } = req.params;
     const { product_id } = req.body;
 
     await prisma.productTree.deleteMany({
