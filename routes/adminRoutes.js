@@ -54,6 +54,7 @@ const {
   getCustomOrderById,
   searchStockOrders,
   deleteProductPart,
+  
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -84,6 +85,7 @@ const {
   selectWorkInstruction,
   selectByProductNumberOrDesc,
   deleteWorkInstructionImg,
+  deleteWorkInstructionStepsById
 } = require("../controllers/workInstructionController");
 
 const router = express.Router();
@@ -268,4 +270,7 @@ router.delete(
   adminValidateToken,
   deleteWorkInstructionImg
 );
+
+router.put("/deleteWorkInstructionStepsById/:id",adminValidateToken,deleteWorkInstructionStepsById)
+
 module.exports = router;

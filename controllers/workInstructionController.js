@@ -1284,6 +1284,32 @@ const updateWorkInstructionDetail = async (req, res) => {
     }
 
     // 2. STEPS KO MANAGE KAREIN (CREATE, UPDATE, DELETE)
+
+    // const deleteWorkInstructionStepsById = async(req,res)=>{
+    //   try {
+    //     const id = req.params.id;
+    //     await prisma.workInstructionSteps.update({
+    //       where:{
+    //       id: id,
+    //       isDeleted: false,
+    //       },
+    //       data: {
+    //         isDeleted: true,
+    //       },
+    //     }).then();
+
+    //     return res.status(200).json({
+    //       message: "workInstructionStep deleted successfully !",
+    //     });
+        
+    //   } catch (error) {
+    //     return res.status(500).json({
+    //       message: "Something went wrong . please try again later .",
+    //     })
+    //   }
+    // }
+
+
     // ----------------------------------------------------
 
     // Database mein maujooda steps ke IDs prapt karein
@@ -1838,6 +1864,31 @@ const deleteWorkInstructionImg = async (req, res) => {
     });
   }
 };
+
+const deleteWorkInstructionStepsById = async(req,res)=>{
+  try {
+    const id = req.params.id;
+    await prisma.workInstructionSteps.update({
+      where:{
+      id: id,
+      isDeleted: false,
+      },
+      data: {
+        isDeleted: true,
+      },
+    })
+
+    return res.status(200).json({
+      message: "workInstructionStep deleted successfully !",
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong . please try again later .",
+    })
+  }
+}
+
 module.exports = {
   workInstructionProcess,
   createWorkInstruction,
@@ -1854,4 +1905,5 @@ module.exports = {
   deleteWorkInstructionImg,
   selectWorkInstruction,
   selectByProductNumberOrDesc,
+  deleteWorkInstructionStepsById
 };
