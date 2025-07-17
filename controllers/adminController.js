@@ -626,6 +626,79 @@ const supplierOrder = async (req, res) => {
   }
 };
 
+// const addProcess = async (req, res) => {
+//   try {
+//     const {
+//       processName,
+//       machineName,
+//       ratePerHour,
+//       cycleTime,
+//       partFamily,
+//       processDesc,
+//       orderNeeded,
+//     } = req.body;
+//     const getId = uuidv4().slice(0, 6);
+//     await prisma.process.create({
+//       data: {
+//         id: getId,
+//         processName: processName.trim(),
+//         machineName: machineName.trim(),
+//         ratePerHour: ratePerHour.trim(),
+//         partFamily: partFamily.trim(),
+//         processDesc: processDesc.trim(),
+//         cycleTime: cycleTime.trim(),
+//         orderNeeded: Boolean(orderNeeded),
+//         createdBy: req.user?.id,
+//       },
+//     });
+
+//     return res.status(201).json({
+//       message: "Process added successfully !",
+//     });
+//   } catch (error) {
+//     console.log(error);
+
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
+
+// const processList = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const [allProcess, totalCount] = await Promise.all([
+//       prisma.process.findMany({
+//         where: {
+//           isDeleted: false,
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//       }),
+//       prisma.process.count({
+//         where: {
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+//     return res.status(200).json({
+//       message: "Process data retrieved successfully!",
+//       data: allProcess,
+//       totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
+
 const addProcess = async (req, res) => {
   try {
     const {
@@ -637,6 +710,22 @@ const addProcess = async (req, res) => {
       processDesc,
       orderNeeded,
     } = req.body;
+
+    const trimmedProcessName = processName.trim();
+    const checkExistingProcess = await prisma.process.findFirst({
+      where: {
+        processName: {
+          equals: trimmedProcessName,
+        },
+      },
+    });
+
+    if (checkExistingProcess) {
+      return res.status(400).json({
+        message: "Process name already exists.",
+      });
+    }
+
     const getId = uuidv4().slice(0, 6);
     await prisma.process.create({
       data: {
@@ -667,18 +756,37 @@ const addProcess = async (req, res) => {
 const processList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    const { search = "", partfamily = "" } = req.query;
+
+    const orConditions = [];
+    if (search) {
+      orConditions.push({
+        processName: {
+          contains: search,
+        },
+      });
+    }
+    if (partfamily) {
+      orConditions.push({
+        partFamily: {
+          contains: partfamily,
+        },
+      });
+    }
+
+    const whereFilter = {
+      isDeleted: false,
+      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
+    };
+
     const [allProcess, totalCount] = await Promise.all([
       prisma.process.findMany({
-        where: {
-          isDeleted: false,
-        },
+        where: whereFilter,
         skip: paginationData.skip,
         take: paginationData.pageSize,
       }),
       prisma.process.count({
-        where: {
-          isDeleted: false,
-        },
+        where: whereFilter,
       }),
     ]);
     const getPagination = await pagination({
@@ -721,11 +829,48 @@ const processDetail = async (req, res) => {
   }
 };
 
+// const editProcess = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const { processName, machineName, cycleTime, ratePerHour, orderNeeded } =
+//       req.body;
+//     prisma.process
+//       .update({
+//         where: {
+//           id: id,
+//           isDeleted: false,
+//           createdBy: req.user.id,
+//         },
+//         data: {
+//           processName: processName,
+//           machineName: machineName,
+//           cycleTime: cycleTime,
+//           ratePerHour: ratePerHour,
+//           orderNeeded: Boolean(orderNeeded),
+//         },
+//       })
+//       .then();
+//     return res.status(200).json({
+//       message: "Process edit successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
+
 const editProcess = async (req, res) => {
   try {
     const id = req.params.id;
-    const { processName, machineName, cycleTime, ratePerHour, orderNeeded } =
-      req.body;
+    const {
+      processName,
+      machineName,
+      partFamily,
+      cycleTime,
+      ratePerHour,
+      orderNeeded,
+    } = req.body;
     prisma.process
       .update({
         where: {
@@ -736,9 +881,10 @@ const editProcess = async (req, res) => {
         data: {
           processName: processName,
           machineName: machineName,
+          partFamily: partFamily,
           cycleTime: cycleTime,
           ratePerHour: ratePerHour,
-          orderNeeded: orderNeeded,
+          orderNeeded: Boolean(orderNeeded),
         },
       })
       .then();
@@ -1471,13 +1617,106 @@ const createProductTree = async (req, res) => {
   }
 };
 
+// const getProductTree = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+
+//     const [allProcess, totalCount] = await Promise.all([
+//       prisma.PartNumber.findMany({
+//         where: {
+//           type: "product",
+//           isDeleted: false,
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         include: {
+//           process: {
+//             select: {
+//               processName: true,
+//             },
+//           },
+//         },
+//       }),
+//       prisma.PartNumber.count({
+//         where: {
+//           type: "product",
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
+//     return res.status(200).json({
+//       message: "Part number retrieved successfully!",
+//       // result,
+//       data: allProcess,
+//       // totalCount,
+//       // pagination: paginated.pagination,
+//     });
+//   } catch (error) {
+//     console.error("getProductTree error:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
+// const bomDataList = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+
+//     const [allProcess, totalCount] = await Promise.all([
+//       prisma.PartNumber.findMany({
+//         where: {
+//           isDeleted: false,
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         include: {
+//           process: {
+//             select: {
+//               processName: true,
+//             },
+//           },
+//         },
+//       }),
+//       prisma.PartNumber.count({
+//         where: {
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Part number retrieved successfully!",
+//       data: allProcess,
+//       totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.log("errorerror", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
 const getProductTree = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    const { search = "" } = req.query;
 
     const [allProcess, totalCount] = await Promise.all([
       prisma.PartNumber.findMany({
         where: {
+          partNumber: {
+            contains: search,
+          },
+
           type: "product",
           isDeleted: false,
         },
@@ -1516,12 +1755,26 @@ const getProductTree = async (req, res) => {
 const bomDataList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    const { search = "", type = "all" } = req.query;
+
+    const filterConditions = {
+      isDeleted: false,
+    };
+
+    if (search) {
+      filterConditions.partNumber = {
+        contains: search,
+      };
+    }
+    if (type && type !== "all") {
+      filterConditions.type = {
+        contains: type,
+      };
+    }
 
     const [allProcess, totalCount] = await Promise.all([
       prisma.PartNumber.findMany({
-        where: {
-          isDeleted: false,
-        },
+        where: filterConditions,
         skip: paginationData.skip,
         take: paginationData.pageSize,
         include: {
@@ -1533,9 +1786,7 @@ const bomDataList = async (req, res) => {
         },
       }),
       prisma.PartNumber.count({
-        where: {
-          isDeleted: false,
-        },
+        where: filterConditions,
       }),
     ]);
 
@@ -1860,7 +2111,6 @@ const updateProductNumber = async (req, res) => {
     const fileData = await fileUploadFunc(req, res);
     const getPartImages = fileData?.data?.partImages || [];
     const { id } = req.params;
-    console.log("product_idproduct_id", id);
 
     const {
       partFamily,
@@ -1894,18 +2144,55 @@ const updateProductNumber = async (req, res) => {
       },
     });
 
-    const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
-    for (const part of parsedParts) {
-      console.log("partsparts", part);
+    const existingParts = await prisma.productTree.findMany({
+      where: { product_id: id },
+    });
 
-      await prisma.productTree.create({
-        data: {
-          product_id: id,
-          part_id: part.part_id,
-          partQuantity: Number(part.qty),
-        },
-      });
+    const existingPartMap = new Map(existingParts.map((p) => [p.part_id, p]));
+
+    const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
+    const incomingPartIds = new Set(parsedParts.map((p) => p.part_id));
+
+    for (const part of parsedParts) {
+      const existing = existingPartMap.get(part.part_id);
+      if (existing) {
+        if (existing.partQuantity !== Number(part.qty)) {
+          await prisma.productTree.update({
+            where: { id: existing.id },
+            data: { partQuantity: Number(part.qty) },
+          });
+        }
+      } else {
+        await prisma.productTree.create({
+          data: {
+            product_id: id,
+            part_id: part.part_id,
+            partQuantity: Number(part.qty),
+          },
+        });
+      }
     }
+
+    for (const oldPart of existingParts) {
+      if (!incomingPartIds.has(oldPart.part_id)) {
+        await prisma.productTree.delete({
+          where: { id: oldPart.id },
+        });
+      }
+    }
+
+    // const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
+    // for (const part of parsedParts) {
+    //   console.log("partsparts", part);
+
+    //   await prisma.productTree.create({
+    //     data: {
+    //       product_id: id,
+    //       part_id: part.part_id,
+    //       partQuantity: Number(part.qty),
+    //     },
+    //   });
+    // }
     // if (Array.isArray(parts) && parts.length > 0) {
     //   for (const item of parts) {
     //     await prisma.productTree.create({
