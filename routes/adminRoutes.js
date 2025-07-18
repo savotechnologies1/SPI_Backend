@@ -135,21 +135,21 @@ router.put(
   editProcess
 );
 router.put("/delete-process/:id", adminValidateToken, deleteProcess);
-// router.post(
-//   "/create-employee",
-//   adminValidateToken,
-//   employeeValidation,
-//   createEmployee
-// );
-// router.get("/all-employee", adminValidateToken, allEmployee);
-// router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
-// router.put(
-//   "/edit-employee/:id",
-//   adminValidateToken,
-//   employeeValidation,
-//   editEmployee
-// );
-// router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
+router.post(
+  "/create-employee",
+  adminValidateToken,
+  employeeValidation,
+  createEmployee
+);
+router.get("/all-employee", adminValidateToken, allEmployee);
+router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
+router.put(
+  "/edit-employee/:id",
+  adminValidateToken,
+  employeeValidation,
+  editEmployee
+);
+router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
 
 router.post(
   "/create-stock-order",

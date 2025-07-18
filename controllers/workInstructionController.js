@@ -1253,7 +1253,6 @@ const updateWorkInstructionDetail = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const uploadedFiles = fileData?.data || [];
-
     const {
       workInstructionId,
       processId,
@@ -1264,8 +1263,6 @@ const updateWorkInstructionDetail = async (req, res) => {
     } = req.body;
 
     const steps = JSON.parse(instructionSteps);
-
-    // 🔄 Update main instruction record
     if (type === "original") {
       await prisma.workInstruction.update({
         where: { id: workInstructionId },
@@ -1288,9 +1285,8 @@ const updateWorkInstructionDetail = async (req, res) => {
       select: { id: true },
     });
 
-    const existingStepIdsInDb = new Set(existingStepsInDb.map((s) => s.id));
+    const existingStepIdsInDb = new Set(existingStepsInDb?.map((s) => s.id));
     const incomingStepIds = new Set();
-
     const originalInstructionId = await getOriginalInstructionId(
       type,
       workInstructionId
@@ -1300,11 +1296,9 @@ const updateWorkInstructionDetail = async (req, res) => {
         .status(404)
         .json({ message: "Original Work Instruction not found." });
     }
-
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       let currentStepId;
-
       const stepData = {
         stepNumber: i + 1,
         title: step.title,
@@ -1312,7 +1306,6 @@ const updateWorkInstructionDetail = async (req, res) => {
         processId,
       };
 
-      // STEP CREATE/UPDATE
       if (step.id && existingStepIdsInDb.has(step.id)) {
         currentStepId = step.id;
         await prisma.workInstructionSteps.update({
@@ -1334,8 +1327,6 @@ const updateWorkInstructionDetail = async (req, res) => {
         currentStepId = newStep.id;
         incomingStepIds.add(currentStepId);
       }
-      console.log("step.existingImageIdsstep.existingImageIds", step);
-
       const imageFiles = uploadedFiles.filter(
         (file) =>
           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
@@ -1402,7 +1393,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
 const getOriginalInstructionId = async (type, workInstructionId, step) => {
   if (type === "original") return workInstructionId;
-  if (step.originalWorkInstructionId) return step.originalWorkInstructionId;
+  if (step?.originalWorkInstructionId) return step?.originalWorkInstructionId;
 
   const appliedData = await prisma.workInstructionApply.findUnique({
     where: { id: workInstructionId },
@@ -1513,12 +1504,10 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 
 const getWorkInstructionDetail = async (req, res) => {
   const { id } = req.params;
-
   try {
     let source = "original";
     let workInstruction = null;
     let allSteps = [];
-
     const original = await prisma.workInstruction.findUnique({
       where: { id },
       include: {
@@ -1559,12 +1548,10 @@ const getWorkInstructionDetail = async (req, res) => {
       if (!applied) {
         return res.status(404).json({ message: "Work instruction not found" });
       }
-
       source = "applied";
       workInstruction = applied;
       allSteps = applied.steps;
     }
-
     const formattedSteps = allSteps.map((step) => ({
       id: step.id,
       part_id: step.part_id,
@@ -1604,13 +1591,11 @@ const deleteWorkInstruction = async (req, res) => {
   try {
     const { id } = req.params;
     const { type } = req.query;
-
     if (type === "applied") {
       await prisma.workInstructionApply.update({
         where: { id },
         data: { isDeleted: true },
       });
-
       await prisma.workInstructionSteps.updateMany({
         where: {
           workInstructionApplyId: id,
@@ -1619,7 +1604,6 @@ const deleteWorkInstruction = async (req, res) => {
           isDeleted: true,
         },
       });
-
       await prisma.instructionVideo.updateMany({
         where: {
           workInstructionApplyId: id,
@@ -1666,7 +1650,6 @@ const selectInstruction = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -1751,8 +1734,6 @@ const applyWorkInstruction = async (req, res) => {
       newWorkInstruction,
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).json({
       error: "Something went wrong",
       details: error.message,
@@ -1803,8 +1784,6 @@ const deleteWorkInstructionImg = async (req, res) => {
       message: "Image deleted succesfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
