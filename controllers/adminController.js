@@ -1551,19 +1551,19 @@ const createPartNumber = async (req, res) => {
       },
     });
 
-    if (Array.isArray(getPartImages) && getPartImages.length > 0) {
-      await Promise.all(
-        getPartImages.map((img) =>
-          prisma.partImage.create({
-            data: {
-              imageUrl: img.filename,
-              type: "part",
-              partId: getId,
-            },
-          })
-        )
-      );
-    }
+    // if (Array.isArray(getPartImages) && getPartImages.length > 0) {
+    //   await Promise.all(
+    //     getPartImages.map((img) =>
+    //       prisma.partImage.create({
+    //         data: {
+    //           imageUrl: img.filename,
+    //           type: "part",
+    //           partId: getId,
+    //         },
+    //       })
+    //     )
+    //   );
+    // }
 
     return res.status(201).json({
       message: "Part number created successfully!",
