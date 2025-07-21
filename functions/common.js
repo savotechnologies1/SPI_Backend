@@ -1,5 +1,7 @@
+require('dotenv').config()
 const multer = require("multer");
 const upload = require("./upload");
+const jwt = require('jsonwebtoken');
 
 module.exports.generateRandomOTP = () => {
   try {
@@ -117,3 +119,83 @@ module.exports.validatePhoneInput = (res, phoneNumber) => {
   }
   return true;
 };
+
+
+
+module.exports.generateToken  = async function(id,email)
+{
+    console.log("generateToken() called");
+   
+    let payload = {
+        id,
+        email
+    };
+    let options ={
+        expiresIn:'7d',
+    };
+    let access_token = await jwt.sign(payload,process.env.ACCESS_TOKEN_SECRET,options);
+    
+    return access_token
+}
+
+
+module.exports.generateRefreshToken = async (email, userid) => {
+    console.log("generateRefreshToken() called");
+    let payload = {
+        email,
+        userid
+    };
+    let options = {
+        issuer: "decoder.com",
+        subject: "email", // Change 'audience' to 'subject'
+        expiresIn: '15d'
+    };
+    let refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, options);
+    return refreshToken;
+}
+
+module.exports.validateToken = async function(token)
+{
+    console.log("validateToken() called")
+    // console.log("Token")
+    let isValid = await new Promise((resolve, reject) =>{
+        jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,async(err,decoded)=>
+        {
+            if(err)
+            {
+                // console.log("Token Expired | ",err);
+                // reject(false);
+                resolve(false);
+            }
+            else
+            {
+                // console.log("Token Valid | ",decoded);
+                resolve(decoded);
+            }
+        })
+    })
+    // console.log("isValid : ",isValid);
+    return isValid;
+}
+
+module.exports.validateRefreshToken = async function(token)
+{
+    console.log("validateRefreshToken() called")
+    let isValid = await new Promise((resolve, reject) =>{
+        jwt.verify(token,process.env.REFRESH_TOKEN_SECRET,async(err,valid)=>
+        {
+            if(err)
+            {
+                console.log("Token Expired | ",err);
+                // reject(false);
+                resolve(false);
+            }
+            else
+            {
+                // console.log("Token Valid | ",valid);
+                resolve(valid);
+            }
+        })
+    })
+    return isValid;
+}

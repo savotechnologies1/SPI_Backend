@@ -21,6 +21,8 @@ app.use(express.static(directory));
 
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/shopFloor", require("./routes/shopFloorRoutes"));
+app.use("/api/frontLine", require("./routes/frontLineRoutes"));
+
 
 app.listen(port, () => {
   console.log(` Server running on port ${port}`);

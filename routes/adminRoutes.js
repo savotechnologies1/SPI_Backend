@@ -54,6 +54,7 @@ const {
   getCustomOrderById,
   searchStockOrders,
   deleteProductPart,
+  deleteProductTreeById
   
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
@@ -135,12 +136,12 @@ router.put(
   editProcess
 );
 router.put("/delete-process/:id", adminValidateToken, deleteProcess);
-// router.post(
-//   "/create-employee",
-//   adminValidateToken,
-//   employeeValidation,
-//   createEmployee
-// );
+router.post(
+  "/create-employee",
+  adminValidateToken,
+  // employeeValidation,
+  createEmployee
+);
 // router.get("/all-employee", adminValidateToken, allEmployee);
 // router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
 // router.put(
@@ -186,6 +187,7 @@ router.get("/select-part-number", adminValidateToken, selectPartNumber);
 router.get("/select-product-number", adminValidateToken, selectProductNumber);
 router.get("/part-number-detail/:id", adminValidateToken, partNumberDetail);
 router.get("/get-product-tree", adminValidateToken, getProductTree);
+router.put("/deleteProductTreeById/:id",adminValidateToken,deleteProductTreeById);
 router.get("/get-part-detail/:id", adminValidateToken, partDetail);
 router.get("/get-product-detail/:id", adminValidateToken, getSingleProductTree);
 router.put("/update-part-number/:id", adminValidateToken, updatePartNumber);

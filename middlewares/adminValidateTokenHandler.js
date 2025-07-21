@@ -2,6 +2,8 @@ const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 
 const adminValidateToken = async (req, res, next) => {
+
+  console.log("req is comming here");
   const authHeader = req.headers.authorization || req.headers.Authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
