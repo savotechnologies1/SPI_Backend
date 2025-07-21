@@ -54,7 +54,7 @@ model employee {
   shift          String?   @db.VarChar(255)
   startDate      String?   @db.VarChar(255)
   pin            String?   @db.VarChar(255)
-  shopFloorLogin String?   @db.VarChar(50)
+  shopFloorLogin String?   @default("no") @db.VarChar(50)
   role           String    @default("shopfloor")
   phoneNumber    String?   @unique(map: "phoneNumber") @db.VarChar(20)
   tokens         Json?

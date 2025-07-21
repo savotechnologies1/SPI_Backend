@@ -1,57 +1,62 @@
-const jwt = require("jsonwebtoken");
-const prisma = require("../config/prisma");
 const md5 = require("md5");
+const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require("uuid");
+const { generateToken, generateRandomOTP } = require("../functions/common");
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
+const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
-const { generateRandomOTP } = require("../functions/common");
-const { v4: uuidv4 } = require("uuid");
-
-const registerShopFloor = async (req, res) => {
+const signUp = async (req, res) => {
+  const errors = validationResult(req);
+  const checkValid = await checkValidations(errors);
+  if (checkValid.type === "error") {
+    return res.status(400).send({
+      message: checkValid.errors.msg,
+    });
+  }
   try {
-    const errors = validationResult(req);
-    const checkValid = await checkValidations(errors);
-    if (checkValid.type === "error") {
-      return res.status(400).send({ message: checkValid.errors.msg });
+    const { email, password, confirmPassword } = req.body;
+    if (password !== confirmPassword) {
+      let errorMsg = "Passwords does not match";
+      return res
+        .status(400)
+        .json({ status: "error", message: errorMsg, statusCode: 400 });
     }
-    const { email, password } = req.body;
-    const existingUser = await prisma.employee.findUnique({
-      where: { email: email.toLowerCase().trim() },
+
+    let getId = uuidv4().slice(0, 6);
+    const existingCustomer = await prisma.employee.findFirst({
+      where: {
+        isDeleted: false,
+        OR: [{ email: email }],
+      },
     });
 
-    if (existingUser) {
+    if (existingCustomer) {
       return res.status(400).json({
-        message:
-          "Email is already registered, please add a different email address.",
+        message: "Customer with this email already exists.",
       });
     }
 
     const newUser = await prisma.employee.create({
       data: {
-        email: email?.toLowerCase()?.trim(),
+        id: getId,
+        email: email.trim(),
         password: md5(password),
       },
     });
-
-    const token = jwt.sign(
-      { userId: newUser.id },
-      process.env.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: "5d",
-      }
-    );
+    const new_access_token = await generateToken(getId, email);
 
     await prisma.employee.update({
       where: { id: newUser.id },
       data: {
         tokens: Array.isArray(newUser.tokens)
-          ? [...newUser.tokens, token]
-          : [token],
+          ? [...newUser.tokens, new_access_token]
+          : [new_access_token],
       },
     });
 
     return res.status(201).json({
-      message: "User registered successfully",
+      message: "Registered successfully",
     });
   } catch (error) {
     return res.status(500).json({
@@ -69,7 +74,9 @@ const login = async (req, res) => {
         message: checkValid.errors.msg,
       });
     }
+
     const { email, password } = req.body;
+
     const user = await prisma.employee.findUnique({
       where: { email: email },
       select: {
@@ -81,33 +88,27 @@ const login = async (req, res) => {
         isDeleted: true,
       },
     });
+
     if (!user || user.password !== md5(password) || user.isDeleted) {
-      return res.status(400).send({ message: "Invalid Username and Password" });
+      return res.status(400).send({ message: "Invalid Username or Password" });
     }
     if (user.status !== "active") {
-      return res
-        .status(400)
-        .send({ message: "You don't have permission to login ." });
+      return res.status(400).send({
+        message: "Faild Login..! You don't have permission to login .",
+      });
     }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      process.env.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: "30d",
-      }
-    );
-
+    const new_access_token = await generateToken(user.id, email);
     await prisma.employee.update({
       where: { id: user.id },
       data: {
-        tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
+        tokens: Array.isArray(user.tokens)
+          ? [...user.tokens, new_access_token]
+          : [new_access_token],
       },
     });
-
     return res.status(201).json({
       message: "You have successfully login !",
-      token,
+      new_access_token,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -116,7 +117,6 @@ const login = async (req, res) => {
     });
   }
 };
-
 const sendForgotPasswordOTP = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -124,6 +124,7 @@ const sendForgotPasswordOTP = async (req, res) => {
     if (checkValid.type === "error") {
       return res.status(400).send({ message: checkValid.errors.msg });
     }
+
     const { email } = req.body;
     const user = await prisma.employee.findFirst({
       where: {
@@ -133,9 +134,8 @@ const sendForgotPasswordOTP = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).send({ message: "Employee not found" });
+      return res.status(400).send({ message: "employee not found" });
     }
-
     const otp = generateRandomOTP();
 
     await sendMail("otp-verify", { "%otp%": otp }, user.email);
@@ -167,9 +167,11 @@ const validOtp = async (req, res) => {
     }
 
     const { email, otp } = req.body;
+
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required" });
     }
+
     const user = await prisma.employee.findFirst({
       where: {
         email: email.toLowerCase().trim(),
@@ -236,7 +238,7 @@ const resetPassword = async (req, res) => {
     if (!user) {
       return res
         .status(404)
-        .send({ message: "Employee not found or invalid token." });
+        .send({ message: "User not found or invalid token." });
     }
 
     await prisma.employee.update({
@@ -254,10 +256,54 @@ const resetPassword = async (req, res) => {
       .json({ message: "Internal server error.", error: error.message });
   }
 };
+
+const changePassword = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+    const { id, oldPassword, newPassword, confirmPassword } = req.body;
+
+    const user = await prisma.employee.findFirst({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+    });
+
+    if (!user || !user.password) {
+      return res.status(400).send({ message: "somthing went wrong" });
+    }
+    if (md5(oldPassword.trim()) !== user.password.trim()) {
+      return res.status(400).send({ message: "Invalid Old Password" });
+    }
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).send({
+        message: "New password and confirm password must be provided.",
+      });
+    }
+
+    const result = await prisma.employee.update({
+      where: { id: user.id },
+      data: {
+        password: md5(newPassword),
+      },
+    });
+    return res.status(200).json({ message: "Password reset successfully." });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error.", error: error.message });
+  }
+};
+
 module.exports = {
-  registerShopFloor,
+  signUp,
   login,
   sendForgotPasswordOTP,
   validOtp,
   resetPassword,
+  changePassword,
 };

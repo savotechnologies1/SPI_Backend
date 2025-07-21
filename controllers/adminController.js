@@ -670,8 +670,6 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
-    console.log(error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -870,32 +868,83 @@ const createEmployee = async (req, res) => {
       message: "Employee added successfully!",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
   }
 };
 
+// const allEmployee = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const { search = "" } = req.query;
+
+//     const data = await prisma.employee.findMany();
+//     const [employeeData, totalCount] = await Promise.all([
+//       prisma.employee.findMany({
+//         where: {
+//           isDeleted: false,
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//       }),
+//       prisma.employee.count({
+//         where: {
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
+
+//     const paginationObj = {
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     };
+
+//     const getPagination = await pagination(paginationObj);
+
+//     return res.status(200).json({
+//       message: "Employee list retrieved successfully!",
+//       data: employeeData,
+//       totalCounts: totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Employee Fetch Error:", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
 const allEmployee = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-    const { search = "" } = req.query;
+    const { search = "", isShopFloor } = req.query;
 
-    const data = await prisma.employee.findMany();
+    const whereCondition = {
+      isDeleted: false,
+      ...(search && {
+        OR: [
+          { firstName: { contains: search } },
+          { lastName: { contains: search } },
+        ],
+      }),
+      ...(isShopFloor && {
+        shopFloorLogin: {
+          equals: isShopFloor,
+        },
+      }),
+    };
+
     const [employeeData, totalCount] = await Promise.all([
       prisma.employee.findMany({
-        where: {
-          isDeleted: false,
-        },
+        where: whereCondition,
         skip: paginationData.skip,
         take: paginationData.pageSize,
       }),
       prisma.employee.count({
-        where: {
-          isDeleted: false,
-        },
+        where: whereCondition,
       }),
     ]);
 
@@ -920,7 +969,6 @@ const allEmployee = async (req, res) => {
     });
   }
 };
-
 const employeeDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -2077,7 +2125,9 @@ const updatePartNumber = async (req, res) => {
       message: "Part updated successfully with new images!",
     });
   } catch (error) {
-    return res.status(500).json({ message: "Something went wrong" });
+    return res
+      .status(500)
+      .json({ message: "Something went wrong . please try again later ." });
   }
 };
 
@@ -2127,10 +2177,10 @@ const updateProductNumber = async (req, res) => {
     for (const part of parsedParts) {
       const existing = existingPartMap.get(part.part_id);
       if (existing) {
-        if (existing.partQuantity !== Number(part.qty)) {
+        if (existing?.partQuantity !== Number(part.partQuantity)) {
           await prisma.productTree.update({
             where: { id: existing.id },
-            data: { partQuantity: Number(part.qty) },
+            data: { partQuantity: Number(part.partQuantity) },
           });
         }
       } else {
@@ -2571,7 +2621,6 @@ const updateProfileApi = async (req, res) => {
       message: "Profile update successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -2592,8 +2641,6 @@ const deleteProfileImage = async (req, res) => {
       message: "Profile image deleted successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
