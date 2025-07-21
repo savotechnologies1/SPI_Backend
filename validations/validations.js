@@ -261,9 +261,7 @@ const stockOrderValidation = [
     ),
 ];
 
-const workInstructionValidation = [
-  
-]
+const workInstructionValidation = [];
 module.exports = {
   adminLogin,
   userRegister,

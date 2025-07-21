@@ -23,7 +23,7 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
           port: 465,
           auth: {
             user: "shikhajatav23march@gmail.com",
-            pass: "ulmd lhif vadx xojr",
+            pass: "aoal udqz ftky adur",
           },
           secure: true,
           // tls: {

@@ -55,6 +55,9 @@ const {
   searchStockOrders,
   deleteProductPart,
   deleteProductTreeById,
+  updateProfileApi,
+  profileDetail,
+  deleteProfileImage,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -76,7 +79,6 @@ const {
   productRelatedParts,
   allWorkInstructions,
   selectInstructionPartNumber,
-  workInstructionList,
   getWorkInstructionDetail,
   updateWorkInstructionDetail,
   deleteWorkInstruction,
@@ -281,4 +283,8 @@ router.patch(
   adminValidateToken,
   deleteProductTreeById
 );
+
+router.get("/profile-detail", adminValidateToken, profileDetail);
+router.put("/profile-update", adminValidateToken, updateProfileApi);
+router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
 module.exports = router;

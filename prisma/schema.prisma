@@ -12,6 +12,13 @@ model admin {
   id          String       @id @db.Char(36)
   name        String       @db.VarChar(100)
   email       String       @unique(map: "email") @db.VarChar(100)
+  address     String       @default("") @db.VarChar(512)
+  country     String       @default("") @db.Char(50)
+  state       String       @default("") @db.Char(50)
+  city        String       @default("") @db.Char(50)
+  zipCode     String       @default("") @db.Char(50)
+  about       String       @default("") @db.VarChar(512)
+  profileImg  String       @default("") @db.VarChar(255)
   password    String       @db.VarChar(255)
   roles       admin_roles? @default(admin)
   phoneNumber String?      @unique(map: "phoneNumber") @db.VarChar(20)
@@ -159,7 +166,7 @@ model StockOrder {
   customerEmail      String
   customerPhone      String
   productNumber      String
-  productDescription String
+  productDescription String    @default("") @db.VarChar(512)
   cost               String
   productQuantity    Int
   createdBy          String?   @db.Char(36)

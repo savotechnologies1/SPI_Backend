@@ -21,9 +21,7 @@ const login = async (req, res) => {
         message: checkValid.errors.msg,
       });
     }
-
     const { userName, password } = req.body;
-
     const user = await prisma.admin.findUnique({
       where: { email: userName },
       select: {
@@ -45,7 +43,7 @@ const login = async (req, res) => {
       { id: user.id, email: user.email },
       process.env.ACCESS_TOKEN_SECRET,
       {
-        expiresIn: "30d",
+        expiresIn: "5d",
       }
     );
 
@@ -2216,7 +2214,6 @@ const deleteProductPartNumber = async (req, res) => {
       message: "Part removed from product successfully!",
     });
   } catch (error) {
-    console.error("Delete error:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again.",
     });
@@ -2231,6 +2228,9 @@ const deletePartImage = async (req, res) => {
       where: {
         id: id,
       },
+    });
+    return res.status(200).json({
+      message: "Part image deleted successfully !",
     });
   } catch (error) {
     return res.status(500).send({
@@ -2499,6 +2499,106 @@ const deleteProductTreeById = async (req, res) => {
   }
 };
 
+const profileDetail = async (req, res) => {
+  try {
+    const data = await prisma.admin.findFirst({
+      where: {
+        id: req.user.id,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        address: true,
+        phoneNumber: true,
+        zipCode: true,
+        about: true,
+        country: true,
+        city: true,
+        state: true,
+        profileImg: true,
+        isDeleted: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Profile detail retrieved successfully!",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try agin later .",
+    });
+  }
+};
+
+const updateProfileApi = async (req, res) => {
+  try {
+    const fileData = await fileUploadFunc(req, res);
+    const getProfileImage = fileData?.data?.filter(
+      (file) => file?.fieldname === "profileImg"
+    );
+    const {
+      name,
+      email,
+      phoneNumber,
+      address,
+      country,
+      state,
+      city,
+      zipCode,
+      about,
+    } = req.body;
+    await prisma.admin.update({
+      where: {
+        id: req.user.id,
+      },
+      data: {
+        name: name,
+        email: email,
+        phoneNumber: phoneNumber,
+        address: address,
+        country: country,
+        state: state,
+        city: city,
+        zipCode: zipCode,
+        about: about,
+        profileImg: getProfileImage?.[0]?.filename,
+      },
+    });
+    return res.status(200).json({
+      message: "Profile update successfully !",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const deleteProfileImage = async (req, res) => {
+  try {
+    await prisma.admin.update({
+      where: {
+        id: req.user.id,
+      },
+      data: {
+        profileImg: "",
+      },
+    });
+    return res.status(200).json({
+      message: "Profile image deleted successfully !",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2556,4 +2656,7 @@ module.exports = {
   employeeDetail,
   editEmployee,
   deleteEmployee,
+  updateProfileApi,
+  profileDetail,
+  deleteProfileImage,
 };
