@@ -972,6 +972,63 @@ const createEmployee = async (req, res) => {
   }
 };
 
+const allEmployee = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { search = "", shopFloorLogin } = req.query;
+
+    const whereCondition = {
+      isDeleted: false,
+      ...(search && {
+        OR: [
+          { firstName: { contains: search, } },
+          { lastName: { contains: search, } },
+        ],
+      }),
+      ...(shopFloorLogin && {
+        shopFloorLogin: {
+          equals: shopFloorLogin
+         
+        },
+      }),
+    };
+
+    const [employeeData, totalCount] = await Promise.all([
+      prisma.employee.findMany({
+        where: whereCondition,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+      }),
+      prisma.employee.count({
+        where: whereCondition,
+      }),
+    ]);
+
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    };
+
+    const getPagination = await pagination(paginationObj);
+
+    return res.status(200).json({
+      message: "Employee list retrieved successfully!",
+      data: employeeData,
+      totalCounts: totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.error("Employee Fetch Error:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+
+
+
 // const allEmployee = async (req, res) => {
 //   try {
 //     const paginationData = await paginationQuery(req.query);
@@ -2493,5 +2550,7 @@ module.exports = {
   searchStockOrders,
   deleteProductPart,
   deleteProductTreeById,
-  createEmployee
+  allEmployee,
+createEmployee 
+
 };

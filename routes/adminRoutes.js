@@ -142,7 +142,7 @@ router.post(
   // employeeValidation,
   createEmployee
 );
-// router.get("/all-employee", adminValidateToken, allEmployee);
+router.get("/all-employee", adminValidateToken, allEmployee);
 // router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
 // router.put(
 //   "/edit-employee/:id",
