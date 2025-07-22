@@ -12,13 +12,6 @@ model admin {
   id          String       @id @db.Char(36)
   name        String       @db.VarChar(100)
   email       String       @unique(map: "email") @db.VarChar(100)
-  address     String       @default("") @db.VarChar(512)
-  country     String       @default("") @db.Char(50)
-  state       String       @default("") @db.Char(50)
-  city        String       @default("") @db.Char(50)
-  zipCode     String       @default("") @db.Char(50)
-  about       String       @default("") @db.VarChar(512)
-  profileImg  String       @default("") @db.VarChar(255)
   password    String       @db.VarChar(255)
   roles       admin_roles? @default(admin)
   phoneNumber String?      @unique(map: "phoneNumber") @db.VarChar(20)
@@ -26,6 +19,13 @@ model admin {
   otp         String?      @db.VarChar(10)
   resetToken  String?      @db.Char(36)
   isDeleted   Boolean?     @default(false)
+  about       String       @default("") @db.VarChar(512)
+  address     String       @default("") @db.VarChar(512)
+  city        String       @default("") @db.Char(50)
+  country     String       @default("") @db.Char(50)
+  profileImg  String       @default("") @db.VarChar(255)
+  state       String       @default("") @db.Char(50)
+  zipCode     String       @default("") @db.Char(50)
 }
 
 model customers {
@@ -97,7 +97,7 @@ model process {
 }
 
 model suppliers {
-  id           String            @id @db.VarChar(10)
+  id           String            @id @db.VarChar(100)
   firstName    String?           @db.VarChar(255)
   lastName     String?           @db.VarChar(255)
   email        String?           @db.VarChar(255)
@@ -111,21 +111,23 @@ model suppliers {
 }
 
 model supplier_orders {
-  id           Int        @id @default(autoincrement())
-  order_number String?    @db.VarChar(50)
-  order_date   String?    @db.VarChar(50)
-  supplier_id  String?    @db.VarChar(10)
-  part_name    String?    @db.VarChar(255)
-  quantity     String?    @db.VarChar(50)
-  cost         String?    @db.VarChar(50)
-  need_date    String?    @db.VarChar(50)
-  createdBy    String?    @db.VarChar(255)
-  isDeleted    Boolean?   @default(false)
-  createdAt    DateTime?  @default(now()) @db.DateTime(0)
-  updatedAt    DateTime?  @default(now()) @db.DateTime(0)
-  supplier     suppliers? @relation(fields: [supplier_id], references: [id])
+  id           String      @id @default(uuid()) @db.Char(36)
+  order_number String?     @db.VarChar(50)
+  order_date   String?     @db.VarChar(50)
+  supplier_id  String?     @db.VarChar(100)
+  quantity     Int?
+  cost         Int?
+  need_date    String?     @db.VarChar(50)
+  createdBy    String?     @db.VarChar(255)
+  isDeleted    Boolean?    @default(false)
+  createdAt    DateTime?   @default(now()) @db.DateTime(0)
+  updatedAt    DateTime?   @default(now()) @db.DateTime(0)
+  part_id      String?     @db.VarChar(100)
+  part         PartNumber? @relation(fields: [part_id], references: [part_id])
+  supplier     suppliers?  @relation(fields: [supplier_id], references: [id])
 
   @@index([supplier_id], map: "supplier_orders_supplier_id_fkey")
+  @@index([part_id], map: "supplier_orders_supplier_part_id_fkey")
 }
 
 model users {
@@ -242,6 +244,7 @@ model PartNumber {
   WorkInstruction      WorkInstruction[]
   WorkInstructionApply WorkInstructionApply[]
   WorkInstructionSteps WorkInstructionSteps[]
+  supplier_orders      supplier_orders[]
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }

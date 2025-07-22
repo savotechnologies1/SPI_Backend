@@ -491,7 +491,6 @@ const allWorkInstructions = async (req, res) => {
       });
     }
 
-    // बाकी का लॉजिक वैसा ही रहेगा
     const formattedWI = workInstructions.map((item) => ({
       ...item,
       type: "original",

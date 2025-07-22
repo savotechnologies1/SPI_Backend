@@ -58,6 +58,9 @@ const {
   updateProfileApi,
   profileDetail,
   deleteProfileImage,
+  getAllSupplierOrder,
+  updateSupplierOrder,
+  deleteSupplierOrder,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -287,4 +290,15 @@ router.patch(
 router.get("/profile-detail", adminValidateToken, profileDetail);
 router.put("/profile-update", adminValidateToken, updateProfileApi);
 router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
+router.get("/supplier-order-list", adminValidateToken, getAllSupplierOrder);
+router.put(
+  "/update-supplier-order/:id",
+  adminValidateToken,
+  updateSupplierOrder
+);
+router.put(
+  "/delete-supplier-order/:id",
+  adminValidateToken,
+  deleteSupplierOrder
+);
 module.exports = router;
