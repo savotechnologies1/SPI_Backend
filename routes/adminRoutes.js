@@ -23,6 +23,7 @@ const {
   employeeDetail,
   editEmployee,
   deleteEmployee,
+  sendMailToEmplyee,
   sendForgotPasswordOTP,
   validOtp,
   resetPassword,
@@ -58,6 +59,10 @@ const {
   updateProfileApi,
   profileDetail,
   deleteProfileImage,
+  getAllSupplierOrder,
+  deleteSupplierOrder,
+  updateSupplierById,
+  supplierOrderDetailById
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -126,7 +131,11 @@ router.put(
 );
 router.put("/delete-supplier/:id", adminValidateToken, deleteSupplier);
 router.get("/select-supplier", adminValidateToken, selectSupplier);
-router.post("/add-supplier-order", adminValidateToken, supplierOrder);
+router.post("/add-supplier-order",adminValidateToken, supplierOrder);
+router.get("/getAll-supplier-order",getAllSupplierOrder);
+router.put("/delete-Supplier-order/:id",deleteSupplierOrder)
+router.get("/getSupplierDetailsById/:id",supplierOrderDetailById)
+router.post("/updateSupplierOrder",updateSupplierById)
 router.post("/add-process", adminValidateToken, processValidation, addProcess);
 router.get("/all-process", adminValidateToken, processList);
 router.get("/get-process-detail/:id", adminValidateToken, processDetail);
@@ -152,7 +161,7 @@ router.put(
   editEmployee
 );
 router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
-
+router.post("/sendMailToEmplyee",sendMailToEmplyee);
 router.post(
   "/create-stock-order",
   adminValidateToken,

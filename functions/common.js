@@ -51,7 +51,6 @@ module.exports.pagination = (data) => {
     throw error;
   }
 };
-
 module.exports.fileUploadFunc = (request, response) => {
   return new Promise(async function (resolve, reject) {
     try {
@@ -69,7 +68,6 @@ module.exports.fileUploadFunc = (request, response) => {
             status: 400,
           });
         }
-
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_UNEXPECTED_FILE") {
             return resolve({
@@ -83,7 +81,6 @@ module.exports.fileUploadFunc = (request, response) => {
             status: 400,
           });
         }
-
         return resolve({
           type: "success",
           status: 200,
@@ -112,3 +109,7 @@ module.exports.validatePhoneInput = (res, phoneNumber) => {
   }
   return true;
 };
+
+
+
+

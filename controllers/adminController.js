@@ -11,6 +11,8 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
+const { promises } = require("nodemailer/lib/xoauth2");
+const { use } = require("../routes/adminRoutes");
 
 const login = async (req, res) => {
   try {
@@ -78,7 +80,7 @@ const sendForgotPasswordOTP = async (req, res) => {
     const user = await prisma.admin.findFirst({
       where: {
         email: email.toLowerCase().trim(),
-        isDeleted: false,
+        isDeleted: false,   
       },
     });
 
@@ -618,11 +620,158 @@ const supplierOrder = async (req, res) => {
       message: "Order added successfully !",
     });
   } catch (error) {
+    console.log("see the error", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later.",
     });
   }
 };
+
+
+const getAllSupplierOrder = async (req, res) => {
+  try {
+    const { search = "" } = req.query;
+    const paginationData = await paginationQuery(req.query);
+
+    const filterConditions = {
+      isDeleted: false,
+    };
+
+
+    if (search) {
+      filterConditions.order_number = {
+        contains: search,
+      };
+    }
+
+    const [getAllSupplierOrder, totalCount] = await Promise.all([
+      prisma.supplier_orders.findMany({
+        where: filterConditions,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+      prisma.supplier_orders.count({
+        where: filterConditions,
+      }),
+    ]);
+
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    };
+
+    const getPagination = await pagination(paginationObj);
+
+    return res.status(200).json({
+      message: "Supplier order list retrieved successfully!",
+      data: getAllSupplierOrder,
+      totalCounts: totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.error("Supplier Fetch Error:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+const updateSupplierById = async (req, res) => {
+  console.log("API is hitting");
+  try {
+    const {
+      order_number,
+      order_date,
+      part_name,
+      quantity,
+      cost,
+      need_date,
+    } = req.body;
+
+    console.log("see the body", req.body);
+
+    const result = await prisma.supplier_orders.updateMany({
+      where: {
+        order_number: order_number,
+        isDeleted: false,
+      },
+      data: {
+        order_date,
+        part_name,
+        quantity,
+        cost,
+        need_date,
+      },
+    });
+
+    if (result.count === 0) {
+      return res.status(404).json({
+        message: "SupplierOrder not found or already deleted.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "SupplierOrder updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating SupplierOrder", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+
+const deleteSupplierOrder = async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log('88888',id);
+    const result = await prisma.supplier_orders.update({
+      where: {
+        order_number: id,
+        isDeleted: false,
+      },
+      data: {
+        isDeleted: true,
+      },
+    })
+
+    console.log("see the result", result);
+    return res.status(200).json({
+      message: "SupplierOrder delete successfully !",
+    });
+  } catch (error) {
+    console.log("see the error ", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+}
+
+const supplierOrderDetailById = async(req,res)=>{
+  try {
+    const id = req.params.id;
+    const data = await prisma.supplier_orders.findFirst({
+      where:{
+        order_number:id,
+        isDeleted:false
+      }
+    })
+    return res.status(200).json({
+      message: "Process detail retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    console.log("see the error",error);                      
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+}
+
 
 const addProcess = async (req, res) => {
   try {
@@ -1061,6 +1210,48 @@ const deleteEmployee = async (req, res) => {
     });
   }
 };
+
+///send mail to employee
+
+const sendMailToEmplyee = async (req,res)=>{  
+  try {
+    const errors = validationResult(req);
+  const checkValid = await checkValidations(errors);
+  if (checkValid.type === "error") {
+    return res.status(400).send({ message: checkValid.errors.msg });
+  }
+
+  const { Mailsendemail,id } = req.body;
+  const user = await prisma.employee.findFirst({
+    where: {
+      id: id,
+      isDeleted: false,
+    },
+  });
+  console.log("what is commingh",user)
+    if (!user) {
+    return res.status(400).send({ message: "employee not found" });
+  }
+
+  const email  = await user.email;
+
+  await sendMail("account-created", { "%email%": email },Mailsendemail );
+
+  return res.status(200).json({
+    message: "Email sent Successfully",
+  });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong",
+      error: error.message,
+    });
+  }
+}
+
+////
+
+
+
 
 // const createEmployee = async (req, res) => {
 //   try {
@@ -2706,4 +2897,10 @@ module.exports = {
   updateProfileApi,
   profileDetail,
   deleteProfileImage,
+  getAllSupplierOrder,
+  deleteSupplierOrder,
+ updateSupplierById,
+ supplierOrderDetailById,
+ sendMailToEmplyee
+  
 };
