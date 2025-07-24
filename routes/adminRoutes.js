@@ -55,6 +55,12 @@ const {
   searchStockOrders,
   deleteProductPart,
   deleteProductTreeById,
+  updateProfileApi,
+  profileDetail,
+  deleteProfileImage,
+  getAllSupplierOrder,
+  updateSupplierOrder,
+  deleteSupplierOrder,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -76,7 +82,6 @@ const {
   productRelatedParts,
   allWorkInstructions,
   selectInstructionPartNumber,
-  workInstructionList,
   getWorkInstructionDetail,
   updateWorkInstructionDetail,
   deleteWorkInstruction,
@@ -135,21 +140,21 @@ router.put(
   editProcess
 );
 router.put("/delete-process/:id", adminValidateToken, deleteProcess);
-// router.post(
-//   "/create-employee",
-//   adminValidateToken,
-//   employeeValidation,
-//   createEmployee
-// );
-// router.get("/all-employee", adminValidateToken, allEmployee);
-// router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
-// router.put(
-//   "/edit-employee/:id",
-//   adminValidateToken,
-//   employeeValidation,
-//   editEmployee
-// );
-// router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
+router.post(
+  "/create-employee",
+  adminValidateToken,
+  employeeValidation,
+  createEmployee
+);
+router.get("/all-employee", adminValidateToken, allEmployee);
+router.get("/employee-detail/:id", adminValidateToken, employeeDetail);
+router.put(
+  "/edit-employee/:id",
+  adminValidateToken,
+  employeeValidation,
+  editEmployee
+);
+router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
 
 router.post(
   "/create-stock-order",
@@ -280,5 +285,20 @@ router.patch(
   "/delete-product-number/:id",
   adminValidateToken,
   deleteProductTreeById
+);
+
+router.get("/profile-detail", adminValidateToken, profileDetail);
+router.put("/profile-update", adminValidateToken, updateProfileApi);
+router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
+router.get("/supplier-order-list", adminValidateToken, getAllSupplierOrder);
+router.put(
+  "/update-supplier-order/:id",
+  adminValidateToken,
+  updateSupplierOrder
+);
+router.put(
+  "/delete-supplier-order/:id",
+  adminValidateToken,
+  deleteSupplierOrder
 );
 module.exports = router;

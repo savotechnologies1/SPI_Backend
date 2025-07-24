@@ -57,7 +57,6 @@ const fileFilter = (req, file, cb) => {
     "video/webm",
     "video/ogg",
   ];
-  console.log("file.mimetypefile.mimetype", file.mimetype);
 
   if (
     allowedImageTypes.includes(file.mimetype) ||

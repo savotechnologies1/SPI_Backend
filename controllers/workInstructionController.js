@@ -84,8 +84,6 @@ const createWorkInstruction = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -336,7 +334,6 @@ const createWorkInstructionDetail = async (req, res) => {
     const uploadedFiles = fileData?.data || [];
     const { processId, productId, instructionTitle, instructionSteps } =
       req.body;
-    console.log(" req.body req.body", req.body);
 
     const existingInstruction = await prisma.workInstruction.findFirst({
       where: {
@@ -414,8 +411,6 @@ const createWorkInstructionDetail = async (req, res) => {
       .status(201)
       .json({ message: "Work instruction created successfully!" });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res
       .status(500)
       .json({ error: "Something went wrong", details: error.message });
@@ -496,7 +491,6 @@ const allWorkInstructions = async (req, res) => {
       });
     }
 
-    // बाकी का लॉजिक वैसा ही रहेगा
     const formattedWI = workInstructions.map((item) => ({
       ...item,
       type: "original",
@@ -559,8 +553,6 @@ const selectInstructionPartNumber = async (req, res) => {
       data: formattedProcess,
     });
   } catch (error) {
-    console.log(error);
-
     res.status(500).json({ message: "Something went wrong ." });
   }
 };
@@ -576,7 +568,6 @@ const selectWorkInstruction = async (req, res) => {
         isDeleted: false,
       },
     });
-    console.log("processprocess", process);
 
     const formattedProcess = process.map((process) => ({
       id: process.id,
@@ -589,671 +580,10 @@ const selectWorkInstruction = async (req, res) => {
   } catch (error) { }
 };
 
-// const updateWorkInstructionDetail = async (req, res) => {
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     const uploadedFiles = fileData?.data || [];
-
-//     const {
-//       workInstructionId,
-//       processId,
-//       productId,
-//       instructionTitle,
-//       instructionSteps,
-//       type,
-//     } = req.body;
-
-//     const steps = JSON.parse(instructionSteps);
-
-//     await prisma.workInstruction.update({
-//       where: { id: workInstructionId },
-//       data: {
-//         processId,
-//         productId,
-//         instructionTitle,
-//       },
-//     });
-
-//     const oldSteps = await prisma.workInstructionSteps.findMany({
-//       where: { workInstructionId },
-//       select: { id: true },
-//     });
-
-//     const oldStepIds = oldSteps.map((s) => s.id);
-
-//     await prisma.instructionImage.deleteMany({
-//       where: { stepId: { in: oldStepIds } },
-//     });
-
-//     await prisma.instructionVideo.deleteMany({
-//       where: { stepId: { in: oldStepIds } },
-//     });
-
-//     await prisma.workInstructionSteps.deleteMany({
-//       where: { workInstructionId },
-//     });
-
-//     for (let i = 0; i < steps.length; i++) {
-//       const step = steps[i];
-//       const stepId = uuidv4();
-
-//       await prisma.workInstructionSteps.create({
-//         data: {
-//           id: stepId,
-//           workInstructionId,
-//           part_id: step.partId,
-//           stepNumber: Number(step.stepNumber),
-//           title: step.title,
-//           instruction: step.workInstruction,
-//           processId,
-//         },
-//       });
-
-//       const imageFiles = uploadedFiles.filter(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
-//       );
-
-//       for (const img of imageFiles) {
-//         await prisma.instructionImage.create({
-//           data: {
-//             stepId,
-//             imagePath: img.filename,
-//           },
-//         });
-//       }
-
-//       const videoFile = uploadedFiles.find(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
-//       );
-
-//       if (videoFile) {
-//         await prisma.instructionVideo.create({
-//           data: {
-//             stepId,
-//             workInstructionId,
-//             videoPath: videoFile.filename,
-//           },
-//         });
-//       }
-//     }
-
-//     return res
-//       .status(200)
-//       .json({ message: " Work instruction updated successfully!" });
-//   } catch (error) {
-//     console.error("Update Error:", error);
-//     return res
-//       .status(500)
-//       .json({ error: "Something went wrong", details: error.message });
-//   }
-// };
-
-// const getWorkInstructionDetail = async (req, res) => {
-//   const { id } = req.params;
-//   const { type } = req.params;
-
-//   try {
-//     const workInstruction = await prisma.workInstruction.findUnique({
-//       where: { id },
-//       include: {
-//         steps: {
-//           where: { isDeleted: false },
-//           orderBy: { stepNumber: "asc" },
-//           include: {
-//             images: true,
-//             videos: true,
-//           },
-//         },
-//       },
-//     });
-
-//     if (!workInstruction) {
-//       return res.status(404).json({ message: "Work instruction not found" });
-//     }
-
-//     const formattedSteps = workInstruction.steps.map((step) => ({
-//       id: step.id,
-//       part_id: step.part_id,
-//       processId: step.processId,
-//       productTreeId: step.productTreeId,
-//       stepNumber: step.stepNumber,
-//       title: step.title,
-//       instruction: step.instruction,
-//       workInstructionImg: step.images?.map((img) => img.imagePath) || [],
-//       workInstructionVideo: step.videos?.map((vid) => vid.videoPath) || [],
-//     }));
-
-//     return res.status(200).json({
-//       workInstructionId: workInstruction.id,
-//       instructionTitle: workInstruction.instructionTitle,
-//       processId: workInstruction.processId,
-//       productId: workInstruction.productId,
-//       steps: formattedSteps,
-//     });
-//   } catch (error) {
-//     console.error("❌ Error fetching work instruction detail:", error);
-//     return res
-//       .status(500)
-//       .json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-// const updateWorkInstructionDetail = async (req, res) => {
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     const uploadedFiles = fileData?.data || [];
-
-//     const {
-//       workInstructionId,
-//       processId,
-//       productId,
-//       instructionTitle,
-//       instructionSteps,
-//       type, // either "original" or "applied"
-//     } = req.body;
-
-//     const steps = JSON.parse(instructionSteps);
-
-//     // Step 1: Update instruction title/process/product
-//     if (type === "original") {
-//       await prisma.workInstruction.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else if (type === "applied") {
-//       await prisma.workInstructionApply.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else {
-//       return res.status(400).json({ message: "Invalid type provided" });
-//     }
-
-//     // Step 2: Get and delete old steps + media
-//     // const oldSteps = await prisma.workInstructionSteps.findMany({
-//     //   where: {
-//     //     ...(type === "original"
-//     //       ? { workInstructionId }
-//     //       : { workInstructionId: workInstructionId }),
-//     //   },
-//     //   select: { id: true },
-//     // });
-
-//     // const oldStepIds = oldSteps.map((s) => s.id);
-
-//     // await prisma.instructionImage.deleteMany({
-//     //   where: { stepId: { in: oldStepIds } },
-//     // });
-
-//     // await prisma.instructionVideo.deleteMany({
-//     //   where: { stepId: { in: oldStepIds } },
-//     // });
-
-//     // await prisma.workInstructionSteps.deleteMany({
-//     //   where:
-//     //     type === "original"
-//     //       ? { workInstructionId }
-//     //       : { workInstructionApplyId: workInstructionId },
-//     // });
-
-//     // Step 3: Create new steps
-//     for (let i = 0; i < steps.length; i++) {
-//       const step = steps[i];
-//       const stepId = uuidv4();
-
-//       await prisma.workInstructionSteps.create({
-//         data: {
-//           id: stepId,
-//           part_id: step.partId,
-//           stepNumber: Number(step.stepNumber),
-//           title: step.title,
-//           instruction: step.workInstruction,
-//           processId,
-//           ...(type === "original"
-//             ? { workInstructionId }
-//             : {
-//                 workInstructionId: step.originalWorkInstructionId || "",
-//                 workInstructionApplyId: workInstructionId,
-//               }),
-//         },
-//       });
-
-//       const imageFiles = uploadedFiles.filter(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
-//       );
-
-//       for (const img of imageFiles) {
-//         await prisma.instructionImage.create({
-//           data: {
-//             stepId,
-//             imagePath: img.filename,
-//           },
-//         });
-//       }
-
-//       const videoFile = uploadedFiles.find(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
-//       );
-
-//       if (videoFile) {
-//         await prisma.instructionVideo.create({
-//           data: {
-//             stepId,
-//             videoPath: videoFile.filename,
-//             workInstructionId:
-//               type === "original"
-//                 ? workInstructionId
-//                 : step.originalWorkInstructionId || "",
-//           },
-//         });
-//       }
-//     }
-
-//     return res.status(200).json({
-//       message: `Work instruction (${type}) updated successfully!`,
-//     });
-//   } catch (error) {
-//     console.error("Update Error:", error);
-//     return res
-//       .status(500)
-//       .json({ error: "Something went wrong", details: error.message });
-//   }
-// };
-
-// const updateWorkInstructionDetail = async (req, res) => {
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     const uploadedFiles = fileData?.data || [];
-
-//     const {
-//       workInstructionId,
-//       processId,
-//       productId,
-//       instructionTitle,
-//       instructionSteps,
-//       type, // "original" or "applied"
-//     } = req.body;
-
-//     const steps = JSON.parse(instructionSteps);
-
-//     // Step 1: Update Instruction Metadata
-//     if (type === "original") {
-//       await prisma.workInstruction.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else if (type === "applied") {
-//       await prisma.workInstructionApply.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else {
-//       return res.status(400).json({ message: "Invalid type provided" });
-//     }
-
-//     // Step 2: INSERT new steps for applied (don't delete anything)
-//     for (let i = 0; i < steps.length; i++) {
-//       const step = steps[i];
-//       const stepId = uuidv4();
-
-//       // Step Insert
-//       await prisma.workInstructionSteps.create({
-//         data: {
-//           id: stepId,
-//           part_id: step.partId,
-//           stepNumber: Number(step.stepNumber),
-//           title: step.title,
-//           instruction: step.workInstruction,
-//           processId,
-//           ...(type === "original"
-//             ? { workInstructionId }
-//             : {
-//                 workInstructionApplyId: workInstructionId,
-//                 workInstructionId: step.originalWorkInstructionId || "", // link to original
-//               }),
-//         },
-//       });
-
-//       // Images
-//       const imageFiles = uploadedFiles.filter(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
-//       );
-
-//       for (const img of imageFiles) {
-//         await prisma.instructionImage.create({
-//           data: {
-//             stepId,
-//             imagePath: img.filename,
-//           },
-//         });
-//       }
-
-//       // Video
-//       const videoFile = uploadedFiles.find(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
-//       );
-
-//       if (videoFile) {
-//         await prisma.instructionVideo.create({
-//           data: {
-//             stepId,
-//             videoPath: videoFile.filename,
-//             ...(type === "original"
-//               ? { workInstructionId }
-//               : {
-//                   workInstructionApplyId: workInstructionId,
-//                   workInstructionId: step.originalWorkInstructionId || "",
-//                 }),
-//           },
-//         });
-//       }
-//     }
-
-//     return res.status(200).json({
-//       message: `Work instruction (${type}) updated successfully!`,
-//     });
-//   } catch (error) {
-//     console.error("Update Error:", error);
-//     return res
-//       .status(500)
-//       .json({ error: "Something went wrong", details: error.message });
-//   }
-// };
-
-// const updateWorkInstructionDetail = async (req, res) => {
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     const uploadedFiles = fileData?.data || [];
-
-//     const {
-//       workInstructionId,
-//       processId,
-//       productId,
-//       instructionTitle,
-//       instructionSteps,
-//       type, // "original" or "applied"
-//     } = req.body;
-
-//     const steps = JSON.parse(instructionSteps);
-
-//     // Step 1: Update Instruction metadata
-//     if (type === "original") {
-//       await prisma.workInstruction.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else if (type === "applied") {
-//       await prisma.workInstructionApply.update({
-//         where: { id: workInstructionId },
-//         data: {
-//           processId,
-//           productId,
-//           instructionTitle,
-//         },
-//       });
-//     } else {
-//       return res.status(400).json({ message: "Invalid type provided" });
-//     }
-
-//     for (let i = 0; i < steps.length; i++) {
-//       const step = steps[i];
-//       const stepId = uuidv4();
-
-//       let originalInstructionId = step.originalWorkInstructionId;
-
-//       if (type === "applied" && !originalInstructionId) {
-//         const appliedData = await prisma.workInstructionApply.findUnique({
-//           where: { id: workInstructionId },
-//           select: { instructionId: true, id: true },
-//         });
-//         console.log("appliedDataappliedData", appliedData);
-
-//         if (!appliedData) {
-//           return res.status(400).json({
-//             message: "Original instruction not found for applied instruction.",
-//           });
-//         }
-
-//         originalInstructionId = appliedData.id;
-//       }
-
-//       await prisma.workInstructionSteps.create({
-//         data: {
-//           id: stepId,
-//           part_id: step.partId,
-//           stepNumber: Number(step.stepNumber),
-//           title: step.title,
-//           instruction: step.workInstruction,
-//           processId,
-//           workInstructionId: originalInstructionId,
-//           ...(type === "applied"
-//             ? { workInstructionApplyId: workInstructionId }
-//             : {}),
-//         },
-//       });
-
-//       // Handle Images
-//       const imageFiles = uploadedFiles.filter(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
-//       );
-
-//       for (const img of imageFiles) {
-//         await prisma.instructionImage.create({
-//           data: {
-//             stepId,
-//             imagePath: img.filename,
-//           },
-//         });
-//       }
-
-//       // Handle Video
-//       const videoFile = uploadedFiles.find(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
-//       );
-
-//       if (videoFile) {
-//         await prisma.instructionVideo.create({
-//           data: {
-//             stepId,
-//             videoPath: videoFile.filename,
-//             ...(type === "applied"
-//               ? {
-//                   workInstructionId: originalInstructionId,
-//                   workInstructionApplyId: workInstructionId,
-//                 }
-//               : {
-//                   workInstructionId,
-//                 }),
-//           },
-//         });
-//       }
-//     }
-
-//     return res.status(200).json({
-//       message: `Work instruction (${type}) updated successfully!`,
-//     });
-//   } catch (error) {
-//     console.error("Update Error:", error);
-//     return res.status(500).json({
-//       error: "Something went wrong",
-//       details: error.message,
-//     });
-//   }
-// };
-
-// const updateWorkInstructionDetail = async (req, res) => {
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     const uploadedFiles = fileData?.data || [];
-//     const {
-//       workInstructionId,
-//       processId,
-//       productId,
-//       instructionTitle,
-//       instructionSteps,
-//       type,
-//     } = req.body;
-
-//     const steps = JSON.parse(instructionSteps);
-//     if (type === "original") {
-//       await prisma.workInstruction.update({
-//         where: { id: workInstructionId },
-//         data: { processId, productId, instructionTitle },
-//       });
-//     } else if (type === "applied") {
-//       await prisma.workInstructionApply.update({
-//         where: { id: workInstructionId },
-//         data: { processId, productId, instructionTitle },
-//       });
-//     } else {
-//       return res.status(400).json({ message: "Invalid type provided" });
-//     }
-
-//     const existingStepsInDb = await prisma.workInstructionSteps.findMany({
-//       where:
-//         type === "original"
-//           ? { workInstructionId }
-//           : { workInstructionApplyId: workInstructionId },
-//       select: { id: true },
-//     });
-//     const existingStepIdsInDb = new Set(existingStepsInDb.map((s) => s.id));
-//     const incomingStepIds = new Set();
-
-//     for (let i = 0; i < steps.length; i++) {
-//       const step = steps[i];
-//       const stepData = {
-//         stepNumber: Number(step.stepNumber),
-//         title: step.title,
-//         instruction: step.workInstruction,
-//         processId,
-//       };
-
-//       let stepRecord;
-//       if (step.id && existingStepIdsInDb.has(step.id)) {
-//         stepRecord = await prisma.workInstructionSteps.update({
-//           where: { id: step.id },
-//           data: stepData,
-//         });
-//         incomingStepIds.add(step.id);
-//       } else {
-//         const originalInstructionId = await getOriginalInstructionId(
-//           type,
-//           workInstructionId,
-//           step
-//         );
-//         if (type === "applied" && !originalInstructionId) {
-//           return res.status(400).json({
-//             message:
-//               "Could not resolve original workInstructionId for new step.",
-//           });
-//         }
-//         stepRecord = await prisma.workInstructionSteps.create({
-//           data: {
-//             ...stepData,
-//             id: uuidv4(),
-//             workInstructionId:
-//               type === "original" ? workInstructionId : originalInstructionId,
-//             ...(type === "applied"
-//               ? { workInstructionApplyId: workInstructionId }
-//               : {}),
-//           },
-//         });
-//         incomingStepIds.add(stepRecord.id);
-//       }
-
-//       const stepId = stepRecord.id;
-//       const imageFiles = uploadedFiles.filter(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
-//       );
-//       for (const img of imageFiles) {
-//         await prisma.instructionImage.create({
-//           data: { stepId, imagePath: img.filename },
-//         });
-//       }
-
-//       const videoFile = uploadedFiles.find(
-//         (file) =>
-//           file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
-//       );
-//       if (videoFile) {
-//         await prisma.instructionVideo.deleteMany({ where: { stepId } });
-//         o;
-//         const originalInstructionId = await getOriginalInstructionId(
-//           type,
-//           workInstructionId,
-//           step
-//         );
-//       }
-//     }
-
-//     const stepsToDelete = [...existingStepIdsInDb].filter(
-//       (id) => !incomingStepIds.has(id)
-//     );
-
-//     if (stepsToDelete.length > 0) {
-//       console.log("Deleting steps with IDs:", stepsToDelete);
-
-//       await prisma.instructionImage.deleteMany({
-//         where: {
-//           stepId: { in: stepsToDelete },
-//         },
-//       });
-//       await prisma.instructionVideo.deleteMany({
-//         where: {
-//           stepId: { in: stepsToDelete },
-//         },
-//       });
-//       await prisma.workInstructionSteps.deleteMany({
-//         where: {
-//           id: { in: stepsToDelete },
-//         },
-//       });
-//     }
-
-//     return res.status(200).json({
-//       message: `Work instruction (${type}) updated successfully!`,
-//     });
-//   } catch (error) {
-//     console.error("Update Error:", error);
-//     return res
-//       .status(500)
-//       .json({ message: "An error occurred during the update.", error });
-//   }
-// };
 const updateWorkInstructionDetail = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const uploadedFiles = fileData?.data || [];
-
     const {
       workInstructionId,
       processId,
@@ -1264,8 +594,6 @@ const updateWorkInstructionDetail = async (req, res) => {
     } = req.body;
 
     const steps = JSON.parse(instructionSteps);
-
-    // 🔄 Update main instruction record
     if (type === "original") {
       await prisma.workInstruction.update({
         where: { id: workInstructionId },
@@ -1288,9 +616,8 @@ const updateWorkInstructionDetail = async (req, res) => {
       select: { id: true },
     });
 
-    const existingStepIdsInDb = new Set(existingStepsInDb.map((s) => s.id));
+    const existingStepIdsInDb = new Set(existingStepsInDb?.map((s) => s.id));
     const incomingStepIds = new Set();
-
     const originalInstructionId = await getOriginalInstructionId(
       type,
       workInstructionId
@@ -1300,11 +627,9 @@ const updateWorkInstructionDetail = async (req, res) => {
         .status(404)
         .json({ message: "Original Work Instruction not found." });
     }
-
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       let currentStepId;
-
       const stepData = {
         stepNumber: i + 1,
         title: step.title,
@@ -1312,7 +637,6 @@ const updateWorkInstructionDetail = async (req, res) => {
         processId,
       };
 
-      // STEP CREATE/UPDATE
       if (step.id && existingStepIdsInDb.has(step.id)) {
         currentStepId = step.id;
         await prisma.workInstructionSteps.update({
@@ -1334,8 +658,6 @@ const updateWorkInstructionDetail = async (req, res) => {
         currentStepId = newStep.id;
         incomingStepIds.add(currentStepId);
       }
-      console.log("step.existingImageIdsstep.existingImageIds", step);
-
       const imageFiles = uploadedFiles.filter(
         (file) =>
           file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
@@ -1402,7 +724,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
 const getOriginalInstructionId = async (type, workInstructionId, step) => {
   if (type === "original") return workInstructionId;
-  if (step.originalWorkInstructionId) return step.originalWorkInstructionId;
+  if (step?.originalWorkInstructionId) return step?.originalWorkInstructionId;
 
   const appliedData = await prisma.workInstructionApply.findUnique({
     where: { id: workInstructionId },
@@ -1513,12 +835,10 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 
 const getWorkInstructionDetail = async (req, res) => {
   const { id } = req.params;
-
   try {
     let source = "original";
     let workInstruction = null;
     let allSteps = [];
-
     const original = await prisma.workInstruction.findUnique({
       where: { id },
       include: {
@@ -1559,12 +879,10 @@ const getWorkInstructionDetail = async (req, res) => {
       if (!applied) {
         return res.status(404).json({ message: "Work instruction not found" });
       }
-
       source = "applied";
       workInstruction = applied;
       allSteps = applied.steps;
     }
-
     const formattedSteps = allSteps.map((step) => ({
       id: step.id,
       part_id: step.part_id,
@@ -1604,13 +922,11 @@ const deleteWorkInstruction = async (req, res) => {
   try {
     const { id } = req.params;
     const { type } = req.query;
-
     if (type === "applied") {
       await prisma.workInstructionApply.update({
         where: { id },
         data: { isDeleted: true },
       });
-
       await prisma.workInstructionSteps.updateMany({
         where: {
           workInstructionApplyId: id,
@@ -1619,7 +935,6 @@ const deleteWorkInstruction = async (req, res) => {
           isDeleted: true,
         },
       });
-
       await prisma.instructionVideo.updateMany({
         where: {
           workInstructionApplyId: id,
@@ -1665,8 +980,6 @@ const selectInstruction = async (req, res) => {
       data: formattedInstruction,
     });
   } catch (error) {
-    console.log(error);
-
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -1751,8 +1064,6 @@ const applyWorkInstruction = async (req, res) => {
       newWorkInstruction,
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).json({
       error: "Something went wrong",
       details: error.message,
@@ -1803,8 +1114,6 @@ const deleteWorkInstructionImg = async (req, res) => {
       message: "Image deleted succesfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
