@@ -1026,7 +1026,7 @@ const editEmployee = async (req, res) => {
         startDate: startDate,
         pin: pin,
         status: status,
-        shopFloorLogin: shopFloorLogin,
+        shopFloorLogin: Boolean(shopFloorLogin),
         termsAccepted: termsAccepted,
       },
     });
