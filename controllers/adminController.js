@@ -1199,7 +1199,8 @@ const customeOrder = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).send({
+    console.log("error:", error)
+    return res.status(400).send({
       message: "Something went wrong . please try again later .",
     });
   }
