@@ -61,6 +61,8 @@ const {
   getAllSupplierOrder,
   updateSupplierOrder,
   deleteSupplierOrder,
+  sendMailToEmplyee,
+  selectProcessStationUser,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -92,6 +94,10 @@ const {
   deleteWorkInstructionImg,
   deleteWorkInstructionStepsById,
 } = require("../controllers/workInstructionController");
+const {
+  processLogin,
+  selectScheduleProcess,
+} = require("../controllers/productionResponseController");
 
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -155,6 +161,7 @@ router.put(
   editEmployee
 );
 router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
+router.post("/send-email-to-employee", adminValidateToken, sendMailToEmplyee);
 
 router.post(
   "/create-stock-order",
@@ -300,5 +307,12 @@ router.put(
   "/delete-supplier-order/:id",
   adminValidateToken,
   deleteSupplierOrder
+);
+
+router.post("/process-login", adminValidateToken, processLogin);
+router.get(
+  "/select-schedule-process",
+  adminValidateToken,
+  selectScheduleProcess
 );
 module.exports = router;

@@ -29,19 +29,21 @@ model admin {
 }
 
 model customers {
-  id            String        @id @default(uuid()) @db.Char(36)
-  firstName     String
-  lastName      String
-  email         String
-  address       String?
-  billingTerms  String?
-  createdBy     String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  isDeleted     Boolean       @default(false)
-  customerPhone String?
-  CustomOrder   CustomOrder[]
-  StockOrder    StockOrder[]
+  id                 String               @id @default(uuid()) @db.Char(36)
+  firstName          String
+  lastName           String
+  email              String
+  address            String?
+  billingTerms       String?
+  createdBy          String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  isDeleted          Boolean              @default(false)
+  customerPhone      String?
+  CustomOrder        CustomOrder[]
+  StockOrder         StockOrder[]
+  ProductionResponse ProductionResponse[]
+  processLogin       processLogin[]
 }
 
 model employee {
@@ -54,7 +56,7 @@ model employee {
   shift          String?   @db.VarChar(255)
   startDate      String?   @db.VarChar(255)
   pin            String?   @db.VarChar(255)
-  shopFloorLogin String?   @default("no") @db.VarChar(50)
+  shopFloorLogin Boolean?  @default(false)
   role           String    @default("shopfloor")
   phoneNumber    String?   @unique(map: "phoneNumber") @db.VarChar(20)
   tokens         Json?
@@ -94,6 +96,8 @@ model process {
   WorkInstruction      WorkInstruction[]
   WorkInstructionApply WorkInstructionApply[]
   WorkInstructionSteps WorkInstructionSteps[]
+  ProductionResponse   ProductionResponse[]
+  processLogin         processLogin[]
 }
 
 model suppliers {
@@ -159,8 +163,8 @@ model mailTemplate {
 }
 
 model StockOrder {
-  id                 String    @id @default(uuid()) @db.Char(36)
-  orderNumber        String    @unique
+  id                 String               @id @default(uuid()) @db.Char(36)
+  orderNumber        String               @unique
   orderDate          String?
   shipDate           String?
   customerId         String
@@ -168,16 +172,21 @@ model StockOrder {
   customerEmail      String
   customerPhone      String
   productNumber      String
-  productDescription String    @default("") @db.VarChar(512)
+  productDescription String               @default("") @db.VarChar(512)
   cost               String
   productQuantity    Int
-  createdBy          String?   @db.Char(36)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  isDeleted          Boolean   @default(false)
+  createdBy          String?              @db.Char(36)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  isDeleted          Boolean              @default(false)
   totalCost          String
-  customer           customers @relation(fields: [customerId], references: [id])
+  status             String               @default("") @db.VarChar(60)
+  customer           customers            @relation(fields: [customerId], references: [id])
+  PartNumber         PartNumber           @relation(fields: [productNumber], references: [partNumber])
+  ProductionResponse ProductionResponse[]
+  processLogin       processLogin[]
 
+  @@index([productNumber], map: "StockOrder_productNumber_fkey")
   @@index([customerId], map: "StockOrder_customerId_fkey")
 }
 
@@ -245,6 +254,9 @@ model PartNumber {
   WorkInstructionApply WorkInstructionApply[]
   WorkInstructionSteps WorkInstructionSteps[]
   supplier_orders      supplier_orders[]
+  ProductionResponse   ProductionResponse[]
+  processLogin         processLogin[]
+  StockOrder           StockOrder[]
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -376,6 +388,61 @@ model InstructionVideo {
   @@index([stepId])
   @@index([workInstructionId], map: "InstructionVideo_workInstructionId_fkey")
   @@index([workInstructionApplyId], map: "InstructionVideo_workInstructionApplyId_fkey")
+}
+
+model processLogin {
+  id        String  @id @default(uuid()) @db.Char(36)
+  processId String
+  orderId   String  @default("") @db.VarChar(100)
+  userId    String?
+
+  process           process     @relation(fields: [processId], references: [id])
+  StockOrder        StockOrder? @relation(fields: [orderId], references: [id])
+  customers         customers?  @relation(fields: [customersId], references: [id])
+  customersId       String?     @db.Char(36)
+  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
+  partNumberPart_id String?     @db.Char(36)
+  type              String?     @db.Char(36)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  @@index([orderId], map: "ProductionResponse_orderId_fkey")
+  @@index([processId], map: "ProductionResponse_processId_fkey")
+}
+
+model ProductionResponse {
+  id                String   @id @default(uuid()) @db.Char(36)
+  processId         String   @db.Char(36)
+  orderId           String   @db.Char(36)
+  partId            String?  @db.Char(36)
+  employeeId        String?  @db.Char(100)
+  completedQuantity Int      @default(0)
+  quantity          Int
+  scrap             Int
+  cycleTimeStart    DateTime @default(now())
+  cycleTimeEnd      DateTime @default(now())
+  submittedTime     DateTime @default(now())
+  submittedDate     DateTime @default(now())
+  submittedBy       String   @db.VarChar(100)
+  createdBy         String?  @db.Char(36)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isDeleted         Boolean  @default(false)
+  status            String   @default("") @db.VarChar(60)
+  type              String?  @db.VarChar(36)
+
+  process     process     @relation(fields: [processId], references: [id])
+  PartNumber  PartNumber? @relation(fields: [partId], references: [part_id])
+  StockOrder  StockOrder? @relation(fields: [orderId], references: [id])
+  customers   customers?  @relation(fields: [customersId], references: [id])
+  customersId String?     @db.Char(36)
+
+  // Indexes
+  @@index([orderId], map: "ProductionResponse_orderId_fkey")
+  @@index([processId], map: "ProductionResponse_processId_fkey")
+  @@index([partId], map: "ProductionResponse_partId_fkey")
 }
 
 enum admin_roles {

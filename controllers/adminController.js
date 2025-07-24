@@ -11,6 +11,7 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
+const generator = require("generate-password");
 
 const login = async (req, res) => {
   try {
@@ -848,6 +849,7 @@ const createEmployee = async (req, res) => {
         message: "Employee with this email .",
       });
     }
+
     await prisma.employee.create({
       data: {
         firstName: firstName,
@@ -1061,6 +1063,49 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+const sendMailToEmplyee = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({ message: checkValid.errors.msg });
+    }
+    const { email, id, password } = req.body;
+    const user = await prisma.employee.findFirst({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+    });
+    if (!user) {
+      return res.status(400).send({ message: "employee not found" });
+    }
+
+    const getEmail = await user.email;
+    await prisma.employee.update({
+      where: {
+        id: id,
+      },
+      data: {
+        password: md5(password),
+      },
+    });
+    await sendMail(
+      "account-created",
+      { "%email%": getEmail, "%password%": password },
+      email
+    );
+
+    return res.status(200).json({
+      message: "Email sent Successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong",
+      error: error.message,
+    });
+  }
+};
 // const createEmployee = async (req, res) => {
 //   try {
 //     const getId = uuidv4().slice(0, 6);
@@ -1264,7 +1309,6 @@ const createStockOrder = async (req, res) => {
       productQuantity,
       customerId,
     } = req.body;
-
     let firstName = "";
     let lastName = "";
     if (customerName) {
@@ -1314,7 +1358,6 @@ const createStockOrder = async (req, res) => {
           "This order number already exists. Please try a different order number.",
       });
     }
-
     await prisma.stockOrder.create({
       data: {
         orderNumber: orderNumber,
@@ -1490,11 +1533,9 @@ const customeOrder = async (req, res) => {
 const createPartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-
     const getPartImages = fileData?.data?.filter(
       (file) => file.fieldname === "partImages"
     );
-
     const {
       partFamily,
       partNumber,
@@ -1577,7 +1618,6 @@ const createPartNumber = async (req, res) => {
 const partNumberList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-
     const [allProcess, totalCount] = await Promise.all([
       prisma.partNumber.findMany({
         where: {
@@ -2328,7 +2368,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
       },
       where: {
         isDeleted: false,
-        type: "product",
+        // type: "product",
       },
       orderBy: {
         partNumber: "asc",
@@ -2792,6 +2832,34 @@ const deleteSupplierOrder = async (req, res) => {
 //   }
 // }
 
+// const selectProcessStationUser = async (req, res) => {
+//   try {
+//     const employeeData = await prisma.employee.findMany({
+//       where: {
+//         isDeleted: false,
+//       },
+
+//       select: {
+//         id: true,
+//         employeeId: true,
+//         email: true,
+//         fullName: true,
+//       },
+//     });
+//     const formatted = employeeData.map((employee) => ({
+//       id: employee.id || null,
+//       name: employee.fullName || null,
+//       employeeId: employee.employeeId || null,
+//       email: employee.email || null,
+//     }));
+//     return res.status(200).json(formatted);
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -2849,6 +2917,7 @@ module.exports = {
   employeeDetail,
   editEmployee,
   deleteEmployee,
+  sendMailToEmplyee,
   updateProfileApi,
   profileDetail,
   deleteProfileImage,
