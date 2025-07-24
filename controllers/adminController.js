@@ -11,7 +11,6 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
-const generator = require("generate-password");
 
 const login = async (req, res) => {
   try {
