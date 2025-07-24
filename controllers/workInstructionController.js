@@ -577,7 +577,7 @@ const selectWorkInstruction = async (req, res) => {
       data: formattedProcess,
     });
     res.status(500).json({ message: "Server error" });
-  } catch (error) {}
+  } catch (error) { }
 };
 
 const updateWorkInstructionDetail = async (req, res) => {
