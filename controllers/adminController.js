@@ -925,19 +925,18 @@ const allEmployee = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
     const { search = "", isShopFloor } = req.query;
+    console.log("isShopFloorisShopFloor", isShopFloor);
 
     const whereCondition = {
       isDeleted: false,
       ...(search && {
         OR: [
-          { firstName: { contains: search } },
-          { lastName: { contains: search } },
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
         ],
       }),
-      ...(isShopFloor && {
-        shopFloorLogin: {
-          equals: isShopFloor,
-        },
+      ...(typeof isShopFloor !== "undefined" && {
+        shopFloorLogin: isShopFloor === "true",
       }),
     };
     const [employeeData, totalCount] = await Promise.all([
@@ -1541,7 +1540,7 @@ const customeOrder = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log("error:", error)
+    console.log("error:", error);
     return res.status(400).send({
       message: "Something went wrong . please try again later .",
     });
