@@ -845,7 +845,7 @@ const createEmployee = async (req, res) => {
 
     if (existingEmployee) {
       return res.status(400).json({
-        message: "Employee with this email .",
+        message: "Employee with this email already exist.",
       });
     }
 
@@ -860,8 +860,8 @@ const createEmployee = async (req, res) => {
         shift: shift,
         startDate: startDate,
         pin: pin,
-        shopFloorLogin: shopFloorLogin,
-        role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
+        shopFloorLogin: Boolean(shopFloorLogin),
+        role: shopFloorLogin === true ? "Shop_Floor" : "Frontline",
         termsAccepted: termsAccepted,
         status: status,
         password: "",
@@ -872,6 +872,8 @@ const createEmployee = async (req, res) => {
       message: "Employee added successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -924,8 +926,7 @@ const createEmployee = async (req, res) => {
 const allEmployee = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-    const { search = "", isShopFloor } = req.query;
-    console.log("isShopFloorisShopFloor", isShopFloor);
+    const { search = "", isShopFloor = "" } = req.query;
 
     const whereCondition = {
       isDeleted: false,
@@ -935,10 +936,12 @@ const allEmployee = async (req, res) => {
           { lastName: { contains: search, mode: "insensitive" } },
         ],
       }),
-      ...(typeof isShopFloor !== "undefined" && {
-        shopFloorLogin: isShopFloor === "true",
-      }),
+      ...(isShopFloor !== "" &&
+        typeof isShopFloor !== "undefined" && {
+          shopFloorLogin: isShopFloor === "true",
+        }),
     };
+
     const [employeeData, totalCount] = await Promise.all([
       prisma.employee.findMany({
         where: whereCondition,
