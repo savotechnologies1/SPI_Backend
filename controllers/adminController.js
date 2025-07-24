@@ -969,6 +969,7 @@ const allEmployee = async (req, res) => {
     });
   }
 };
+
 const employeeDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1334,6 +1335,7 @@ const createStockOrder = async (req, res) => {
           message: "Customer with this email or phone number already exists.",
         });
       }
+
       await prisma.customers.create({
         data: {
           id: customerId,
@@ -1345,6 +1347,22 @@ const createStockOrder = async (req, res) => {
         },
       });
     }
+
+    const isStockAvail = await prisma.partNumber.findFirst({
+      where: { isDeleted: false },
+      select: {
+        availStock: true,
+      },
+    });
+
+    if (!isStockAvail || productQuantity > isStockAvail.availStock) {
+      return res.status(400).send({
+        message: `Only ${
+          isStockAvail?.availStock ?? 0
+        } quantity is available in stock.`,
+      });
+    }
+
     const checkStockOrder = await prisma.stockOrder.findFirst({
       where: {
         orderNumber: orderNumber,

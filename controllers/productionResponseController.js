@@ -1,4 +1,3 @@
-const { now } = require("moment/moment");
 const prisma = require("../config/prisma");
 
 const processLogin = async (req, res) => {
@@ -100,6 +99,7 @@ const getScheduleProcessInformation = async (req, res) => {
   try {
     const orderId = req.params.id;
     const user = req.user;
+    const { userId } = req.body;
     const data = await prisma.stockOrder.findUnique({
       where: {
         id: orderId,
@@ -118,10 +118,10 @@ const getScheduleProcessInformation = async (req, res) => {
         },
       },
     });
-
+    const employeeId = user?.id || userId;
     const employeeInfo = await prisma.employee.findUnique({
       where: {
-        id: user.id,
+        id: employeeId,
       },
       select: {
         firstName: true,

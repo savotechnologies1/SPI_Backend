@@ -40,7 +40,6 @@ const {
   getProductTree,
   selectProductNumber,
   partDetail,
-  productDetail,
   getSingleProductTree,
   updatePartNumber,
   updateProductNumber,
@@ -62,7 +61,6 @@ const {
   updateSupplierOrder,
   deleteSupplierOrder,
   sendMailToEmplyee,
-  selectProcessStationUser,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -76,7 +74,6 @@ const {
   resetPass,
   stockOrderValidation,
 } = require("../validations/validations");
-const upload = require("../functions/upload");
 const {
   createWorkInstruction,
   createWorkInstructionDetail,
@@ -207,7 +204,6 @@ router.put(
   updateProductNumber
 );
 router.patch("/delete-part-number/:id", adminValidateToken, deletePartNumber);
-// router.post("/add-work-instruction", adminValidateToken, createWorkInstruction);
 router.post(
   "/create-work-instruction",
   adminValidateToken,
