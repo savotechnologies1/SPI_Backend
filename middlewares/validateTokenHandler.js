@@ -13,16 +13,16 @@ const validateToken = async (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const user = await prisma.users.findFirst({
+    const admin = await prisma.employee.findFirst({
       where: {
-        isDeleted: false,
         tokens: {
-          equals: [token],
+          array_contains: token,
         },
+        isDeleted: false,
       },
     });
 
-    if (!user) {
+    if (!admin) {
       return res.status(401).json({
         message: "Token expired or invalid. Please re-login.",
       });
@@ -32,11 +32,12 @@ const validateToken = async (req, res, next) => {
       if (err) {
         return res.status(401).json({ message: "User is not authorized" });
       }
+
       req.user = decoded.user || decoded;
       next();
     });
   } catch (error) {
-    console.error("Token validation error:", error);
+    console.error("Error in token validation middleware:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };

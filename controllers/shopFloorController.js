@@ -7,59 +7,6 @@ const { sendMail } = require("../functions/mailer");
 const { generateRandomOTP } = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
 
-const registerShopFloor = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    const checkValid = await checkValidations(errors);
-    if (checkValid.type === "error") {
-      return res.status(400).send({ message: checkValid.errors.msg });
-    }
-    const { email, password } = req.body;
-    const existingUser = await prisma.employee.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        message:
-          "Email is already registered, please add a different email address.",
-      });
-    }
-
-    const newUser = await prisma.employee.create({
-      data: {
-        email: email?.toLowerCase()?.trim(),
-        password: md5(password),
-      },
-    });
-
-    const token = jwt.sign(
-      { userId: newUser.id },
-      process.env.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: "5d",
-      }
-    );
-
-    await prisma.employee.update({
-      where: { id: newUser.id },
-      data: {
-        tokens: Array.isArray(newUser.tokens)
-          ? [...newUser.tokens, token]
-          : [token],
-      },
-    });
-
-    return res.status(201).json({
-      message: "User registered successfully",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Something went wrong",
-    });
-  }
-};
-
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -69,18 +16,21 @@ const login = async (req, res) => {
         message: checkValid.errors.msg,
       });
     }
-    const { email, password } = req.body;
+    const { userName, password } = req.body;
     const user = await prisma.employee.findUnique({
-      where: { email: email },
+      where: { email: userName },
       select: {
         id: true,
         email: true,
         status: true,
         password: true,
+        role: true,
         tokens: true,
         isDeleted: true,
       },
     });
+    console.log("useruser", user);
+
     if (!user || user.password !== md5(password) || user.isDeleted) {
       return res.status(400).send({ message: "Invalid Username and Password" });
     }
@@ -91,7 +41,7 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
       {
         expiresIn: "30d",
@@ -255,7 +205,6 @@ const resetPassword = async (req, res) => {
   }
 };
 module.exports = {
-  registerShopFloor,
   login,
   sendForgotPasswordOTP,
   validOtp,
