@@ -2389,6 +2389,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
       where: {
         isDeleted: false,
         // type: "product",
+        processOrderRequired: true,
       },
       orderBy: {
         partNumber: "asc",
