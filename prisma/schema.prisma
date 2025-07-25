@@ -258,12 +258,14 @@ model PartNumber {
   ProductionResponse                              ProductionResponse[]
   stockOrders                                     StockOrder[]           @relation("part")
   StockOrder_StockOrder_productNumberToPartNumber StockOrder[]           @relation("StockOrder_productNumberToPartNumber")
-  schedules                                       StockOrderSchedule[]
   WorkInstruction                                 WorkInstruction[]
   WorkInstructionApply                            WorkInstructionApply[]
   WorkInstructionSteps                            WorkInstructionSteps[]
   processLogin                                    processLogin[]
   supplier_orders                                 supplier_orders[]
+  StockOrderSchedule                              StockOrderSchedule[]
+  usedAsPart                                      StockOrderSchedule[]   @relation(name: "PartRelation")
+  usedAsProduct                                   StockOrderSchedule[]   @relation(name: "ProductRelation")
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -451,28 +453,31 @@ model ProductionResponse {
 }
 
 model StockOrderSchedule {
-  id             String      @id @default(uuid()) @db.Char(36)
-  order_id       String      @db.Char(36)
-  part_id        String?     @db.Char(36)
-  product_id     String?     @db.Char(36)
-  process_id     String      @db.Char(36)
-  order_date     DateTime    @default(now())
+  id             String   @id @default(uuid()) @db.Char(36)
+  order_id       String   @db.Char(36)
+  part_id        String?  @db.Char(36)
+  product_id     String?  @db.Char(36)
+  process_id     String   @db.Char(36)
+  order_date     DateTime @default(now())
   schedule_date  DateTime
-  submitted_date DateTime    @default(now())
+  submitted_date DateTime @default(now())
   submitted_by   String?
-  customersId    String?     @db.Char(36)
-  createdBy      String?     @db.Char(36)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  isDeleted      Boolean     @default(false)
-  status         String      @default("schedule") @db.VarChar(60)
-  type           String?     @db.VarChar(36)
-  employeeId     String?     @db.Char(100)
-  customers      customers?  @relation(fields: [customersId], references: [id])
-  order          StockOrder  @relation(fields: [order_id], references: [id])
-  part           PartNumber? @relation(fields: [part_id], references: [part_id])
-  process        process     @relation(fields: [process_id], references: [id])
-  product        PartNumber? @relation(fields: [product_id], references: [part_id])
+  customersId    String?  @db.Char(36)
+  createdBy      String?  @db.Char(36)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isDeleted      Boolean  @default(false)
+  status         String   @default("schedule") @db.VarChar(60)
+  type           String?  @db.VarChar(36)
+  employeeId     String?  @db.Char(100)
+
+  customers         customers?  @relation(fields: [customersId], references: [id])
+  order             StockOrder  @relation(fields: [order_id], references: [id])
+  part              PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
+  product           PartNumber? @relation(name: "ProductRelation", fields: [product_id], references: [part_id])
+  process           process     @relation(fields: [process_id], references: [id])
+  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
+  partNumberPart_id String?     @db.Char(36)
 
   @@index([order_id], map: "ProductionResponse_order_id_fkey")
   @@index([part_id], map: "ProductionResponse_part_id_fkey")
