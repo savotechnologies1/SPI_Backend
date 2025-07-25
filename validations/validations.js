@@ -234,10 +234,10 @@ const stockOrderValidation = [
 
   body("orderDate").trim().notEmpty().withMessage("Please select order date ."),
 
-  body("productNumber")
-    .trim()
-    .notEmpty()
-    .withMessage("Please enter the product number."),
+  // body("productNumber")
+  //   .trim()
+  //   .notEmpty()
+  //   .withMessage("Please enter the product number."),
 
   body("cost")
     .trim()
