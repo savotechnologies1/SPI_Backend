@@ -61,6 +61,9 @@ const {
   updateSupplierOrder,
   deleteSupplierOrder,
   sendMailToEmplyee,
+  selectProcessStationUser,
+  stockOrderSchedule,
+  scheduleStockOrdersList,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -310,5 +313,11 @@ router.get(
   "/select-schedule-process",
   adminValidateToken,
   selectScheduleProcess
+);
+router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
+router.get(
+  "/stock-order-schedule-list",
+  adminValidateToken,
+  scheduleStockOrdersList
 );
 module.exports = router;

@@ -1292,115 +1292,102 @@ const sendMailToEmplyee = async (req, res) => {
 
 const createStockOrder = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    const checkValid = await checkValidations(errors);
-    if (checkValid.type === "error") {
-      return res.status(400).send({ message: checkValid.errors.msg });
-    }
     const {
       orderNumber,
       orderDate,
       shipDate,
-      customerName,
-      customerEmail,
-      customerPhone,
-      productNumber,
-      cost,
-      totalCost,
-      productDescription,
       productQuantity,
+      productNumber, // You send this from the frontend (e.g., "PN-ABC-123")
+      // Customer Info
       customerId,
+      customerEmail,
+      customerName,
+      customerPhone,
     } = req.body;
-    let firstName = "";
-    let lastName = "";
-    if (customerName) {
-      const nameParts = customerName.trim().split(" ");
-      firstName = nameParts[0];
-      lastName = nameParts.slice(1).join(" ");
-    }
-    const isCustomerAvl = await prisma.customers.findFirst({
-      where: {
-        id: customerId,
-      },
-    });
 
-    if (isCustomerAvl === null) {
-      const existingCustomer = await prisma.customers.findFirst({
-        where: {
-          isDeleted: false,
-          OR: [{ email: customerEmail }, { customerPhone: customerPhone }],
+    // --- Customer Logic (This part is correct) ---
+    let customerData;
+    if (customerId) {
+      customerData = { connect: { id: customerId } };
+    } else if (customerEmail && customerName) {
+      customerData = {
+        connectOrCreate: {
+          where: { email: customerEmail },
+          create: {
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+          },
         },
-      });
-
-      if (existingCustomer) {
-        return res.status(400).json({
-          message: "Customer with this email or phone number already exists.",
-        });
-      }
-
-      await prisma.customers.create({
-        data: {
-          id: customerId,
-          firstName: firstName,
-          lastName: lastName,
-          email: customerEmail,
-          customerPhone: customerPhone,
-          createdBy: req.user.id,
-        },
+      };
+    } else {
+      return res.status(400).json({
+        error:
+          "You must provide either a customerId or customerName and customerEmail.",
       });
     }
 
-    const isStockAvail = await prisma.partNumber.findFirst({
-      where: { isDeleted: false },
-      select: {
-        availStock: true,
-      },
+    // --- Find the product using the human-readable productNumber ---
+    const part = await prisma.partNumber.findUnique({
+      where: { partNumber: productNumber },
     });
 
-    if (!isStockAvail || productQuantity > isStockAvail.availStock) {
-      return res.status(400).send({
-        message: `Only ${
-          isStockAvail?.availStock ?? 0
-        } quantity is available in stock.`,
+    if (!part) {
+      return res.status(404).json({
+        error: `Product with partNumber '${productNumber}' not found.`,
       });
     }
 
-    const checkStockOrder = await prisma.stockOrder.findFirst({
-      where: {
-        orderNumber: orderNumber,
-      },
-    });
+    // --- Calculate total cost (This part is correct) ---
+    const quantity = parseInt(productQuantity, 10);
+    const totalCost = part.cost * quantity;
 
-    if (checkStockOrder) {
-      return res.status(401).send({
-        message:
-          "This order number already exists. Please try a different order number.",
-      });
-    }
-    await prisma.stockOrder.create({
+    // --- Create the Stock Order ---
+    const newStockOrder = await prisma.stockOrder.create({
       data: {
-        orderNumber: orderNumber,
-        orderDate: orderDate,
-        shipDate: shipDate,
-        customerName: customerName,
-        customerEmail: customerEmail,
-        customerPhone: customerPhone,
-        productNumber: productNumber,
-        productDescription: productDescription,
-        productQuantity: Number(productQuantity),
-        cost: cost,
+        orderNumber,
+        orderDate,
+        shipDate,
+        productQuantity: quantity,
         totalCost: totalCost,
-        customerId: customerId,
-        createdBy: req.user.id,
+
+        // Connect or Create the Customer
+        customer: customerData,
+
+        // --- CORRECTED PART RELATION ---
+        // 1. Use the relation name 'part', not the model name 'PartNumber'
+        // 2. Connect using the 'part_id' that we found earlier
+        part: {
+          connect: {
+            part_id: part.part_id, // Connect using the unique ID of the part
+          },
+        },
+      },
+      // --- CORRECTED INCLUDE ---
+      // 3. Include the 'part' relation, not 'PartNumber'
+      include: {
+        customer: true,
+        part: true,
       },
     });
-    return res.status(201).json({
-      message: "Stock order created successfully!",
-    });
+
+    res.status(201).json(newStockOrder);
   } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong. Please try again later.",
-    });
+    console.error("Failed to create stock order:", error);
+    // Check for Prisma unique constraint error
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        error: `An order with orderNumber '${req.body.orderNumber}' already exists.`,
+      });
+    }
+    // Also check for validation errors from Prisma
+    if (error.name === "PrismaClientValidationError") {
+      return res.status(400).json({
+        error: "Invalid data provided. Please check your input.",
+        details: error.message,
+      });
+    }
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -2526,27 +2513,27 @@ const getCustomOrderById = async (req, res) => {
 const searchStockOrders = async (req, res) => {
   try {
     const { customerName, shipDate, productNumber } = req.query;
-
     if (!customerName && !shipDate && !productNumber) {
       return res.status(400).json({
         message: "Please provide at least one search parameter.",
         data: null,
       });
     }
-
     const whereClause = {
       isDeleted: false,
     };
-
     if (customerName) {
-      whereClause.customerName = {
-        contains: customerName,
+      whereClause.customer = {
+        firstName: {
+          contains: customerName,
+        },
       };
     }
-
     if (productNumber) {
-      whereClause.productNumber = {
-        contains: productNumber,
+      whereClause.part = {
+        partNumber: {
+          contains: productNumber,
+        },
       };
     }
 
@@ -2563,6 +2550,7 @@ const searchStockOrders = async (req, res) => {
       },
       include: {
         customer: true,
+        part: true,
       },
     });
 
@@ -2579,9 +2567,159 @@ const searchStockOrders = async (req, res) => {
     });
   } catch (error) {
     console.error("Error searching stock orders:", error);
+    if (error.name === "PrismaClientValidationError") {
+      return res.status(400).json({
+        message: "Invalid search query. Please check the field names.",
+        error: error.message,
+        data: null,
+      });
+    }
     return res.status(500).json({
-      message: "Something went wrong . Please try again later.",
+      message: "Something went wrong. Please try again later.",
       data: null,
+    });
+  }
+};
+
+const stockOrderSchedule = async (req, res) => {
+  try {
+    const {
+      order_id,
+      productId,
+      part_id,
+      type,
+      process_id,
+      schedule_date,
+      submitted_by,
+      customersId,
+    } = req.body;
+
+    const dataToCreate = {
+      order_id,
+      process_id,
+      type,
+      submitted_by,
+      customersId,
+      schedule_date: new Date(schedule_date),
+    };
+
+    if (productId) {
+      dataToCreate.product_id = productId;
+    }
+    if (part_id) {
+      dataToCreate.part_id = part_id;
+    }
+
+    const newSchedule = await prisma.stockOrderSchedule.create({
+      data: dataToCreate,
+    });
+
+    return res.status(201).json({
+      message: "Stock order scheduled succesfully!",
+      data: newSchedule,
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
+    return res.status(500).json({
+      message: "Something went wrong . please try again later .",
+      data: null,
+    });
+  }
+};
+
+const scheduleStockOrdersList = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    // const { search = "", type = "all" } = req.query;
+
+    // const filterConditions = {
+    //   isDeleted: false,
+    // };
+
+    // if (search) {
+    //   filterConditions.partNumber = {
+    //     contains: search,
+    //   };
+    // }
+    // if (type && type !== "all") {
+    //   filterConditions.type = {
+    //     contains: type,
+    //   };
+    // }
+
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: {
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              orderDate: true,
+              shipDate: true,
+              status: true,
+              part: {
+                select: { partNumber: true },
+              },
+              customer: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+          part: {
+            select: {
+              partNumber: true,
+              process: true,
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              part_id: true,
+              part: {
+                select: {
+                  partNumber: true,
+                  process: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.stockOrderSchedule.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    console.log("allProcessallProcess", allProcess);
+
+    return res.status(200).json({
+      message: "Part number retrieved successfully!",
+      data: allProcess,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Something went wrong . please try again later .",
     });
   }
 };
@@ -2931,6 +3069,8 @@ module.exports = {
   addCustomOrder,
   getCustomOrderById,
   searchStockOrders,
+  stockOrderSchedule,
+  scheduleStockOrdersList,
   deleteProductPart,
   deleteProductTreeById,
   createEmployee,
