@@ -1297,15 +1297,15 @@ const createStockOrder = async (req, res) => {
       orderDate,
       shipDate,
       productQuantity,
-      productNumber, // You send this from the frontend (e.g., "PN-ABC-123")
-      // Customer Info
+      productNumber,
       customerId,
       customerEmail,
       customerName,
       customerPhone,
+      productDescription,
+      cost,
     } = req.body;
 
-    // --- Customer Logic (This part is correct) ---
     let customerData;
     if (customerId) {
       customerData = { connect: { id: customerId } };
@@ -1327,7 +1327,6 @@ const createStockOrder = async (req, res) => {
       });
     }
 
-    // --- Find the product using the human-readable productNumber ---
     const part = await prisma.partNumber.findUnique({
       where: { partNumber: productNumber },
     });
@@ -1338,33 +1337,34 @@ const createStockOrder = async (req, res) => {
       });
     }
 
-    // --- Calculate total cost (This part is correct) ---
     const quantity = parseInt(productQuantity, 10);
     const totalCost = part.cost * quantity;
 
-    // --- Create the Stock Order ---
     const newStockOrder = await prisma.stockOrder.create({
       data: {
         orderNumber,
         orderDate,
         shipDate,
         productQuantity: quantity,
-        totalCost: totalCost,
-
-        // Connect or Create the Customer
+        totalCost: totalCost.toString(),
+        customerName,
+        customerEmail,
+        customerPhone,
+        productDescription,
+        productNumber,
+        cost,
         customer: customerData,
-
-        // --- CORRECTED PART RELATION ---
-        // 1. Use the relation name 'part', not the model name 'PartNumber'
-        // 2. Connect using the 'part_id' that we found earlier
         part: {
           connect: {
-            part_id: part.part_id, // Connect using the unique ID of the part
+            part_id: part.part_id,
+          },
+        },
+        PartNumber_StockOrder_productNumberToPartNumber: {
+          connect: {
+            partNumber: productNumber,
           },
         },
       },
-      // --- CORRECTED INCLUDE ---
-      // 3. Include the 'part' relation, not 'PartNumber'
       include: {
         customer: true,
         part: true,
@@ -1374,19 +1374,6 @@ const createStockOrder = async (req, res) => {
     res.status(201).json(newStockOrder);
   } catch (error) {
     console.error("Failed to create stock order:", error);
-    // Check for Prisma unique constraint error
-    if (error.code === "P2002") {
-      return res.status(409).json({
-        error: `An order with orderNumber '${req.body.orderNumber}' already exists.`,
-      });
-    }
-    // Also check for validation errors from Prisma
-    if (error.name === "PrismaClientValidationError") {
-      return res.status(400).json({
-        error: "Invalid data provided. Please check your input.",
-        details: error.message,
-      });
-    }
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
