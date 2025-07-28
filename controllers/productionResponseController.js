@@ -1,96 +1,87 @@
 const prisma = require("../config/prisma");
 
+// const processLogin = async (req, res) => {
+//   try {
+//     const user = req.user;
+//     const { processId, userId, type } = req.body;
+//     const data = await prisma.processLogin.create({
+//       data: {
+//         processId: processId,
+//         userId: user.role === "Shop_Floor" ? user.id : userId,
+//         orderId: orderId,
+//         type: type,
+//       },
+//     });
+//     return res.status(200).json({
+//       message: "You have successfully login this station",
+//       data: userId,
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later .",
+//     });
+//   }
+// };
+
 const processLogin = async (req, res) => {
   try {
     const user = req.user;
-    const { processId, userId, orderId, type } = req.body;
-    const data = await prisma.processLogin.create({
-      data: {
-        processId: processId,
-        userId: user.role === "Shop_Floor" ? user.id : userId,
-        orderId: orderId,
-        type: type,
-      },
-    });
-    return res.status(200).json({
-      message: "You have successfully login this station",
-      data: userId,
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
+    const { processId, userId, type } = req.body;
 
-const selectScheduleProcess = async (req, res) => {
-  try {
-    const user = req.user;
-    const stockOrders = await prisma.stockOrder.findMany({
+    const nextJob = await prisma.stockOrderSchedule.findFirst({
       where: {
+        process_id: processId,
+        status: "schedule",
         isDeleted: false,
       },
+      orderBy: {
+        schedule_date: "asc",
+      },
       include: {
-        PartNumber: {
-          select: {
-            part_id: true,
-            process: {
-              select: {
-                id: true,
-                processName: true,
-              },
-            },
-          },
+        order: {
+          select: { orderNumber: true },
         },
       },
     });
-    if (!stockOrders || stockOrders.length === 0) {
-      return res.status(404).json({ message: "No stock orders found" });
-    }
-    const employeeData = await prisma.employee.findMany({
-      where: {
-        shopFloorLogin: true,
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-        employeeId: true,
-        email: true,
-        fullName: true,
-      },
-    });
 
-    if (!employeeData || employeeData.length === 0) {
-      return res.status(404).json({ message: "No employees found" });
+    if (!nextJob) {
+      return res.status(404).json({
+        message: "No available jobs found for this station at the moment.",
+      });
     }
 
-    let employeeFormattedData = [];
+    const orderIdToProcess = nextJob.order_id;
 
-    if (user.role !== "Shop_Floor") {
-      employeeFormattedData = employeeData.map((employee) => ({
-        id: employee.id || null,
-        name: employee.fullName || null,
-        employeeId: employee.employeeId || null,
-        email: employee.email || null,
-      }));
-    }
-
-    const formatted = stockOrders.map((order) => ({
-      id: order.PartNumber?.process?.id || null,
-      name: order.PartNumber?.process?.processName || null,
-      partFamily: order.PartNumber?.part_id || null,
-      stockOrderId: order.id,
-      orderNumber: order.orderNumber,
-      productQuantity: order.productQuantity,
-    }));
-
+    const [processLoginData] = await prisma.$transaction([
+      prisma.processLogin.create({
+        data: {
+          processId: processId,
+          userId: user.role === "shopfloor" ? user.id : userId,
+          orderId: orderIdToProcess,
+          type: type,
+          customersId: nextJob.customersId,
+          partNumberPart_id: nextJob.part_id,
+        },
+      }),
+      prisma.stockOrderSchedule.update({
+        where: {
+          id: nextJob.id,
+        },
+        data: {
+          status: "in_progress",
+          employeeId: user.role === "shopfloor" ? user.id : userId,
+        },
+      }),
+    ]);
     return res.status(200).json({
-      stockAndProcess: formatted,
-      stationUser: employeeFormattedData,
+      message: `You have successfully logged into station. Assigned to order: ${nextJob.order.orderNumber}`,
+      data: processLoginData,
     });
   } catch (error) {
-    return res.status(500).json({
+    console.error("Error during process login:", error);
+    return res.status(500).send({
       message: "Something went wrong. Please try again later.",
+      error: error.message,
     });
   }
 };
@@ -318,9 +309,129 @@ const createProductionResponse = async (req, res) => {
   }
 };
 
+const getNextJobDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const nextJob = await prisma.stockOrderSchedule.findFirst({
+      where: {
+        process_id: id,
+        status: "schedule",
+        isDeleted: false,
+      },
+      orderBy: {
+        schedule_date: "asc",
+      },
+      select: {
+        id: true,
+        order_id: true,
+        part_id: true,
+        process_id: true,
+        schedule_date: true,
+      },
+    });
+
+    if (!nextJob) {
+      return res.status(404).json({
+        message: "No available jobs found for this station.",
+      });
+    }
+
+    const [orderDetails, partDetails, workInstructions] = await Promise.all([
+      prisma.stockOrder.findUnique({
+        where: { id: nextJob.order_id },
+        select: {
+          orderNumber: true,
+          orderDate: true,
+          shipDate: true,
+          productQuantity: true,
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+
+      prisma.partNumber.findUnique({
+        where: { part_id: nextJob.part_id },
+        select: {
+          part_id: true,
+          partNumber: true,
+          partDescription: true,
+          partImages: {
+            select: { imageUrl: true },
+            where: { isDeleted: false },
+          },
+          components: {
+            where: { isDeleted: false },
+            select: {
+              partQuantity: true,
+              part: {
+                select: {
+                  partNumber: true,
+                  partDescription: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.workInstruction.findMany({
+        where: {
+          productId: nextJob.part_id,
+          processId: nextJob.process_id,
+          isDeleted: false,
+        },
+        select: {
+          instructionTitle: true,
+          steps: {
+            where: { isDeleted: false },
+            orderBy: { stepNumber: "asc" },
+            select: {
+              stepNumber: true,
+              title: true,
+              instruction: true,
+              images: {
+                select: { imagePath: true },
+                where: { isDeleted: false },
+              },
+              videos: {
+                select: { videoPath: true },
+                where: { isDeleted: false },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    // 3. Combine all the fetched data into a single response object
+    const jobDetails = {
+      scheduleId: nextJob.id,
+      order: orderDetails,
+      part: partDetails,
+      workInstructions:
+        workInstructions.length > 0 ? workInstructions[0] : null, // Assuming one set of instructions per part/process
+    };
+
+    return res.status(200).json({
+      message: "Next job details retrieved successfully.",
+      data: jobDetails,
+    });
+  } catch (error) {
+    console.error("Error fetching next job details:", error);
+    return res.status(500).json({
+      message: "Something went wrong fetching job details.",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   processLogin,
-  selectScheduleProcess,
   getScheduleProcessInformation,
   createProductionResponse,
+  getNextJobDetails,
 };

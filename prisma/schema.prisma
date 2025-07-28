@@ -232,41 +232,72 @@ model ProcessDetail {
 }
 
 model PartNumber {
-  part_id                                         String                 @id @default(uuid()) @db.Char(36)
-  partFamily                                      String                 @db.Char(36)
-  partNumber                                      String                 @unique @db.Char(36)
-  partDescription                                 String                 @db.VarChar(255)
-  cost                                            Float
-  leadTime                                        Int
-  companyName                                     String                 @db.VarChar(100)
-  minStock                                        Int
-  cycleTime                                       Int?
-  processId                                       String?                @db.VarChar(10)
-  processDesc                                     String?                @db.VarChar(255)
-  type                                            String                 @db.VarChar(100)
-  submittedBy                                     String?                @db.VarChar(100)
-  createdAt                                       DateTime               @default(now())
-  updatedAt                                       DateTime               @updatedAt
-  availStock                                      Int?
-  isDeleted                                       Boolean                @default(false)
-  processOrderRequired                            Boolean                @default(false)
-  supplierOrderQty                                Int?
-  createdBy                                       String?                @db.Char(36)
-  partImages                                      PartImage[]
-  process                                         process?               @relation(fields: [processId], references: [id])
-  productTree                                     ProductTree[]
-  ProductionResponse                              ProductionResponse[]
-  stockOrders                                     StockOrder[]           @relation("part")
-  StockOrder_StockOrder_productNumberToPartNumber StockOrder[]           @relation("StockOrder_productNumberToPartNumber")
-  WorkInstruction                                 WorkInstruction[]
-  WorkInstructionApply                            WorkInstructionApply[]
-  WorkInstructionSteps                            WorkInstructionSteps[]
-  processLogin                                    processLogin[]
-  supplier_orders                                 supplier_orders[]
-  StockOrderSchedule                              StockOrderSchedule[]
-  usedAsPart                                      StockOrderSchedule[]   @relation(name: "PartRelation")
-  usedAsProduct                                   StockOrderSchedule[]   @relation(name: "ProductRelation")
+  part_id          String @id @default(uuid()) @db.Char(36)
+  partFamily       String @db.Char(36)
+  partNumber       String @unique @db.Char(36)
+  partDescription  String @db.VarChar(255)
+  type             String @db.VarChar(100)
+  cost             Float
+  leadTime         Int // Time in days to acquire or produce
+  minStock         Int // Minimum stock level before reorder
+  availStock       Int? // Current available stock
+  supplierOrderQty Int? // Standard quantity to order from a supplier
 
+  // --- Manufacturing Fields ---
+  cycleTime            Int? // Time in seconds to produce one unit
+  processId            String? @db.VarChar(10) // The default manufacturing process for this part
+  processDesc          String? @db.VarChar(255)
+  processOrderRequired Boolean @default(false)
+
+  // --- Metadata ---
+  companyName String   @db.VarChar(100)
+  submittedBy String?  @db.VarChar(100)
+  createdBy   String?  @db.Char(36)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  // --- RELATIONS ---
+
+  // Relation to its default manufacturing process
+  process process? @relation(fields: [processId], references: [id])
+
+  // Relation to images associated with this part
+  partImages PartImage[]
+
+  // --- ProductTree (Bill of Materials) Relations ---
+  // This is the CRITICAL FIX. We define two clear roles for a PartNumber.
+
+  // 1. Parent Role: A list of all components needed to make THIS part.
+  //    This connects to ProductTree's 'product_id' field via the "ParentProduct" relation.
+  components ProductTree[] @relation("ParentProduct")
+
+  // 2. Component Role: A list of all parent products where THIS part is used as a component.
+  //    This connects to ProductTree's 'part_id' field via the "ComponentParts" relation.
+  usedInProducts ProductTree[] @relation("ComponentParts")
+
+  // --- Other Relations ---
+  // These seem correct from your previous schema and are preserved.
+
+  // Relations to Stock Orders
+  stockOrders                                     StockOrder[] @relation("part")
+  StockOrder_StockOrder_productNumberToPartNumber StockOrder[] @relation("StockOrder_productNumberToPartNumber")
+
+  // Relations to Stock Order Schedules (as a finished product or a raw part)
+  usedAsProduct StockOrderSchedule[] @relation(name: "ProductRelation")
+  usedAsPart    StockOrderSchedule[] @relation(name: "PartRelation")
+
+  // Relations to other parts of the system
+  ProductionResponse   ProductionResponse[]
+  WorkInstruction      WorkInstruction[]
+  WorkInstructionApply WorkInstructionApply[]
+  WorkInstructionSteps WorkInstructionSteps[]
+  processLogin         processLogin[]
+  supplier_orders      supplier_orders[]
+  ProductTree          ProductTree[]
+  StockOrderSchedule   StockOrderSchedule[]
+
+  // Define an index on the foreign key for the process relation
   @@index([processId], map: "PartNumber_processId_fkey")
 }
 
@@ -293,8 +324,13 @@ model ProductTree {
   createdBy            String?                @db.Char(36)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
-  part                 PartNumber?            @relation(fields: [part_id], references: [part_id])
   WorkInstructionSteps WorkInstructionSteps[]
+  part                 PartNumber?            @relation(name: "ComponentParts", fields: [part_id], references: [part_id])
+
+  // *** ADD THIS NEW RELATION for the parent product ***
+  product           PartNumber  @relation(name: "ParentProduct", fields: [product_id], references: [part_id])
+  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
+  partNumberPart_id String?     @db.Char(36)
 
   @@index([part_id])
   @@index([product_id], map: "ProductTree_product_id_fkey")
