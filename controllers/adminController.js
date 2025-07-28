@@ -1290,79 +1290,54 @@ const sendMailToEmplyee = async (req, res) => {
 
 const createStockOrder = async (req, res) => {
   try {
+    // 1. Destructure all the fields directly from the request payload.
     const {
       orderNumber,
       orderDate,
       shipDate,
       productQuantity,
-      productNumber, // You send this from the frontend (e.g., "PN-ABC-123")
-      // Customer Info
+      productNumber,
+      productDescription,
+      cost,
+      totalCost,
+      productId, // This corresponds to 'partId' in your schema
       customerId,
       customerEmail,
       customerName,
       customerPhone,
     } = req.body;
 
-    // --- Customer Logic (This part is correct) ---
-    let customerData;
-    if (customerId) {
-      customerData = { connect: { id: customerId } };
-    } else if (customerEmail && customerName) {
-      customerData = {
-        connectOrCreate: {
-          where: { email: customerEmail },
-          create: {
-            name: customerName,
-            email: customerEmail,
-            phone: customerPhone,
-          },
-        },
-      };
-    } else {
+    // Basic validation
+    if (!orderNumber || !productId || !customerId) {
       return res.status(400).json({
         error:
-          "You must provide either a customerId or customerName and customerEmail.",
+          "Missing required fields like orderNumber, productId, or customerId.",
       });
     }
 
-    // --- Find the product using the human-readable productNumber ---
-    const part = await prisma.partNumber.findUnique({
-      where: { partNumber: productNumber },
-    });
-
-    if (!part) {
-      return res.status(404).json({
-        error: `Product with partNumber '${productNumber}' not found.`,
-      });
-    }
-
-    // --- Calculate total cost (This part is correct) ---
-    const quantity = parseInt(productQuantity, 10);
-    const totalCost = part.cost * quantity;
-
-    // --- Create the Stock Order ---
+    // 2. Create the new stock order using the data from the payload.
+    //    No need to fetch the part or calculate the cost, as it's already provided.
     const newStockOrder = await prisma.stockOrder.create({
       data: {
         orderNumber,
         orderDate,
         shipDate,
-        productQuantity: quantity,
-        totalCost: totalCost,
+        productQuantity: parseInt(productQuantity, 10), // Ensure quantity is an integer
+        productNumber,
+        productDescription,
+        cost,
+        totalCost,
 
-        // Connect or Create the Customer
-        customer: customerData,
+        // Store customer details directly as per your schema
+        customerName,
+        customerEmail,
+        customerPhone,
 
-        // --- CORRECTED PART RELATION ---
-        // 1. Use the relation name 'part', not the model name 'PartNumber'
-        // 2. Connect using the 'part_id' that we found earlier
-        part: {
-          connect: {
-            part_id: part.part_id, // Connect using the unique ID of the part
-          },
-        },
+        // Set the foreign keys to establish relationships
+        customerId: customerId, // Foreign key for the customer relation
+        partId: productId, // Foreign key for the part relation (payload 'productId' -> schema 'partId')
       },
-      // --- CORRECTED INCLUDE ---
-      // 3. Include the 'part' relation, not 'PartNumber'
+      // Include the related customer and part data in the response
       include: {
         customer: true,
         part: true,
@@ -1372,23 +1347,17 @@ const createStockOrder = async (req, res) => {
     res.status(201).json(newStockOrder);
   } catch (error) {
     console.error("Failed to create stock order:", error);
-    // Check for Prisma unique constraint error
+
+    // Handle potential database errors, like a duplicate order number
     if (error.code === "P2002") {
-      return res.status(409).json({
-        error: `An order with orderNumber '${req.body.orderNumber}' already exists.`,
-      });
+      return res
+        .status(409)
+        .json({ error: "An order with this order number already exists." });
     }
-    // Also check for validation errors from Prisma
-    if (error.name === "PrismaClientValidationError") {
-      return res.status(400).json({
-        error: "Invalid data provided. Please check your input.",
-        details: error.message,
-      });
-    }
+
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
 const selectCustomer = async (req, res) => {
   try {
     const customer = await prisma.customers.findMany({
@@ -2021,16 +1990,131 @@ const productDetail = async (req, res) => {
   }
 };
 
+// const getSingleProductTree = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const productTrees = await prisma.productTree.findMany({
+//       where: {
+//         product_id: id,
+//         isDeleted: false,
+//       },
+//       include: {
+//         part: {
+//           select: {
+//             partNumber: true,
+//             partFamily: true,
+//             process: {
+//               select: {
+//                 id: true,
+//                 processName: true,
+//                 machineName: true,
+//                 cycleTime: true,
+//                 ratePerHour: true,
+//                 orderNeeded: true,
+//               },
+//             },
+//           },
+//         },
+//         product: {
+//           select: {
+//             partNumber: true,
+//             availStock: true,
+//             companyName: true,
+//             cost: true,
+//             cycleTime: true,
+//             leadTime: true,
+//             supplierOrderQty: true,
+//             minStock: true,
+//             partFamily: true,
+//             partDescription: true,
+//             partImages: true,
+//           },
+//         },
+//       },
+//     });
+//     if (!productTrees || productTrees.length === 0) {
+//       return res.status(404).json({
+//         message: "Product not found!",
+//       });
+//     }
+//     const productInfo = productTrees[0].product;
+//     const instructionRequired = productTrees[0]?.instructionRequired || false;
+//     const parts = productTrees.map((pt) => ({
+//       id: pt.id,
+//       part_id: pt.part_id,
+//       partNumber: pt.part?.partNumber || null,
+//       partFamily: pt.part?.partFamily || null,
+//       process: pt.part?.process || [],
+//       instructionRequired: pt.instructionRequired || false,
+//       partQuantity: pt.partQuantity || false,
+//     }));
+//     const result = {
+//       product_id: id,
+//       productNumber: productInfo?.partNumber || null,
+//       instructionRequired: instructionRequired,
+//       partDescription: productInfo?.partDescription || null,
+//       availStock: productInfo?.availStock || null,
+//       companyName: productInfo?.companyName || null,
+//       cost: productInfo?.cost || null,
+//       cycleTime: productInfo?.cycleTime || null,
+//       leadTime: productInfo?.leadTime || null,
+//       minStock: productInfo?.minStock || null,
+//       supplierOrderQty: productInfo?.supplierOrderQty || null,
+//       productImages: productInfo?.partImages,
+//       parts,
+//     };
+//     return res.status(200).json({
+//       message: "Product detail retrieved successfully!",
+//       data: result,
+//     });
+//   } catch (error) {
+//     console.log("errorerror", error);
+
+//     return res.status(500).json({
+//       message: "Something went wrong while fetching product detail.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const getSingleProductTree = async (req, res) => {
   try {
-    const id = req.params.id;
-    const productTrees = await prisma.productTree.findMany({
+    const id = req.params.id; // This is the ID of the parent product
+
+    // 1. Fetch the parent product's details first.
+    const productInfo = await prisma.partNumber.findUnique({
+      where: { part_id: id },
+      select: {
+        part_id: true,
+        partNumber: true,
+        partDescription: true,
+        availStock: true,
+        companyName: true,
+        cost: true,
+        cycleTime: true,
+        leadTime: true,
+        minStock: true,
+        partImages: true,
+      },
+    });
+
+    if (!productInfo) {
+      return res.status(404).json({ message: "Product not found!" });
+    }
+
+    // 2. Now, fetch all the child components from the ProductTree.
+    const productTreeEntries = await prisma.productTree.findMany({
       where: {
         product_id: id,
         isDeleted: false,
       },
-      include: {
+      select: {
+        id: true, // The ID of the ProductTree entry itself
+        part_id: true,
+        partQuantity: true,
+        instructionRequired: true,
         part: {
+          // Include the component part's details
           select: {
             partNumber: true,
             partFamily: true,
@@ -2041,71 +2125,52 @@ const getSingleProductTree = async (req, res) => {
                 machineName: true,
                 cycleTime: true,
                 ratePerHour: true,
-                orderNeeded: true,
               },
             },
           },
         },
-        product: {
-          select: {
-            partNumber: true,
-            availStock: true,
-            companyName: true,
-            cost: true,
-            cycleTime: true,
-            leadTime: true,
-            supplierOrderQty: true,
-            minStock: true,
-            partFamily: true,
-            partDescription: true,
-            partImages: true,
-          },
-        },
       },
     });
-    if (!productTrees || productTrees.length === 0) {
-      return res.status(404).json({
-        message: "Product not found!",
-      });
-    }
-    const productInfo = productTrees[0].product;
-    const instructionRequired = productTrees[0]?.instructionRequired || false;
-    const parts = productTrees.map((pt) => ({
+
+    // 3. Format the parts list from the ProductTree entries.
+    const parts = productTreeEntries.map((pt) => ({
       id: pt.id,
       part_id: pt.part_id,
       partNumber: pt.part?.partNumber || null,
       partFamily: pt.part?.partFamily || null,
-      process: pt.part?.process || [],
-      instructionRequired: pt.instructionRequired || false,
-      partQuantity: pt.partQuantity || false,
+      process: pt.part?.process || null,
+      instructionRequired: pt.instructionRequired,
+      partQuantity: pt.partQuantity,
     }));
+
+    // 4. Combine the parent info and the parts list into the final result.
     const result = {
-      product_id: id,
-      productNumber: productInfo?.partNumber || null,
-      instructionRequired: instructionRequired,
-      partDescription: productInfo?.partDescription || null,
-      availStock: productInfo?.availStock || null,
-      companyName: productInfo?.companyName || null,
-      cost: productInfo?.cost || null,
-      cycleTime: productInfo?.cycleTime || null,
-      leadTime: productInfo?.leadTime || null,
-      minStock: productInfo?.minStock || null,
-      supplierOrderQty: productInfo?.supplierOrderQty || null,
-      productImages: productInfo?.partImages,
+      product_id: productInfo.part_id,
+      productNumber: productInfo.partNumber,
+      partDescription: productInfo.partDescription,
+      availStock: productInfo.availStock,
+      companyName: productInfo.companyName,
+      cost: productInfo.cost,
+      cycleTime: productInfo.cycleTime,
+      leadTime: productInfo.leadTime,
+      minStock: productInfo.minStock,
+      productImages: productInfo.partImages,
+      // You can get the overall instructionRequired from the first part if needed, but it's better per-part.
       parts,
     };
+
     return res.status(200).json({
       message: "Product detail retrieved successfully!",
       data: result,
     });
   } catch (error) {
+    console.error("Error fetching product tree:", error);
     return res.status(500).json({
       message: "Something went wrong while fetching product detail.",
       error: error.message,
     });
   }
 };
-
 const updatePartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -2583,75 +2648,121 @@ const stockOrderSchedule = async (req, res) => {
       order_id,
       productId,
       part_id,
-      type,
       process_id,
       schedule_date,
       submitted_by,
       customersId,
+      type,
     } = req.body;
 
-    const dataToCreate = {
-      order_id,
-      process_id,
-      type,
-      submitted_by,
-      customersId,
-      schedule_date: new Date(schedule_date),
-    };
+    if (type === "product" && productId) {
+      const bomEntries = await prisma.productTree.findMany({
+        where: { product_id: productId },
+        include: {
+          part: {
+            include: {
+              process: true,
+            },
+          },
+        },
+      });
 
-    if (productId) {
-      dataToCreate.product_id = productId;
+      if (!bomEntries || bomEntries.length === 0) {
+        return res.status(404).json({
+          message:
+            "No component parts found in the ProductTree for this product. Cannot schedule.",
+        });
+      }
+
+      const scheduleCreationPromises = bomEntries.map((entry) => {
+        const componentPart = entry.part;
+
+        if (!componentPart) {
+          throw new Error(
+            `A record in ProductTree for product ${productId} has a missing or invalid part_id.`
+          );
+        }
+        if (!componentPart.processId) {
+          throw new Error(
+            `Component part ${componentPart.partNumber} (ID: ${componentPart.part_id}) does not have a default process assigned.`
+          );
+        }
+
+        const dataForThisComponent = {
+          schedule_date: new Date(schedule_date),
+          submitted_by,
+          type: "part",
+
+          order: { connect: { id: order_id } },
+          part: { connect: { part_id: componentPart.part_id } },
+          process: { connect: { id: componentPart.processId } },
+        };
+        if (customersId) {
+          dataForThisComponent.customers = { connect: { id: customersId } };
+        }
+
+        return prisma.stockOrderSchedule.create({ data: dataForThisComponent });
+      });
+
+      const newSchedules = await prisma.$transaction(scheduleCreationPromises);
+
+      return res.status(201).json({
+        message: `Successfully scheduled ${newSchedules.length} component parts for the product.`,
+        data: newSchedules,
+      });
+    } else if (type === "part" && part_id && process_id) {
+      const dataToCreate = {
+        type,
+        submitted_by,
+        schedule_date: new Date(schedule_date),
+        order: { connect: { id: order_id } },
+        process: { connect: { id: process_id } },
+        part: { connect: { part_id: part_id } },
+      };
+
+      if (customersId) {
+        dataToCreate.customers = { connect: { id: customersId } };
+      }
+
+      const newSchedule = await prisma.stockOrderSchedule.create({
+        data: dataToCreate,
+      });
+
+      return res.status(201).json({
+        message: "Stock order part scheduled successfully!",
+        data: newSchedule,
+      });
+    } else {
+      // Handle invalid request case
+      return res.status(400).json({
+        message:
+          "Invalid request. Please provide a valid 'type' ('product' or 'part') and the corresponding IDs.",
+      });
     }
-    if (part_id) {
-      dataToCreate.part_id = part_id;
-    }
-
-    const newSchedule = await prisma.stockOrderSchedule.create({
-      data: dataToCreate,
-    });
-
-    return res.status(201).json({
-      message: "Stock order scheduled succesfully!",
-      data: newSchedule,
-    });
   } catch (error) {
-    console.log("errorerror", error);
-
+    console.error("Error creating stock order schedule:", error);
     return res.status(500).json({
-      message: "Something went wrong . please try again later .",
-      data: null,
+      message: "Something went wrong during scheduling.",
+      error: error.message,
     });
   }
 };
-
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-    // const { search = "", type = "all" } = req.query;
 
-    // const filterConditions = {
-    //   isDeleted: false,
-    // };
-
-    // if (search) {
-    //   filterConditions.partNumber = {
-    //     contains: search,
-    //   };
-    // }
-    // if (type && type !== "all") {
-    //   filterConditions.type = {
-    //     contains: type,
-    //   };
-    // }
-
-    const [allProcess, totalCount] = await Promise.all([
+    const [allSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: {
           isDeleted: false,
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc", // Optional: Good practice to have a consistent order
+        },
         include: {
+          // This part is correct
           order: {
             select: {
               id: true,
@@ -2670,22 +2781,22 @@ const scheduleStockOrdersList = async (req, res) => {
               },
             },
           },
+          // This part is correct
           part: {
             select: {
               partNumber: true,
               process: true,
             },
           },
+          // --- THIS IS THE CORRECTED PART ---
           product: {
+            // The 'product' relation points to a PartNumber record.
+            // Select fields that exist on the PartNumber model.
             select: {
-              product_id: true,
-              part_id: true,
-              part: {
-                select: {
-                  partNumber: true,
-                  process: true,
-                },
-              },
+              part_id: true, // The ID of the product
+              partNumber: true, // The number of the product
+              partDescription: true, // The description of the product
+              process: true, // The default process for the product
             },
           },
         },
@@ -2703,19 +2814,16 @@ const scheduleStockOrdersList = async (req, res) => {
       total: totalCount,
     });
 
-    console.log("allProcessallProcess", allProcess);
-
     return res.status(200).json({
-      message: "Part number retrieved successfully!",
-      data: allProcess,
-      totalCount,
+      message: "Scheduled orders retrieved successfully!",
+      data: allSchedules,
       pagination: getPagination,
     });
   } catch (error) {
     console.log(error);
-
     return res.status(500).json({
-      message: "Something went wrong . please try again later .",
+      message: "Something went wrong. Please try again later.",
+      error: error.message,
     });
   }
 };
