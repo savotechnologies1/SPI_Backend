@@ -61,7 +61,6 @@ const {
   updateSupplierOrder,
   deleteSupplierOrder,
   sendMailToEmplyee,
-  selectProcessStationUser,
   stockOrderSchedule,
   scheduleStockOrdersList,
 } = require("../controllers/adminController");
