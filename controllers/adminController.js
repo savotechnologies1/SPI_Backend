@@ -861,8 +861,8 @@ const createEmployee = async (req, res) => {
         shift: shift,
         startDate: startDate,
         pin: pin,
-        shopFloorLogin: shopFloorLogin,
-        role: shopFloorLogin === "yes" ? "Shop_Floor" : "Frontline",
+        shopFloorLogin: Boolean(shopFloorLogin),
+        role: shopFloorLogin === "true" ? "Shop_Floor" : "Frontline",
         termsAccepted: termsAccepted,
         status: status,
         password: "",
@@ -873,6 +873,8 @@ const createEmployee = async (req, res) => {
       message: "Employee added successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });

@@ -40,7 +40,6 @@ const {
   getProductTree,
   selectProductNumber,
   partDetail,
-  productDetail,
   getSingleProductTree,
   updatePartNumber,
   updateProductNumber,
@@ -98,7 +97,7 @@ const {
 } = require("../controllers/workInstructionController");
 const {
   processLogin,
-  selectScheduleProcess,
+  getNextJobDetails,
 } = require("../controllers/productionResponseController");
 
 const router = express.Router();
@@ -312,15 +311,12 @@ router.put(
 );
 
 router.post("/process-login", adminValidateToken, processLogin);
-router.get(
-  "/select-schedule-process",
-  adminValidateToken,
-  selectScheduleProcess
-);
+
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
   adminValidateToken,
   scheduleStockOrdersList
 );
+router.get("/next-job-details/:id", adminValidateToken, getNextJobDetails);
 module.exports = router;
