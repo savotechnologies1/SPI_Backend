@@ -63,6 +63,8 @@ const {
   sendMailToEmplyee,
   stockOrderSchedule,
   scheduleStockOrdersList,
+  stockOrderSchedule,
+  scheduleStockOrdersList,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -310,6 +312,12 @@ router.put(
 
 router.post("/process-login", adminValidateToken, processLogin);
 
+router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
+router.get(
+  "/stock-order-schedule-list",
+  adminValidateToken,
+  scheduleStockOrdersList
+);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
