@@ -63,8 +63,6 @@ const {
   sendMailToEmplyee,
   stockOrderSchedule,
   scheduleStockOrdersList,
-  stockOrderSchedule,
-  scheduleStockOrdersList,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
