@@ -96,6 +96,7 @@ const {
 const {
   processLogin,
   getNextJobDetails,
+  selectScheduleProcess,
 } = require("../controllers/productionResponseController");
 
 const router = express.Router();
@@ -316,4 +317,9 @@ router.get(
   scheduleStockOrdersList
 );
 router.get("/next-job-details/:id", adminValidateToken, getNextJobDetails);
+router.get(
+  "/select-schedule-process",
+  adminValidateToken,
+  selectScheduleProcess
+);
 module.exports = router;

@@ -27,7 +27,7 @@ router.post("/validate-otp", otpVerify, validOtp);
 router.post("/reset-password", resetPass, resetPassword);
 
 router.post("/process-login", validateToken, processLogin);
-// router.get("/select-schedule-process", validateToken, selectScheduleProcess);
+router.get("/select-schedule-process", validateToken, selectScheduleProcess);
 router.get(
   "/get-schedule-process-information/:id",
   validateToken,

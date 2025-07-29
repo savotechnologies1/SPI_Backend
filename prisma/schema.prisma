@@ -26,6 +26,8 @@ model admin {
   profileImg  String       @default("") @db.VarChar(255)
   state       String       @default("") @db.Char(50)
   zipCode     String       @default("") @db.Char(50)
+
+  submittedBy StockOrderSchedule[]
 }
 
 model customers {
@@ -43,7 +45,6 @@ model customers {
   CustomOrder        CustomOrder[]
   ProductionResponse ProductionResponse[]
   orders             StockOrder[]
-  StockOrderSchedule StockOrderSchedule[]
   processLogin       processLogin[]
 }
 
@@ -238,18 +239,16 @@ model PartNumber {
   partDescription  String @db.VarChar(255)
   type             String @db.VarChar(100)
   cost             Float
-  leadTime         Int // Time in days to acquire or produce
-  minStock         Int // Minimum stock level before reorder
-  availStock       Int? // Current available stock
-  supplierOrderQty Int? // Standard quantity to order from a supplier
+  leadTime         Int
+  minStock         Int
+  availStock       Int?
+  supplierOrderQty Int?
 
-  // --- Manufacturing Fields ---
-  cycleTime            Int? // Time in seconds to produce one unit
-  processId            String? @db.VarChar(10) // The default manufacturing process for this part
+  cycleTime            Int?
+  processId            String? @db.VarChar(10)
   processDesc          String? @db.VarChar(255)
   processOrderRequired Boolean @default(false)
 
-  // --- Metadata ---
   companyName String   @db.VarChar(100)
   submittedBy String?  @db.VarChar(100)
   createdBy   String?  @db.Char(36)
@@ -257,37 +256,17 @@ model PartNumber {
   updatedAt   DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
-  // --- RELATIONS ---
-
-  // Relation to its default manufacturing process
   process process? @relation(fields: [processId], references: [id])
 
-  // Relation to images associated with this part
   partImages PartImage[]
-
-  // --- ProductTree (Bill of Materials) Relations ---
-  // This is the CRITICAL FIX. We define two clear roles for a PartNumber.
-
-  // 1. Parent Role: A list of all components needed to make THIS part.
-  //    This connects to ProductTree's 'product_id' field via the "ParentProduct" relation.
   components ProductTree[] @relation("ParentProduct")
 
-  // 2. Component Role: A list of all parent products where THIS part is used as a component.
-  //    This connects to ProductTree's 'part_id' field via the "ComponentParts" relation.
-  usedInProducts ProductTree[] @relation("ComponentParts")
+  usedInProducts                                  ProductTree[] @relation("ComponentParts")
+  stockOrders                                     StockOrder[]  @relation("part")
+  StockOrder_StockOrder_productNumberToPartNumber StockOrder[]  @relation("StockOrder_productNumberToPartNumber")
 
-  // --- Other Relations ---
-  // These seem correct from your previous schema and are preserved.
+  usedAsPart StockOrderSchedule[] @relation(name: "PartRelation")
 
-  // Relations to Stock Orders
-  stockOrders                                     StockOrder[] @relation("part")
-  StockOrder_StockOrder_productNumberToPartNumber StockOrder[] @relation("StockOrder_productNumberToPartNumber")
-
-  // Relations to Stock Order Schedules (as a finished product or a raw part)
-  usedAsProduct StockOrderSchedule[] @relation(name: "ProductRelation")
-  usedAsPart    StockOrderSchedule[] @relation(name: "PartRelation")
-
-  // Relations to other parts of the system
   ProductionResponse   ProductionResponse[]
   WorkInstruction      WorkInstruction[]
   WorkInstructionApply WorkInstructionApply[]
@@ -297,7 +276,6 @@ model PartNumber {
   ProductTree          ProductTree[]
   StockOrderSchedule   StockOrderSchedule[]
 
-  // Define an index on the foreign key for the process relation
   @@index([processId], map: "PartNumber_processId_fkey")
 }
 
@@ -456,70 +434,63 @@ model processLogin {
   @@index([partNumberPart_id], map: "processLogin_partNumberPart_id_fkey")
 }
 
+model StockOrderSchedule {
+  id                String      @id @default(uuid()) @db.Char(36)
+  order_id          String      @db.Char(36)
+  part_id           String?     @db.Char(36)
+  quantity          Int?
+  status            String      @default("new") @db.VarChar(60)
+  order_date        DateTime    @default(now())
+  delivery_date     DateTime    @default(now())
+  completed_date    DateTime?
+  completed_by      String?
+  submitted_by      String?
+  processOrder      Boolean     @default(false)
+  order             StockOrder  @relation(fields: [order_id], references: [id])
+  part              PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
+  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
+  submittedBy       admin?      @relation(fields: [submitted_by], references: [id])
+  partNumberPart_id String?     @db.Char(36)
+  process           process?    @relation(fields: [processId], references: [id])
+  processId         String?     @db.VarChar(10)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @default(now()) @updatedAt
+  isDeleted         Boolean     @default(false)
+
+  @@index([order_id], map: "ProductionResponse_order_id_fkey")
+  @@index([part_id], map: "ProductionResponse_part_id_fkey")
+  @@index([submitted_by], map: "submitted_by_submitted_by_fkey")
+}
+
 model ProductionResponse {
   id                String      @id @default(uuid()) @db.Char(36)
+  partId            String?     @db.Char(36)
   processId         String      @db.Char(36)
   orderId           String      @db.Char(36)
-  partId            String?     @db.Char(36)
-  quantity          Int
-  scrap             Int
-  cycleTimeStart    DateTime    @default(now())
-  cycleTimeEnd      DateTime    @default(now())
-  submittedTime     DateTime    @default(now())
-  submittedDate     DateTime    @default(now())
+  stepId            String      @db.Char(36)
+  stepstartTime     String?     @db.Char(36)
+  stepstartEnd      String?     @db.Char(36)
+  quantity          Int?
+  scrap             Int?
+  cycleTimeStart    DateTime?   @default(now())
+  cycleTimeEnd      DateTime?   @default(now())
+  submittedBy       String?     @db.VarChar(100)
+  submittedDateTime DateTime?   @default(now())
   createdBy         String?     @db.Char(36)
+  userId            String?     @db.Char(36)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   isDeleted         Boolean     @default(false)
-  status            String      @default("") @db.VarChar(60)
-  customersId       String?     @db.Char(36)
   type              String?     @db.VarChar(36)
-  submittedBy       String      @db.VarChar(100)
-  completedQuantity Int         @default(0)
-  employeeId        String?     @db.Char(100)
-  customers         customers?  @relation(fields: [customersId], references: [id])
   StockOrder        StockOrder  @relation(fields: [orderId], references: [id])
   PartNumber        PartNumber? @relation(fields: [partId], references: [part_id])
   process           process     @relation(fields: [processId], references: [id])
+  customers         customers?  @relation(fields: [customersId], references: [id])
+  customersId       String?     @db.Char(36)
 
   @@index([orderId], map: "ProductionResponse_orderId_fkey")
   @@index([processId], map: "ProductionResponse_processId_fkey")
   @@index([partId], map: "ProductionResponse_partId_fkey")
-  @@index([customersId], map: "ProductionResponse_customersId_fkey")
-}
-
-model StockOrderSchedule {
-  id             String   @id @default(uuid()) @db.Char(36)
-  order_id       String   @db.Char(36)
-  part_id        String?  @db.Char(36)
-  product_id     String?  @db.Char(36)
-  process_id     String   @db.Char(36)
-  order_date     DateTime @default(now())
-  schedule_date  DateTime
-  submitted_date DateTime @default(now())
-  submitted_by   String?
-  customersId    String?  @db.Char(36)
-  createdBy      String?  @db.Char(36)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  isDeleted      Boolean  @default(false)
-  status         String   @default("schedule") @db.VarChar(60)
-  type           String?  @db.VarChar(36)
-  employeeId     String?  @db.Char(100)
-
-  customers         customers?  @relation(fields: [customersId], references: [id])
-  order             StockOrder  @relation(fields: [order_id], references: [id])
-  part              PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
-  product           PartNumber? @relation(name: "ProductRelation", fields: [product_id], references: [part_id])
-  process           process     @relation(fields: [process_id], references: [id])
-  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
-  partNumberPart_id String?     @db.Char(36)
-
-  @@index([order_id], map: "ProductionResponse_order_id_fkey")
-  @@index([part_id], map: "ProductionResponse_part_id_fkey")
-  @@index([process_id], map: "ProductionResponse_process_id_fkey")
-  @@index([customersId], map: "StockOrderSchedule_customersId_fkey")
-  @@index([product_id], map: "StockOrderSchedule_product_id_fkey")
 }
 
 enum admin_roles {

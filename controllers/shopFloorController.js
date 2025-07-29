@@ -204,6 +204,7 @@ const resetPassword = async (req, res) => {
       .json({ message: "Internal server error.", error: error.message });
   }
 };
+
 module.exports = {
   login,
   sendForgotPasswordOTP,

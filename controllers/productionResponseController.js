@@ -25,21 +25,28 @@ const prisma = require("../config/prisma");
 
 const processLogin = async (req, res) => {
   try {
-    const user = req.user;
     const { processId, userId, type } = req.body;
-
     const nextJob = await prisma.stockOrderSchedule.findFirst({
       where: {
-        process_id: processId,
-        status: "schedule",
+        processId: processId,
+        status: "new",
         isDeleted: false,
       },
       orderBy: {
-        schedule_date: "asc",
+        createdAt: "asc",
       },
       include: {
         order: {
           select: { orderNumber: true },
+        },
+        part: {
+          include: {
+            WorkInstruction: {
+              select: {
+                id: true,
+              },
+            },
+          },
         },
       },
     });
@@ -51,25 +58,18 @@ const processLogin = async (req, res) => {
     }
 
     const orderIdToProcess = nextJob.order_id;
+    const instructionId = nextJob.part.WorkInstruction[0].id;
 
     const [processLoginData] = await prisma.$transaction([
-      prisma.processLogin.create({
+      prisma.productionResponse.create({
         data: {
           processId: processId,
-          userId: user.role === "shopfloor" ? user.id : userId,
+          userId: userId,
           orderId: orderIdToProcess,
           type: type,
-          customersId: nextJob.customersId,
-          partNumberPart_id: nextJob.part_id,
-        },
-      }),
-      prisma.stockOrderSchedule.update({
-        where: {
-          id: nextJob.id,
-        },
-        data: {
-          status: "in_progress",
-          employeeId: user.role === "shopfloor" ? user.id : userId,
+          partId: nextJob.part_id,
+          stepId: instructionId,
+          scrap: null,
         },
       }),
     ]);
@@ -189,7 +189,6 @@ const createProductionResponse = async (req, res) => {
     const user = req.user;
     const now = new Date();
     const submittedBy = `${firstName} ${lastName}`;
-
     const stockOrder = await prisma.stockOrder.findUnique({
       where: { id: orderId },
     });
@@ -197,9 +196,7 @@ const createProductionResponse = async (req, res) => {
     if (!stockOrder) {
       return res.status(404).json({ message: "Order not found." });
     }
-
     const totalProductQuantity = stockOrder.productQuantity;
-
     const existing = await prisma.productionResponse.findFirst({
       where: {
         orderId,
@@ -243,7 +240,6 @@ const createProductionResponse = async (req, res) => {
       });
     } else {
       const newCompletedQty = completed ? quantity : 0;
-
       if (completed && newCompletedQty > totalProductQuantity) {
         prisma.stockOrder.update({
           where: {
@@ -429,9 +425,81 @@ const getNextJobDetails = async (req, res) => {
     });
   }
 };
+
+const selectScheduleProcess = async (req, res) => {
+  try {
+    const userId = req.user;
+    console.log("userId:", userId);
+
+    const stockOrders = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+      },
+      include: {
+        part: {
+          include: {
+            process: {
+              select: {
+                id: true,
+                processName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!stockOrders || stockOrders.length === 0) {
+      return res.status(404).json({ message: "No stock orders found" });
+    }
+    const employeeData = await prisma.employee.findMany({
+      where: {
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        email: true,
+        fullName: true,
+      },
+    });
+
+    if (!employeeData || employeeData.length === 0) {
+      return res.status(404).json({ message: "No employees found" });
+    }
+    let employeeFormattedData = [];
+    if (userId.role !== "Shop_Floor") {
+      employeeFormattedData = employeeData.map((employee) => ({
+        id: employee.id || null,
+        name: employee.fullName || null,
+        employeeId: employee.employeeId || null,
+        email: employee.email || null,
+      }));
+    }
+
+    const formatted = stockOrders.map((order) => ({
+      id: order.part?.process?.id || null,
+      name: order.part?.process?.processName || null,
+      partFamily: order.part?.part_id || null,
+      stockOrderId: order.id,
+      orderNumber: order.orderNumber,
+    }));
+
+    return res.status(200).json({
+      stockAndProcess: formatted,
+      stationUser: employeeFormattedData,
+    });
+  } catch (error) {
+    console.error("selectScheduleProcess error:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   processLogin,
   getScheduleProcessInformation,
   createProductionResponse,
   getNextJobDetails,
+  selectScheduleProcess,
 };

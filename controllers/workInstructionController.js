@@ -533,6 +533,7 @@ const allWorkInstructions = async (req, res) => {
     });
   }
 };
+
 const selectInstructionPartNumber = async (req, res) => {
   try {
     const process = await prisma.partNumber.findMany({
@@ -577,7 +578,7 @@ const selectWorkInstruction = async (req, res) => {
       data: formattedProcess,
     });
     res.status(500).json({ message: "Server error" });
-  } catch (error) { }
+  } catch (error) {}
 };
 
 const updateWorkInstructionDetail = async (req, res) => {
@@ -1119,6 +1120,7 @@ const deleteWorkInstructionImg = async (req, res) => {
     });
   }
 };
+
 const deleteWorkInstructionStepsById = async (req, res) => {
   try {
     const id = req.params.id;
