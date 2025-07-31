@@ -8,7 +8,6 @@ const {
   changePassword,
 } = require("../controllers/frontLineController");
 const router = express.Router();
-
 router.post("/signUp", signUp);
 router.post("/login", login);
 router.post("/send-OTP", sendForgotPasswordOTP);

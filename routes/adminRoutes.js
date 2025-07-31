@@ -94,11 +94,13 @@ const {
   deleteWorkInstructionStepsById,
 } = require("../controllers/workInstructionController");
 const {
-  processLogin,
+  stationLogin,
   getNextJobDetails,
   selectScheduleProcess,
+  getScheduleProcessInformation,
+  completeScheduleOrder,
+  stationLogout,
 } = require("../controllers/productionResponseController");
-
 const router = express.Router();
 router.post("/login", adminLogin, login);
 router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
@@ -162,7 +164,6 @@ router.put(
 );
 router.patch("/delete-employee/:id", adminValidateToken, deleteEmployee);
 router.post("/send-email-to-employee", adminValidateToken, sendMailToEmplyee);
-
 router.post(
   "/create-stock-order",
   adminValidateToken,
@@ -274,7 +275,6 @@ router.get(
   adminValidateToken,
   selectWorkInstruction
 );
-
 router.put("/delete-product-part/:id", adminValidateToken, deleteProductPart);
 router.delete(
   "/delete-work-instruction-image/:id",
@@ -292,7 +292,6 @@ router.patch(
   adminValidateToken,
   deleteProductTreeById
 );
-
 router.get("/profile-detail", adminValidateToken, profileDetail);
 router.put("/profile-update", adminValidateToken, updateProfileApi);
 router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
@@ -307,9 +306,8 @@ router.put(
   adminValidateToken,
   deleteSupplierOrder
 );
-
-router.post("/process-login", adminValidateToken, processLogin);
-
+router.post("/station-login", adminValidateToken, stationLogin);
+router.post("/station-logout", adminValidateToken, stationLogout);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
@@ -324,8 +322,14 @@ router.get(
 );
 router.get("/next-job-details/:id", adminValidateToken, getNextJobDetails);
 router.get(
-  "/select-schedule-process",
+  "/select-schedule-employee-process",
   adminValidateToken,
   selectScheduleProcess
 );
+router.get(
+  "/get-schedule-process-information/:id",
+  adminValidateToken,
+  getScheduleProcessInformation
+);
+router.put("/complete-order/:id", completeScheduleOrder);
 module.exports = router;
