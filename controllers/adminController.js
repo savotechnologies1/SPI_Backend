@@ -1616,6 +1616,8 @@ const partNumberList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log("error", error);
+
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
