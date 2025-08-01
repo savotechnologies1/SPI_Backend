@@ -1,31 +1,22 @@
 const prisma = require("../config/prisma");
 
-// const processLogin = async (req, res) => {
-//   try {
-//     const user = req.user;
-//     const { processId, stationUserId, type } = req.body;
-//     const data = await prisma.processLogin.create({
-//       data: {
-//         processId: processId,
-//         stationUserId: user.role === "Shop_Floor" ? user.id : stationUserId,
-//         orderId: orderId,
-//         type: type,
-//       },
-//     });
-//     return res.status(200).json({
-//       message: "You have successfully login this station",
-//       data: stationUserId,
-//     });
-//   } catch (error) {
-//     return res.status(500).send({
-//       message: "Something went wrong . please try again later .",
-//     });
-//   }
-// };
-
 // const stationLogin = async (req, res) => {
 //   try {
 //     const { processId, stationUserId, type } = req.body;
+//     // const existingActiveLogin = await prisma.productionResponse.findFirst({
+//     //   where: {
+//     //     stationUserId: stationUserId,
+//     //     processId: processId,
+//     //     cycleTimeEnd: null,
+//     //   },
+//     // });
+//     // if (existingActiveLogin) {
+//     //   return res.status(400).json({
+//     //     message: "You are already logged into a station. Please logout first.",
+//     //     data: existingActiveLogin,
+//     //   });
+//     // }
+
 //     const nextJob = await prisma.stockOrderSchedule.findFirst({
 //       where: {
 //         processId: processId,
@@ -42,9 +33,7 @@ const prisma = require("../config/prisma");
 //         part: {
 //           include: {
 //             WorkInstruction: {
-//               select: {
-//                 id: true,
-//               },
+//               select: { id: true },
 //             },
 //           },
 //         },
@@ -56,33 +45,27 @@ const prisma = require("../config/prisma");
 //         message: "No available jobs found for this station at the moment.",
 //       });
 //     }
+
 //     const orderIdToProcess = nextJob.order_id;
 //     const instructionId = nextJob?.part?.WorkInstruction[0]?.id;
-//     // if (nextJob.processId) {
-//     //   const data = await prisma.processOrderTable.create({
-//     //     data: {
-//     //       processId: nextJob.processId,
-//     //       orderId: nextJob.order_id,
-//     //       partId: nextJob.part_id,
-//     //       stationUserId: stationUserId,
-//     //     },
-//     //   });
-//     //   console.log("datadata", data);
-//     // }
-//     const [processLoginData] = await prisma.$transaction([
-//       prisma.productionResponse.create({
-//         data: {
-//           process: { connect: { id: processId } },
-//           StockOrder: { connect: { id: orderIdToProcess } },
-//           PartNumber: { connect: { part_id: nextJob.part_id } },
-//           stationUserId: stationUserId,
-//           type: type,
-//           stepId: instructionId ? instructionId : null,
-//           scrap: null,
-//           cycleTimeStart,
+//     const processLoginData = await prisma.productionResponse.create({
+//       data: {
+//         process: { connect: { id: processId } },
+//         StockOrder: { connect: { id: orderIdToProcess } },
+//         PartNumber: { connect: { part_id: nextJob.part_id } },
+//         employeeInfo: {
+//           connect: {
+//             id: stationUserId,
+//           },
 //         },
-//       }),
-//     ]);
+//         type: type,
+//         stepId: instructionId ? instructionId : null,
+//         scrap: null,
+//         cycleTimeStart: new Date(),
+//         cycleTimeEnd: null,
+//       },
+//     });
+
 //     return res.status(200).json({
 //       message: `You have successfully logged into station. Assigned to order: ${nextJob.order.orderNumber}`,
 //       data: processLoginData,
@@ -94,47 +77,53 @@ const prisma = require("../config/prisma");
 //       error: error.message,
 //     });
 //   }
-// }
+// };
 
 const stationLogin = async (req, res) => {
   try {
     const { processId, stationUserId, type } = req.body;
-    // const existingActiveLogin = await prisma.productionResponse.findFirst({
-    //   where: {
-    //     stationUserId: stationUserId,
-    //     processId: processId,
-    //     cycleTimeEnd: null,
-    //   },
-    // });
-    // if (existingActiveLogin) {
-    //   return res.status(400).json({
-    //     message: "You are already logged into a station. Please logout first.",
-    //     data: existingActiveLogin,
-    //   });
-    // }
 
-    const nextJob = await prisma.stockOrderSchedule.findFirst({
+    // First: check for an already "in progress" job
+    let nextJob = await prisma.stockOrderSchedule.findFirst({
       where: {
-        processId: processId,
-        status: "new",
+        processId,
+        status: "progress",
         isDeleted: false,
       },
       orderBy: {
         createdAt: "asc",
       },
       include: {
-        order: {
-          select: { orderNumber: true },
-        },
+        order: { select: { orderNumber: true } },
         part: {
           include: {
-            WorkInstruction: {
-              select: { id: true },
-            },
+            WorkInstruction: { select: { id: true } },
           },
         },
       },
     });
+
+    // If no progress job, fallback to "new"
+    if (!nextJob) {
+      nextJob = await prisma.stockOrderSchedule.findFirst({
+        where: {
+          processId,
+          status: "new",
+          isDeleted: false,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+        include: {
+          order: { select: { orderNumber: true } },
+          part: {
+            include: {
+              WorkInstruction: { select: { id: true } },
+            },
+          },
+        },
+      });
+    }
 
     if (!nextJob) {
       return res.status(404).json({
@@ -142,20 +131,16 @@ const stationLogin = async (req, res) => {
       });
     }
 
-    const orderIdToProcess = nextJob.order_id;
     const instructionId = nextJob?.part?.WorkInstruction[0]?.id;
+
     const processLoginData = await prisma.productionResponse.create({
       data: {
         process: { connect: { id: processId } },
-        StockOrder: { connect: { id: orderIdToProcess } },
+        StockOrder: { connect: { id: nextJob.order_id } },
         PartNumber: { connect: { part_id: nextJob.part_id } },
-        employeeInfo: {
-          connect: {
-            id: stationUserId,
-          },
-        },
-        type: type,
-        stepId: instructionId ? instructionId : null,
+        employeeInfo: { connect: { id: stationUserId } },
+        type,
+        stepId: instructionId || null,
         scrap: null,
         cycleTimeStart: new Date(),
         cycleTimeEnd: null,
@@ -177,9 +162,9 @@ const stationLogin = async (req, res) => {
 
 const stationLogout = async (req, res) => {
   try {
-    const { productionResponseId } = req.body;
+    const { id } = req.params;
 
-    if (!productionResponseId) {
+    if (!id) {
       return res.status(400).json({
         message: "Production Response ID is required to logout.",
       });
@@ -187,7 +172,7 @@ const stationLogout = async (req, res) => {
 
     const updatedResponse = await prisma.productionResponse.update({
       where: {
-        id: productionResponseId,
+        id: id,
       },
       data: {
         cycleTimeEnd: new Date(),
@@ -307,24 +292,152 @@ const stationLogout = async (req, res) => {
 
 // This is your function
 
+// const getScheduleProcessInformation = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     console.log("req.params for schedule process:", req.params);
+
+//     if (!id) {
+//       return res.status(400).json({ message: "processId is required." });
+//     }
+
+//     const nextJob = await prisma.stockOrderSchedule.findFirst({
+//       where: {
+//         processId: id,
+//         status: "new",
+//         isDeleted: false,
+//       },
+//       orderBy: {
+//         createdAt: "asc",
+//       },
+//       include: {
+//         order: {
+//           select: {
+//             id: true,
+//             orderNumber: true,
+//             productQuantity: true,
+//             shipDate: true,
+//             createdAt: true,
+//           },
+//         },
+//         part: {
+//           include: {
+//             WorkInstruction: {
+//               include: {
+//                 steps: {
+//                   orderBy: {
+//                     stepNumber: "asc",
+//                   },
+//                   include: {
+//                     images: {
+//                       select: {
+//                         id: true,
+//                         imagePath: true,
+//                       },
+//                     },
+//                     videos: {
+//                       select: {
+//                         id: true,
+//                         videoPath: true,
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//           },
+//         },
+//         process: {
+//           select: {
+//             processName: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!nextJob) {
+//       return res
+//         .status(404)
+//         .json({ message: "No new jobs found for this station." });
+//     }
+
+//     const upcomingOrder = await prisma.stockOrderSchedule.findFirst({
+//       where: {
+//         order: {
+//           createdAt: {
+//             gte: nextJob.order.createdAt,
+//           },
+//         },
+//         id: {
+//           not: nextJob.id,
+//         },
+//       },
+//       include: {
+//         order: {
+//           select: {
+//             shipDate: true,
+//           },
+//         },
+//       },
+//       orderBy: {
+//         createdAt: "asc",
+//       },
+//     });
+
+//     const getProductionResponse = await prisma.productionResponse.findFirst({
+//       where: {
+//         processId: id,
+//         isDeleted: false,
+//       },
+//       include: {
+//         employeeInfo: {
+//           select: {
+//             firstName: true,
+//             lastName: true,
+//           },
+//         },
+//       },
+//     });
+//     console.log(
+//       "getProductionResponsegetProductionResponse",
+//       getProductionResponse
+//     );
+
+//     const responseData = {
+//       ...nextJob,
+//       productionId: getProductionResponse.id,
+//       upcommingOrder: upcomingOrder?.order?.shipDate || null,
+//       employeeInfo: getProductionResponse?.employeeInfo || null,
+//       cycleTime: getProductionResponse?.cycleTimeStart,
+//     };
+
+//     res.status(200).json({
+//       message: "Next job found successfully.",
+//       data: responseData,
+//     });
+//   } catch (error) {
+//     console.error("Error finding next job:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Something went wrong. Please try again later." });
+//   }
+// };
+
 const getScheduleProcessInformation = async (req, res) => {
   try {
-    const { id } = req.params;
-    console.log("req.params for schedule process:", req.params);
+    const { id: processId } = req.params;
 
-    if (!id) {
+    if (!processId) {
       return res.status(400).json({ message: "processId is required." });
     }
 
-    const nextJob = await prisma.stockOrderSchedule.findFirst({
+    let nextJob = await prisma.stockOrderSchedule.findFirst({
       where: {
-        processId: id,
-        status: "new",
+        processId,
+        status: "progress",
         isDeleted: false,
       },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: { createdAt: "asc" },
       include: {
         order: {
           select: {
@@ -340,40 +453,63 @@ const getScheduleProcessInformation = async (req, res) => {
             WorkInstruction: {
               include: {
                 steps: {
-                  orderBy: {
-                    stepNumber: "asc",
-                  },
+                  orderBy: { stepNumber: "asc" },
                   include: {
-                    images: {
-                      select: {
-                        id: true,
-                        imagePath: true,
-                      },
-                    },
-                    videos: {
-                      select: {
-                        id: true,
-                        videoPath: true,
-                      },
-                    },
+                    images: { select: { id: true, imagePath: true } },
+                    videos: { select: { id: true, videoPath: true } },
                   },
                 },
               },
             },
           },
         },
-        process: {
-          select: {
-            processName: true,
-          },
-        },
+        process: { select: { processName: true } },
       },
     });
+
+    // Fallback to new if no progress
+    if (!nextJob) {
+      nextJob = await prisma.stockOrderSchedule.findFirst({
+        where: {
+          processId,
+          status: "new",
+          isDeleted: false,
+        },
+        orderBy: { createdAt: "asc" },
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              productQuantity: true,
+              shipDate: true,
+              createdAt: true,
+            },
+          },
+          part: {
+            include: {
+              WorkInstruction: {
+                include: {
+                  steps: {
+                    orderBy: { stepNumber: "asc" },
+                    include: {
+                      images: { select: { id: true, imagePath: true } },
+                      videos: { select: { id: true, videoPath: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          process: { select: { processName: true } },
+        },
+      });
+    }
 
     if (!nextJob) {
       return res
         .status(404)
-        .json({ message: "No new jobs found for this station." });
+        .json({ message: "No jobs found for this station." });
     }
 
     const upcomingOrder = await prisma.stockOrderSchedule.findFirst({
@@ -383,47 +519,33 @@ const getScheduleProcessInformation = async (req, res) => {
             gte: nextJob.order.createdAt,
           },
         },
-        id: {
-          not: nextJob.id,
-        },
+        id: { not: nextJob.id },
       },
       include: {
-        order: {
-          select: {
-            shipDate: true,
-          },
-        },
+        order: { select: { shipDate: true } },
       },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: { createdAt: "asc" },
     });
 
     const getProductionResponse = await prisma.productionResponse.findFirst({
       where: {
-        processId: id,
+        processId,
         isDeleted: false,
       },
+      orderBy: { cycleTimeStart: "desc" },
       include: {
         employeeInfo: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
+          select: { firstName: true, lastName: true },
         },
       },
     });
-    console.log(
-      "getProductionResponsegetProductionResponse",
-      getProductionResponse
-    );
 
     const responseData = {
       ...nextJob,
-      productionId: getProductionResponse.id,
+      productionId: getProductionResponse?.id || null,
       upcommingOrder: upcomingOrder?.order?.shipDate || null,
       employeeInfo: getProductionResponse?.employeeInfo || null,
-      cycleTime: getProductionResponse?.cycleTimeStart,
+      cycleTime: getProductionResponse?.cycleTimeStart || null,
     };
 
     res.status(200).json({
@@ -432,11 +554,10 @@ const getScheduleProcessInformation = async (req, res) => {
     });
   } catch (error) {
     console.error("Error finding next job:", error);
-    res
-      .status(500)
-      .json({ message: "Something went wrong. Please try again later." });
+    res.status(500).json({ message: "Something went wrong." });
   }
 };
+
 const createProductionResponse = async (req, res) => {
   try {
     const {
@@ -699,6 +820,7 @@ const selectScheduleProcess = async (req, res) => {
     const stockOrders = await prisma.stockOrderSchedule.findMany({
       where: {
         isDeleted: false,
+        status: "new",
       },
       include: {
         part: {
@@ -761,53 +883,153 @@ const selectScheduleProcess = async (req, res) => {
   }
 };
 
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { orderId } = req.body;
+//     const data = await prisma.productionResponse.update({
+//       where: {
+//         id: id,
+//       },
+//       data: {
+//         quantity: true,
+//       },
+//     });
+//     const checkTotolQty = await prisma.stockOrderSchedule.findFirst({
+//       where: {
+//         id: orderId,
+//       },
+//       select: {
+//         quantity: true,
+//         completedQuantity: true,
+//       },
+//     });
+
+//     if (checkTotolQty?.completedQuantity > checkTotolQty?.quantity) {
+//       return res.status(200).send({
+//         message: "order scheduling completed ",
+//       });
+//     }
+
+//     prisma.stockOrderSchedule
+//       .update({
+//         where: {
+//           id: orderId,
+//         },
+//         data: {
+//           completedQuantity: {
+//             increment: 1,
+//           },
+//         },
+//       })
+//       .then();
+//     return res.status(201).json({
+//       message: "This order has been added as completed  .",
+//     });
+//   } catch (error) {
+//     console.log("errorerror", error);
+
+//     res.status(500).json({ message: "An error occurred on the server." });
+//   }
+// };
 const completeScheduleOrder = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { orderId } = req.body;
-    const data = await prisma.productionResponse.update({
-      where: {
-        id: id,
-      },
+    const { id } = req.params; // productionResponse ID
+    const { orderId, partId } = req.body;
+
+    await prisma.productionResponse.update({
+      where: { id },
       data: {
-        quantity: true,
-      },
-    });
-    const checkTotolQty = await prisma.stockOrderSchedule.findFirst({
-      where: {
-        id: orderId,
-      },
-      select: {
-        quantity: true,
-        completedQuantity: true,
+        quantity: true, // or isCompleted: true
+        cycleTimeEnd: new Date(),
       },
     });
 
-    if (checkTotolQty?.completedQuantity > checkTotolQty?.quantity) {
-      return res.status(200).send({
-        message: "order scheduling completed ",
+    const orderSchedule = await prisma.stockOrderSchedule.findUnique({
+      where: {
+        order_id_part_id: {
+          order_id: orderId,
+          part_id: partId,
+        },
+      },
+    });
+
+    if (!orderSchedule) {
+      return res
+        .status(404)
+        .json({ message: "Stock order schedule not found." });
+    }
+
+    const { completedQuantity = 0, quantity } = orderSchedule;
+    if (completedQuantity >= quantity) {
+      return res.status(400).json({
+        message: "Order is already fully completed.",
+        status: "completed",
       });
     }
 
-    prisma.stockOrderSchedule
-      .update({
-        where: {
-          id: orderId,
+    const newCompletedQty = completedQuantity + 1;
+
+    const updatedStatus =
+      newCompletedQty === quantity ? "completed" : "progress";
+
+    await prisma.stockOrderSchedule.update({
+      where: {
+        order_id_part_id: {
+          order_id: orderId,
+          part_id: partId,
         },
-        data: {
-          completedQuantity: {
-            increment: 1,
-          },
-        },
-      })
-      .then();
-    return res.status(201).json({
-      message: "This order has been added as completed  .",
+      },
+      data: {
+        completedQuantity: newCompletedQty,
+        completed_date: newCompletedQty === quantity ? new Date() : undefined,
+        status: updatedStatus,
+      },
+    });
+
+    return res.status(200).json({
+      message:
+        updatedStatus === "completed"
+          ? "Order scheduling completed."
+          : "This order has been added as completed.",
+      status: updatedStatus,
     });
   } catch (error) {
-    console.log("errorerror", error);
-
+    console.error("Error completing schedule order:", error);
     res.status(500).json({ message: "An error occurred on the server." });
+  }
+};
+const updateStepTime = async (req, res) => {
+  const { id } = req.params;
+  const { stepstartTime, stepstartEnd } = req.body;
+
+  try {
+    const existing = await prisma.productionResponse.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return res
+        .status(404)
+        .json({ message: "Production Response not found." });
+    }
+
+    // Update step times
+    const updated = await prisma.productionResponse.update({
+      where: { id },
+      data: {
+        stepstartTime,
+        stepstartEnd,
+      },
+    });
+
+    res.status(200).json({
+      message: "Step time updated successfully.",
+      data: updated,
+    });
+  } catch (error) {
+    console.error("Error updating step time:", error);
+    res.status(500).json({ message: "Internal server error." });
   }
 };
 
@@ -819,4 +1041,5 @@ module.exports = {
   getNextJobDetails,
   selectScheduleProcess,
   completeScheduleOrder,
+  updateStepTime,
 };

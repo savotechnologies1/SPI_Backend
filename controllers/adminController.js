@@ -2473,6 +2473,7 @@ const updateProductNumber = async (req, res) => {
       availStock,
       processId,
       parts = [],
+      instructionRequired,
     } = req.body;
     const updatedProduct = await prisma.partNumber.update({
       where: { part_id: id },
@@ -2490,31 +2491,48 @@ const updateProductNumber = async (req, res) => {
         processId: processId || null,
       },
     });
+
+    const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
+
     const existingParts = await prisma.productTree.findMany({
       where: { product_id: id },
     });
+
     const existingPartMap = new Map(existingParts.map((p) => [p.part_id, p]));
-    const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
     const incomingPartIds = new Set(parsedParts.map((p) => p.part_id));
+
     for (const part of parsedParts) {
       const existing = existingPartMap.get(part.part_id);
+
+      const partInstructionRequired = part.instructionRequired === "Yes";
+
       if (existing) {
-        if (existing?.partQuantity !== Number(part.partQuantity)) {
+        if (
+          existing.partQuantity !== Number(part.partQuantity) ||
+          existing.instructionRequired !== partInstructionRequired
+        ) {
           await prisma.productTree.update({
             where: { id: existing.id },
-            data: { partQuantity: Number(part.partQuantity) },
+            data: {
+              partQuantity: Number(part.partQuantity),
+              instructionRequired: partInstructionRequired,
+            },
           });
         }
       } else {
+        // Create new BOM entry
         await prisma.productTree.create({
           data: {
             product_id: id,
             part_id: part.part_id,
-            partQuantity: Number(part.qty),
+            partQuantity: Number(part.partQuantity),
+            instructionRequired: partInstructionRequired,
           },
         });
       }
     }
+
+    // 7. Delete removed parts
     for (const oldPart of existingParts) {
       if (!incomingPartIds.has(oldPart.part_id)) {
         await prisma.productTree.delete({
@@ -2522,6 +2540,8 @@ const updateProductNumber = async (req, res) => {
         });
       }
     }
+
+    // 8. Upload new part images if available
     if (getPartImages?.length > 0) {
       for (const image of getPartImages) {
         await prisma.partImage.create({
@@ -2536,11 +2556,14 @@ const updateProductNumber = async (req, res) => {
       }
     }
 
+    // 9. Send success response
     return res.status(200).json({
       message: "Product and BOM updated successfully!",
       data: updatedProduct,
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).json({
       message: "Something went wrong while updating the product.",
     });
@@ -3102,7 +3125,6 @@ const searchStockOrders = async (req, res) => {
 
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
-
   try {
     const allPrismaPromises = [];
     for (const order of ordersToSchedule) {

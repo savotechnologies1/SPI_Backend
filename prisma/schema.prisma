@@ -253,6 +253,7 @@ model PartNumber {
   processId            String? @db.VarChar(10)
   processDesc          String? @db.VarChar(255)
   processOrderRequired Boolean @default(false)
+  instructionRequired  Boolean @default(false)
 
   companyName String   @db.VarChar(100)
   submittedBy String?  @db.VarChar(100)
@@ -464,6 +465,7 @@ model StockOrderSchedule {
   updatedAt         DateTime    @default(now()) @updatedAt
   isDeleted         Boolean     @default(false)
 
+  @@unique([order_id, part_id])
   @@index([order_id], map: "ProductionResponse_order_id_fkey")
   @@index([part_id], map: "ProductionResponse_part_id_fkey")
   @@index([submitted_by], map: "submitted_by_submitted_by_fkey")

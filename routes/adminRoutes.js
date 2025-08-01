@@ -100,6 +100,9 @@ const {
   getScheduleProcessInformation,
   completeScheduleOrder,
   stationLogout,
+  completeTrainingSession,
+  startTrainingStep,
+  getTrainingStatus,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -307,7 +310,7 @@ router.put(
   deleteSupplierOrder
 );
 router.post("/station-login", adminValidateToken, stationLogin);
-router.post("/station-logout", adminValidateToken, stationLogout);
+router.post("/station-logout/:id", adminValidateToken, stationLogout);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
