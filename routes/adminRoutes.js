@@ -103,6 +103,14 @@ const {
   completeTrainingSession,
   startTrainingStep,
   getTrainingStatus,
+  stepClickHandler,
+  completeStepAndStartNext,
+  startStep,
+  completeStep,
+  markStepAsCompleted,
+  updateStepTime,
+  completeTraning,
+  scrapScheduleOrder,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -335,4 +343,8 @@ router.get(
   getScheduleProcessInformation
 );
 router.put("/complete-order/:id", completeScheduleOrder);
+router.put("/production-response/:id/update-step-time", updateStepTime);
+router.put("/complete-traning/:id", completeTraning);
+router.put("/scrap-order/:id", scrapScheduleOrder);
+
 module.exports = router;

@@ -341,25 +341,26 @@ model WorkInstruction {
 }
 
 model WorkInstructionSteps {
-  id                     String                @id @default(uuid()) @db.Char(36)
-  workInstructionId      String                @db.Char(36)
+  id                     String                   @id @default(uuid()) @db.Char(36)
+  workInstructionId      String                   @db.Char(36)
   stepNumber             Int
   title                  String
   instruction            String
-  isDeleted              Boolean               @default(false)
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
-  processId              String?               @db.VarChar(10)
-  productTreeId          String?               @db.Char(36)
-  partNumberPart_id      String?               @db.Char(36)
-  workInstructionApplyId String?               @db.Char(36)
+  isDeleted              Boolean                  @default(false)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  processId              String?                  @db.VarChar(10)
+  productTreeId          String?                  @db.Char(36)
+  partNumberPart_id      String?                  @db.Char(36)
+  workInstructionApplyId String?                  @db.Char(36)
   images                 InstructionImage[]
   videos                 InstructionVideo[]
-  PartNumber             PartNumber?           @relation(fields: [partNumberPart_id], references: [part_id])
-  process                process?              @relation(fields: [processId], references: [id])
-  productTree            ProductTree?          @relation(fields: [productTreeId], references: [id])
-  WorkInstructionApply   WorkInstructionApply? @relation(fields: [workInstructionApplyId], references: [id])
-  workInstruction        WorkInstruction       @relation(fields: [workInstructionId], references: [id])
+  PartNumber             PartNumber?              @relation(fields: [partNumberPart_id], references: [part_id])
+  process                process?                 @relation(fields: [processId], references: [id])
+  productTree            ProductTree?             @relation(fields: [productTreeId], references: [id])
+  WorkInstructionApply   WorkInstructionApply?    @relation(fields: [workInstructionApplyId], references: [id])
+  workInstruction        WorkInstruction          @relation(fields: [workInstructionId], references: [id])
+  ProductionStepTracking ProductionStepTracking[]
 
   @@index([processId], map: "WorkInstructionSteps_processId_fkey")
   @@index([productTreeId], map: "WorkInstructionSteps_productTreeId_fkey")
@@ -447,6 +448,7 @@ model StockOrderSchedule {
   part_id           String?     @db.Char(36)
   quantity          Int?
   completedQuantity Int?        @default(0)
+  scrapQuantity     Int?        @default(0)
   status            String      @default("new") @db.VarChar(60)
   order_date        DateTime    @default(now())
   delivery_date     DateTime    @default(now())
@@ -472,32 +474,36 @@ model StockOrderSchedule {
 }
 
 model ProductionResponse {
-  id                String      @id @default(uuid()) @db.Char(36)
-  partId            String?     @db.Char(36)
-  processId         String      @db.Char(36)
-  orderId           String      @db.Char(36)
-  stepId            String?     @db.Char(36)
-  stepstartTime     String?     @db.Char(36)
-  stepstartEnd      String?     @db.Char(36)
-  quantity          Boolean?    @default(false)
-  completedQuantity Int?        @default(0)
-  scrap             Boolean?    @default(false)
-  cycleTimeStart    DateTime?   @default(now())
-  cycleTimeEnd      DateTime?   @default(now())
-  submittedBy       String?     @db.VarChar(100)
-  submittedDateTime DateTime?   @default(now())
-  createdBy         String?     @db.Char(36)
-  stationUserId     String?     @db.Char(36)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  isDeleted         Boolean     @default(false)
-  type              String?     @db.VarChar(36)
-  StockOrder        StockOrder? @relation(fields: [orderId], references: [id])
-  PartNumber        PartNumber? @relation(fields: [partId], references: [part_id])
-  process           process?    @relation(fields: [processId], references: [id])
-  customers         customers?  @relation(fields: [customersId], references: [id])
-  employeeInfo      employee?   @relation(fields: [stationUserId], references: [id])
-  customersId       String?     @db.Char(36)
+  id                String    @id @default(uuid()) @db.Char(36)
+  partId            String?   @db.Char(36)
+  processId         String    @db.Char(36)
+  orderId           String    @db.Char(36)
+  instructionId     String?   @db.Char(36)
+  stepstartTime     DateTime?
+  stepstartEnd      DateTime?
+  quantity          Boolean?  @default(false)
+  completedQuantity Int?      @default(0)
+  scrapQuantity     Int?      @default(0)
+  scrap             Boolean?  @default(false)
+  cycleTimeStart    DateTime? @default(now())
+  cycleTimeEnd      DateTime? @default(now())
+  submittedBy       String?   @db.VarChar(100)
+  submittedDateTime DateTime? @default(now())
+  createdBy         String?   @db.Char(36)
+  stationUserId     String?   @db.Char(36)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  traniningStatus   Boolean   @default(false)
+  isDeleted         Boolean   @default(false)
+  type              String?   @db.VarChar(36)
+
+  StockOrder             StockOrder?              @relation(fields: [orderId], references: [id])
+  PartNumber             PartNumber?              @relation(fields: [partId], references: [part_id])
+  process                process?                 @relation(fields: [processId], references: [id])
+  customers              customers?               @relation(fields: [customersId], references: [id])
+  employeeInfo           employee?                @relation(fields: [stationUserId], references: [id])
+  customersId            String?                  @db.Char(36)
+  ProductionStepTracking ProductionStepTracking[]
 
   @@index([orderId], map: "ProductionResponse_orderId_fkey")
   @@index([processId], map: "ProductionResponse_processId_fkey")
@@ -505,12 +511,27 @@ model ProductionResponse {
   @@index([stationUserId], map: "ProductionResponse_stationUserId_fkey")
 }
 
+model ProductionStepTracking {
+  id            String    @id @default(uuid())
+  status        String    @default("pending")
+  stepStartTime DateTime?
+  stepEndTime   DateTime?
+
+  productionResponseId String
+  productionResponse   ProductionResponse @relation(fields: [productionResponseId], references: [id])
+
+  workInstructionStepId String
+  workInstructionStep   WorkInstructionSteps @relation(fields: [workInstructionStepId], references: [id])
+
+  @@map("production_step_tracking")
+}
+
 model ProcessOrderTable {
   id                String      @id @default(uuid()) @db.Char(36)
   partId            String?     @db.Char(36)
   processId         String      @db.Char(36)
   orderId           String      @db.Char(36)
-  stepId            String?     @db.Char(36)
+  instructionId     String?     @db.Char(36)
   quantity          Int?
   completedQty      Int?
   scrap             Int?

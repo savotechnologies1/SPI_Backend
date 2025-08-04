@@ -337,10 +337,14 @@ const createWorkInstructionDetail = async (req, res) => {
 
     const existingInstruction = await prisma.workInstruction.findFirst({
       where: {
-        processId: processId,
-        productId: productId,
+        AND: {
+          processId: processId,
+          productId: productId,
+        },
       },
     });
+
+    console.log("existingInstruction", existingInstruction);
 
     if (existingInstruction) {
       return res.status(409).json({
@@ -365,6 +369,7 @@ const createWorkInstructionDetail = async (req, res) => {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const stepId = uuidv4();
+      console.log("stepstep", step);
 
       await prisma.workInstructionSteps.create({
         data: {
