@@ -979,6 +979,7 @@ const selectScheduleProcess = async (req, res) => {
 //     res.status(500).json({ message: "An error occurred on the server." });
 //   }
 // };
+
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1213,6 +1214,145 @@ const completeTraning = async (req, res) => {
 //   }
 // };
 
+const barcodeScan = async (req, res) => {
+  try {
+    const { barcode } = req.body;
+
+    // Assume barcode == part.barcode
+    const part = await prisma.part.findUnique({ where: { barcode } });
+
+    if (!part) {
+      return res.status(404).json({ message: "❌ Invalid barcode" });
+    }
+
+    // Find active order
+    const order = await prisma.stockOrderSchedule.findFirst({
+      where: {
+        part_id: part.id,
+        status: { not: "completed" },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "❌ No active order found" });
+    }
+
+    // Mark order complete (or in progress)
+    const newQty = order.completedQuantity + 1;
+    const status = newQty === order.quantity ? "completed" : "progress";
+
+    await prisma.stockOrderSchedule.update({
+      where: {
+        order_id_part_id: { order_id: order.order_id, part_id: part.id },
+      },
+      data: {
+        completedQuantity: newQty,
+        status,
+        completed_date: status === "completed" ? new Date() : undefined,
+      },
+    });
+
+    res.json({
+      message:
+        status === "completed" ? "✅ Order Completed!" : "✅ Order In Progress",
+    });
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+// Naya controller function
+
+const processBarcodeScan = async (req, res) => {
+  try {
+    // Frontend se humein productionId aur scanned barcode milega.
+    const { id } = req.params; // Yeh productionResponse ka ID hai
+    const { barcode, employeeId } = req.body; // 'barcode' woh unique number hai
+
+    // --- Step 1: Barcode ko database mein dhoondein ---
+    const partInstance = await prisma.stockOrderSchedule.findUnique({
+      where: { barcode: barcode },
+    });
+
+    // Agar barcode database mein nahi mila, toh yeh invalid scan hai.
+    if (!partInstance) {
+      return res
+        .status(404)
+        .json({ message: "Invalid Barcode. Part not found." });
+    }
+
+    // --- Step 2: Check karein ki part pehle se complete ya scrap toh nahi hai ---
+    if (
+      partInstance.status === "COMPLETED" ||
+      partInstance.status === "SCRAPPED"
+    ) {
+      return res.status(409).json({
+        message: `This part (${barcode}) has already been processed.`,
+      });
+    }
+
+    // --- Step 3: Ab humein orderId aur partId mil gaya hai ---
+    const { orderId, partId } = partInstance;
+
+    // --- Step 4: Yahan par aapka 'completeScheduleOrder' wala logic aayega ---
+    // Humne logic ko yahan copy-paste kar liya hai
+
+    // ProductionResponse ko update karein
+    await prisma.productionResponse.update({
+      where: { id },
+      data: {
+        quantity: true,
+        scrap: false,
+        cycleTimeEnd: new Date(),
+      },
+    });
+
+    // StockOrderSchedule ko dhoondein aur update karein
+    const orderSchedule = await prisma.stockOrderSchedule.findUnique({
+      where: { order_id_part_id: { order_id: orderId, part_id: partId } },
+    });
+
+    if (!orderSchedule) {
+      return res
+        .status(404)
+        .json({ message: "Stock order schedule not found for this part." });
+    }
+
+    const newCompletedQty = (orderSchedule.completedQuantity || 0) + 1;
+    const updatedStatus =
+      newCompletedQty === orderSchedule.quantity ? "completed" : "progress";
+
+    await prisma.stockOrderSchedule.update({
+      where: { order_id_part_id: { order_id: orderId, part_id: partId } },
+      data: {
+        completedQuantity: newCompletedQty,
+        completed_date: updatedStatus === "completed" ? new Date() : undefined,
+        status: updatedStatus,
+      },
+    });
+
+    // Employee ki quantity update karein
+    await prisma.productionResponse.updateMany({
+      where: { id, stationUserId: employeeId, partId, orderId },
+      data: { completedQuantity: { increment: 1 } },
+    });
+
+    // --- Step 5: PartInstance ka status update karein taaki dobara scan na ho ---
+    await prisma.partInstance.update({
+      where: { id: partInstance.id },
+      data: { status: "COMPLETED" },
+    });
+
+    // --- Step 6: Frontend ko success message bhejein ---
+    return res.status(200).json({
+      message: "Part completed successfully!",
+      status: updatedStatus,
+    });
+  } catch (error) {
+    console.error("Error processing barcode scan:", error);
+    res.status(500).json({ message: "An error occurred on the server." });
+  }
+};
 module.exports = {
   stationLogin,
   stationLogout,
@@ -1224,4 +1364,6 @@ module.exports = {
   updateStepTime,
   completeTraning,
   scrapScheduleOrder,
+  barcodeScan,
+  processBarcodeScan,
 };

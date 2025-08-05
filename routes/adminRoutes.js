@@ -111,6 +111,7 @@ const {
   updateStepTime,
   completeTraning,
   scrapScheduleOrder,
+  processBarcodeScan,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -346,5 +347,5 @@ router.put("/complete-order/:id", completeScheduleOrder);
 router.put("/production-response/:id/update-step-time", updateStepTime);
 router.put("/complete-traning/:id", completeTraning);
 router.put("/scrap-order/:id", scrapScheduleOrder);
-
+router.post("/production/:id/scan", processBarcodeScan);
 module.exports = router;

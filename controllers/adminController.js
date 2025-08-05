@@ -1331,8 +1331,22 @@ const createStockOrder = async (req, res) => {
       customerName,
       customerPhone,
     } = req.body;
+    const existingOrder = await prisma.stockOrder.findFirst({
+      where: {
+        customerId,
+        partId: productId,
+        shipDate,
+        isDeleted: false,
+      },
+    });
 
-    const newStockOrder = await prisma.stockOrder.create({
+    if (existingOrder) {
+      return res.status(400).json({
+        message:
+          "This product is already added for the selected customer on this date.",
+      });
+    }
+    await prisma.stockOrder.create({
       data: {
         orderNumber,
         orderDate,
@@ -1354,9 +1368,13 @@ const createStockOrder = async (req, res) => {
       },
     });
 
-    res.status(201).json(newStockOrder);
+    res.status(201).json({
+      message: "Stock order added successfully !",
+    });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res
+      .status(500)
+      .json({ error: "Something went wrong . please try again later ." });
   }
 };
 
@@ -2678,6 +2696,12 @@ const selectProductNumberForStockOrder = async (req, res) => {
         isDeleted: false,
         type: "product",
         processOrderRequired: true,
+        stockOrders: {
+          none: {
+            status: "scheduled",
+            isDeleted: false,
+          },
+        },
       },
       orderBy: {
         partNumber: "asc",
@@ -2823,6 +2847,9 @@ const searchStockOrders = async (req, res) => {
     }
     const whereClause = {
       isDeleted: false,
+      status: {
+        not: "scheduled",
+      },
     };
     if (customerName) {
       whereClause.customer = {
@@ -2850,15 +2877,14 @@ const searchStockOrders = async (req, res) => {
       orderBy: {
         createdAt: "desc",
       },
+
       include: {
         customer: true,
-
         part: {
           include: {
             components: {
               select: {
                 partQuantity: true,
-
                 part: {
                   select: {
                     part_id: true,
@@ -2874,6 +2900,11 @@ const searchStockOrders = async (req, res) => {
         },
       },
     });
+
+    console.log("ordersorders", orders);
+
+    const data = await prisma.stockOrderSchedule.findFirst({});
+
     if (orders.length === 0) {
       return res.status(200).json({
         message: "No stock orders found matching your criteria.",
@@ -3124,32 +3155,61 @@ const searchStockOrders = async (req, res) => {
 //     });
 //   }
 // };
-
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
     const allPrismaPromises = [];
+    // This variable is needed outside the loop for the final update
+    let lastOrderId;
+
     for (const order of ordersToSchedule) {
+      // De-structure order_id so we can use it in the upsert `where` clause
       const { order_id, product_id, quantity, delivery_date, status } = order;
+      lastOrderId = order_id; // Keep track of the order ID being processed
+
       if (product_id) {
         const bomEntries = await prisma.productTree.findMany({
           where: { product_id: product_id },
           include: { part: { include: { process: true } } },
         });
+
         const componentSchedulePromises = bomEntries.map((entry) => {
-          const dataForThisComponent = {
+          // Data for creating a new schedule entry
+          const createData = {
             delivery_date: new Date(delivery_date),
-            submittedBy: { connect: { id: req.user.id } },
             quantity: quantity,
+            status: status,
+            completed_date: null,
+            submittedBy: { connect: { id: req.user.id } },
             order: { connect: { id: order_id } },
             part: { connect: { part_id: entry.part.part_id } },
             process: { connect: { id: entry.part.processId } },
+          };
+
+          // Data for updating an existing schedule entry
+          // We only update fields that might change on a re-schedule.
+          // We don't need to re-connect relations like order, part, etc.
+          const updateData = {
+            delivery_date: new Date(delivery_date),
+            quantity: quantity,
             status: status,
+            // You might want to reset the completion date on a re-schedule
             completed_date: null,
           };
 
-          return prisma.stockOrderSchedule.create({
-            data: dataForThisComponent,
+          // --- THIS IS THE KEY CHANGE ---
+          // Replace `create` with `upsert`
+          return prisma.stockOrderSchedule.upsert({
+            where: {
+              // This must match the @@unique constraint in your schema.prisma
+              // The default name is modelName_field1_field2_key
+              order_id_part_id: {
+                order_id: order_id,
+                part_id: entry.part.part_id,
+              },
+            },
+            update: updateData,
+            create: createData,
           });
         });
         allPrismaPromises.push(...componentSchedulePromises);
@@ -3157,16 +3217,31 @@ const stockOrderSchedule = async (req, res) => {
     }
 
     if (allPrismaPromises.length > 0) {
+      // The transaction will now run a series of upserts, which is safe.
       const newSchedules = await prisma.$transaction(allPrismaPromises);
+      console.log("lastOrderIdlastOrderId", lastOrderId);
+
+      // Update the status of the main order
+      // Note: I changed `order_id` to `lastOrderId` to ensure it uses the correct ID from the loop.
+      await prisma.stockOrder.updateMany({
+        where: {
+          id: lastOrderId,
+          isDeleted: false,
+        },
+        data: {
+          status: "scheduled", // Changed to "scheduled" for clarity
+        },
+      });
 
       return res.status(201).json({
-        message: `Successfully scheduled ${newSchedules.length} new items.`,
+        message: `Successfully scheduled or updated ${newSchedules.length} items.`,
         data: newSchedules,
       });
     } else {
       return res.status(200).json({ message: "No new items to schedule." });
     }
   } catch (error) {
+    // This will no longer be a P2002 error for this reason
     console.error("Error during batch scheduling:", error);
     return res.status(500).json({
       message: "Something went wrong during scheduling.",

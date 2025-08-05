@@ -446,6 +446,7 @@ model StockOrderSchedule {
   id                String      @id @default(uuid()) @db.Char(36)
   order_id          String      @db.Char(36)
   part_id           String?     @db.Char(36)
+  barcode           String      @unique
   quantity          Int?
   completedQuantity Int?        @default(0)
   scrapQuantity     Int?        @default(0)
