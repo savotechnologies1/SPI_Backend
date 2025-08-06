@@ -788,7 +788,8 @@ const editProcess = async (req, res) => {
       partFamily,
       cycleTime,
       ratePerHour,
-      orderNeeded,
+      processDesc,
+      isProcessReq,
     } = req.body;
     prisma.process
       .update({
@@ -800,10 +801,11 @@ const editProcess = async (req, res) => {
         data: {
           processName: processName,
           machineName: machineName,
+          processDesc: processDesc,
           partFamily: partFamily,
           cycleTime: cycleTime,
           ratePerHour: ratePerHour,
-          orderNeeded: Boolean(orderNeeded),
+          isProcessReq: Boolean(isProcessReq),
         },
       })
       .then();
@@ -1340,6 +1342,25 @@ const createStockOrder = async (req, res) => {
       },
     });
 
+    const product = await prisma.partNumber.findUnique({
+      where: {
+        part_id: productId,
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found.",
+      });
+    }
+
+    if (parseInt(productQuantity, 10) > (product.availStock || 0)) {
+      return res.status(400).json({
+        message: `Only ${
+          product.availStock || 0
+        } units are available in stock.`,
+      });
+    }
     if (existingOrder) {
       return res.status(400).json({
         message:
@@ -1742,6 +1763,8 @@ const createProductNumber = async (req, res) => {
       message: "Product number and parts added successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     // try {
     //   const fileData = await fileUploadFunc(req, res);
     //   const getPartImages = fileData?.data?.filter(
@@ -2136,6 +2159,7 @@ const partNumberDetail = async (req, res) => {
         process: true,
         processId: true,
         supplierOrderQty: true,
+        availStock: true,
         cycleTime: true,
       },
     });
@@ -3159,22 +3183,16 @@ const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
     const allPrismaPromises = [];
-    // This variable is needed outside the loop for the final update
     let lastOrderId;
-
     for (const order of ordersToSchedule) {
-      // De-structure order_id so we can use it in the upsert `where` clause
       const { order_id, product_id, quantity, delivery_date, status } = order;
-      lastOrderId = order_id; // Keep track of the order ID being processed
-
+      lastOrderId = order_id;
       if (product_id) {
         const bomEntries = await prisma.productTree.findMany({
           where: { product_id: product_id },
           include: { part: { include: { process: true } } },
         });
-
         const componentSchedulePromises = bomEntries.map((entry) => {
-          // Data for creating a new schedule entry
           const createData = {
             delivery_date: new Date(delivery_date),
             quantity: quantity,
@@ -3185,24 +3203,14 @@ const stockOrderSchedule = async (req, res) => {
             part: { connect: { part_id: entry.part.part_id } },
             process: { connect: { id: entry.part.processId } },
           };
-
-          // Data for updating an existing schedule entry
-          // We only update fields that might change on a re-schedule.
-          // We don't need to re-connect relations like order, part, etc.
           const updateData = {
             delivery_date: new Date(delivery_date),
             quantity: quantity,
             status: status,
-            // You might want to reset the completion date on a re-schedule
             completed_date: null,
           };
-
-          // --- THIS IS THE KEY CHANGE ---
-          // Replace `create` with `upsert`
           return prisma.stockOrderSchedule.upsert({
             where: {
-              // This must match the @@unique constraint in your schema.prisma
-              // The default name is modelName_field1_field2_key
               order_id_part_id: {
                 order_id: order_id,
                 part_id: entry.part.part_id,
@@ -3217,19 +3225,14 @@ const stockOrderSchedule = async (req, res) => {
     }
 
     if (allPrismaPromises.length > 0) {
-      // The transaction will now run a series of upserts, which is safe.
       const newSchedules = await prisma.$transaction(allPrismaPromises);
-      console.log("lastOrderIdlastOrderId", lastOrderId);
-
-      // Update the status of the main order
-      // Note: I changed `order_id` to `lastOrderId` to ensure it uses the correct ID from the loop.
       await prisma.stockOrder.updateMany({
         where: {
           id: lastOrderId,
           isDeleted: false,
         },
         data: {
-          status: "scheduled", // Changed to "scheduled" for clarity
+          status: "scheduled",
         },
       });
 
@@ -3241,7 +3244,6 @@ const stockOrderSchedule = async (req, res) => {
       return res.status(200).json({ message: "No new items to schedule." });
     }
   } catch (error) {
-    // This will no longer be a P2002 error for this reason
     console.error("Error during batch scheduling:", error);
     return res.status(500).json({
       message: "Something went wrong during scheduling.",
@@ -3682,6 +3684,165 @@ const deleteSupplierOrder = async (req, res) => {
 //     });
 //   }
 // };
+const validateStockQty = async (req, res) => {
+  const { productId, quantity } = req.body;
+
+  if (!productId || !quantity) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Product ID and quantity required." });
+  }
+
+  try {
+    // Get the product info
+    const product = await prisma.product.findFirst({
+      where: { id: productId },
+      select: {
+        minStock: true,
+        availStock: true,
+      },
+    });
+
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found." });
+    }
+
+    const { minStock, availStock } = product;
+
+    // Validation
+    if (quantity % minStock !== 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Quantity must be a multiple of ${minStock}.`,
+      });
+    }
+
+    if (quantity > availStock) {
+      return res.status(400).json({
+        success: false,
+        message: `Quantity cannot be more than available stock (${availStock}).`,
+      });
+    }
+
+    // Valid quantity
+    const maxAddableQty = Math.floor(availStock / minStock) * minStock;
+
+    return res.status(200).json({
+      success: true,
+      message: `✅ Available quantity: ${availStock}. You can add maximum ${maxAddableQty}.`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+// const createSchedule = async () => {
+//   return prisma.s$transaction(async (tx) => {
+//     for (const payload of payloads) {
+//       // Step 1: Naya StockOrderSchedule record banayein
+//       await tx.stockOrderSchedule.create({
+//         data: {
+//           quantity: payload.quantity,
+//           deliveryDate: new Date(payload.delivery_date),
+//           status: "Scheduled",
+//           stockOrder: { connect: { id: payload.order_id } },
+//           part: { connect: { part_id: payload.product_id } },
+//           customer: { connect: { id: payload.customersId } },
+//         },
+//       });
+
+//       // Step 2: Original StockOrder ka status update karein (Optional, but good practice)
+//       await tx.stockOrder.update({
+//         where: { id: payload.order_id },
+//         data: { status: "Scheduled" },
+//       });
+
+//       // Step 3: Raw materials (components) ka stock kam karein
+//       // Pehle, is product ke saare components (BOM) nikalen
+//       const components = await tx.productTree.findMany({
+//         where: { product_id: payload.product_id }, // product_id is the parent product
+//       });
+
+//       if (components.length === 0) {
+//         // Agar product ka BOM define nahi hai, to aage badh sakte hain
+//         console.log(
+//           `Product ${payload.product_id} has no components in BOM. Skipping stock deduction.`
+//         );
+//         continue;
+//       }
+
+//       for (const component of components) {
+//         if (!component.part_id) continue;
+
+//         const quantityToDeduct = payload.quantity * component.partQuantity;
+
+//         // Stock deduct karne se pehle check karein ki sufficient stock hai ya nahi
+//         const componentPart = await tx.partNumber.findUnique({
+//           where: { part_id: component.part_id },
+//         });
+
+//         if (
+//           !componentPart ||
+//           (componentPart.availStock ?? 0) < quantityToDeduct
+//         ) {
+//           // Agar stock kam hai, to transaction fail ho jayegi
+//           throw new Error(
+//             `Insufficient stock for part ${
+//               componentPart?.partNumber || component.part_id
+//             }. Required: ${quantityToDeduct}, Available: ${
+//               componentPart?.availStock ?? 0
+//             }`
+//           );
+//         }
+
+//         // Stock deduct karein
+//         await tx.partNumber.update({
+//           where: { part_id: component.part_id },
+//           data: {
+//             availStock: {
+//               decrement: quantityToDeduct,
+//             },
+//           },
+//         });
+//       }
+//     }
+//   });
+// };
+
+const checkStockQuantity = async (req, res) => {
+  try {
+    const { productId, quantity } = req.body;
+
+    const data = await prisma.productTree.findFirst({
+      where: {
+        product_id: true,
+      },
+    });
+    const partId = data.part_id;
+
+    console.log(partId);
+
+    return res.status(200).json({
+      message: "Stock quantity ",
+    });
+  } catch (error) {}
+};
+
+const addScrapEntries = async (req, res) => {
+  try {
+    const { partId, productId, scrapStatus, returnQuantity } = req.body;
+    console.log("req.body", req.body);
+    return res.status(201).json({
+      message: "This quantity successfully added into scrap entries.",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
 
 module.exports = {
   login,
@@ -3749,4 +3910,7 @@ module.exports = {
   getAllSupplierOrder,
   updateSupplierOrder,
   deleteSupplierOrder,
+  validateStockQty,
+  checkStockQuantity,
+  addScrapEntries,
 };

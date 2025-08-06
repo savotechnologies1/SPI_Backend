@@ -63,6 +63,8 @@ const {
   sendMailToEmplyee,
   stockOrderSchedule,
   scheduleStockOrdersList,
+  getStockAvailability,
+  validateStockQty,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -348,4 +350,7 @@ router.put("/production-response/:id/update-step-time", updateStepTime);
 router.put("/complete-traning/:id", completeTraning);
 router.put("/scrap-order/:id", scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
+// routes/stock.js
+router.post("/validate-stock-quantity", validateStockQty);
+
 module.exports = router;
