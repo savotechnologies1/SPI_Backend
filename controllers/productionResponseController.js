@@ -1124,6 +1124,9 @@ const scrapScheduleOrder = async (req, res) => {
         scrapQuantity: {
           increment: 1,
         },
+        quantity: {
+          decrement: 1,
+        },
       },
     });
 
@@ -1410,14 +1413,11 @@ const scrapEntry = async (req, res) => {
     const {
       type,
       partId,
-      productId,
       returnQuantity,
       scrapStatus,
       supplierId,
       returnSupplierQty,
       createdBy,
-      processId,
-      suppliersId,
     } = req.body;
 
     if (!type) {
