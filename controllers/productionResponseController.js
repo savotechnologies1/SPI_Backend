@@ -1404,6 +1404,203 @@ const deleteScheduleOrder = async (req, res) => {
     });
   }
 };
+
+const scrapEntry = async (req, res) => {
+  try {
+    const {
+      type,
+      partId,
+      productId,
+      returnQuantity,
+      scrapStatus,
+      supplierId,
+      returnSupplierQty,
+      createdBy,
+      processId,
+      suppliersId,
+    } = req.body;
+
+    if (!type) {
+      return res.status(400).json({ error: "Type is required" });
+    }
+
+    const newEntry = await prisma.scapEntries.create({
+      data: {
+        type,
+        partId: partId,
+        productId: req?.body?.productId,
+        returnQuantity: returnQuantity,
+        scrapStatus: scrapStatus === "yes" ? true : false,
+        createdBy,
+        processId: req?.body?.processId,
+        supplierId,
+        returnSupplierQty,
+      },
+    });
+
+    return res
+      .status(201)
+      .json({ message: "Scrap entry created", data: newEntry });
+  } catch (error) {
+    console.error("Error creating scap entry:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const completeScheduleOrderViaGet = async (req, res) => {
+  try {
+    const { id, orderId, partId, employeeId, productId } = req.query;
+
+    if (!id || !orderId || !partId || !employeeId || !productId) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    await prisma.productionResponse.update({
+      where: { id },
+      data: {
+        quantity: true,
+        scrap: false,
+        cycleTimeEnd: new Date(),
+      },
+    });
+
+    const orderSchedule = await prisma.stockOrderSchedule.findUnique({
+      where: {
+        order_id_part_id: {
+          order_id: orderId,
+          part_id: partId,
+        },
+      },
+    });
+
+    if (!orderSchedule) {
+      return res
+        .status(404)
+        .json({ message: "Stock order schedule not found." });
+    }
+
+    const { completedQuantity = 0, quantity } = orderSchedule;
+    if (completedQuantity >= quantity) {
+      return res.status(400).json({
+        message: "Order is already fully completed.",
+        status: "completed",
+      });
+    }
+
+    const newCompletedQty = completedQuantity + 1;
+    const updatedStatus =
+      newCompletedQty === quantity ? "completed" : "progress";
+
+    await prisma.stockOrderSchedule.update({
+      where: {
+        order_id_part_id: {
+          order_id: orderId,
+          part_id: partId,
+        },
+      },
+      data: {
+        completedQuantity: newCompletedQty,
+        completed_date: newCompletedQty === quantity ? new Date() : undefined,
+        status: updatedStatus,
+      },
+    });
+
+    if (updatedStatus === "progress") {
+      await prisma.partNumber.update({
+        where: { part_id: partId },
+        data: {
+          availStock: { decrement: 1 },
+        },
+      });
+    }
+
+    if (updatedStatus === "completed") {
+      await prisma.partNumber.update({
+        where: { part_id: productId },
+        data: {
+          availStock: { increment: 1 },
+        },
+      });
+    }
+
+    await prisma.productionResponse.updateMany({
+      where: {
+        id,
+        stationUserId: employeeId,
+        partId: partId,
+        orderId: orderId,
+      },
+      data: {
+        completedQuantity: { increment: 1 },
+      },
+    });
+
+    return res.status(200).json({
+      message:
+        updatedStatus === "completed"
+          ? "Order scheduling completed."
+          : "This order has been added as completed.",
+      status: updatedStatus,
+    });
+  } catch (error) {
+    console.error("GET Scan Complete Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const allScrapEntires = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.scapEntries.findMany({
+        where: {
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        include: {
+          PartNumber: {
+            select: {
+              part_id: true,
+              partNumber: true,
+            },
+          },
+          supplier: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      prisma.scapEntries.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Part number retrieved successfully!",
+      data: allProcess,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.log("error", error);
+
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   stationLogin,
   stationLogout,
@@ -1418,4 +1615,8 @@ module.exports = {
   barcodeScan,
   processBarcodeScan,
   deleteScheduleOrder,
+  completeScheduleOrderViaGet,
+  completeScheduleOrderViaGet,
+  scrapEntry,
+  allScrapEntires,
 };

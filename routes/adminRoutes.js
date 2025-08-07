@@ -115,6 +115,9 @@ const {
   scrapScheduleOrder,
   processBarcodeScan,
   deleteScheduleOrder,
+  completeScheduleOrderViaGet,
+  scrapEntry,
+  allScrapEntires,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -353,4 +356,8 @@ router.put("/scrap-order/:id", scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
 router.post("/validate-stock-quantity", validateStockQty);
 router.patch("/delete-schedule-order", deleteScheduleOrder);
+router.get("/scan-complete", completeScheduleOrderViaGet);
+router.post("/add-scrap-entry", scrapEntry);
+router.get("/all-scrap-entry", allScrapEntires);
+
 module.exports = router;

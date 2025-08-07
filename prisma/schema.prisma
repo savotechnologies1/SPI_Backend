@@ -122,10 +122,8 @@ model suppliers {
   createdAt    DateTime? @default(now()) @db.DateTime(0)
   updatedAt    DateTime? @default(now()) @db.DateTime(0)
 
-  orders              supplier_orders[]
-  scapEntriesSupplier scapEntries[]     @relation("Supplier")
-  scapEntriesReturn   scapEntries[]     @relation("ReturnSupplier")
-  scapEntries         scapEntries[]
+  orders      supplier_orders[]
+  scapEntries scapEntries[]
 }
 
 model supplier_orders {
@@ -568,22 +566,21 @@ model ProcessOrderTable {
 }
 
 model scapEntries {
-  id             String     @id @default(uuid()) @db.Char(36)
-  partId         String?    @db.Char(36)
-  processId      String?    @db.Char(36)
-  productId      String     @db.Char(36)
-  returnQuantity Int?       @default(0)
-  scrapStatus    Boolean?   @default(false)
-  createdBy      String?    @db.Char(36)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  isDeleted      Boolean    @default(false)
-  type           String?    @db.VarChar(36)
-  Supplier       suppliers? @relation("Supplier", fields: [supplierId], references: [id])
-  supplierId     String?    @db.VarChar(100)
+  id               String   @id @default(uuid()) @db.Char(36)
+  partId           String?  @db.Char(36)
+  processId        String?  @db.Char(36)
+  productId        String?  @db.Char(36)
+  returnQuantity   Int?     @default(0)
+  scrapStatus      Boolean? @default(false)
+  createdBy        String?  @db.Char(36)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  isDeleted        Boolean  @default(false)
+  type             String?  @db.VarChar(36)
+  returnSupplierId String?  @db.VarChar(100)
 
-  ReturnSupplier   suppliers? @relation("ReturnSupplier", fields: [returnSupplierId], references: [id])
-  returnSupplierId String?    @db.VarChar(100)
+  supplierId String?    @db.VarChar(100) // Renamed from suppliersId
+  supplier   suppliers? @relation(fields: [supplierId], references: [id])
 
   PartNumber             PartNumber?              @relation(fields: [partId], references: [part_id])
   customers              customers?               @relation(fields: [customersId], references: [id])
@@ -594,8 +591,6 @@ model scapEntries {
   StockOrder             StockOrder?              @relation(fields: [stockOrderId], references: [id])
   stockOrderId           String?                  @db.Char(36)
   ProductionStepTracking ProductionStepTracking[]
-  suppliers              suppliers?               @relation(fields: [suppliersId], references: [id])
-  suppliersId            String?                  @db.VarChar(100)
 
   @@index([processId], map: "ScapEntries_processId_fkey")
   @@index([partId], map: "ScapEntries_partId_fkey")

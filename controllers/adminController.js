@@ -657,12 +657,13 @@ const addProcess = async (req, res) => {
       cycleTime,
       partFamily,
       processDesc,
-      orderNeeded,
+      isProcessReq,
     } = req.body;
 
     const trimmedProcessName = processName.trim();
     const checkExistingProcess = await prisma.process.findFirst({
       where: {
+        isDeleted: false,
         processName: {
           equals: trimmedProcessName,
         },
@@ -685,7 +686,8 @@ const addProcess = async (req, res) => {
         partFamily: partFamily.trim(),
         processDesc: processDesc.trim(),
         cycleTime: cycleTime.trim(),
-        orderNeeded: Boolean(orderNeeded),
+        isProcessReq: Boolean(isProcessReq),
+        orderNeeded: Boolean(isProcessReq),
         createdBy: req.user?.id,
       },
     });
@@ -694,6 +696,8 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
+    console.log("error", error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -788,30 +792,47 @@ const editProcess = async (req, res) => {
       processDesc,
       isProcessReq,
     } = req.body;
-    prisma.process
-      .update({
-        where: {
-          id: id,
-          isDeleted: false,
-          createdBy: req.user.id,
-        },
-        data: {
-          processName: processName,
-          machineName: machineName,
-          processDesc: processDesc,
-          partFamily: partFamily,
-          cycleTime: cycleTime,
-          ratePerHour: ratePerHour,
-          isProcessReq: Boolean(isProcessReq),
-        },
-      })
-      .then();
+
+    const trimmedProcessName = processName.trim();
+
+    const checkExistingProcess = await prisma.process.findFirst({
+      where: {
+        processName: trimmedProcessName,
+        isDeleted: false,
+      },
+    });
+
+    // ✅ If process name already exists AND it's not the same process we are editing
+    if (checkExistingProcess && checkExistingProcess.id !== id) {
+      return res.status(400).json({
+        message: "Process name already exists.",
+      });
+    }
+
+    await prisma.process.update({
+      where: {
+        id: id,
+        isDeleted: false,
+        createdBy: req.user.id,
+      },
+      data: {
+        processName: trimmedProcessName,
+        machineName,
+        processDesc,
+        partFamily,
+        cycleTime,
+        ratePerHour,
+        isProcessReq: Boolean(isProcessReq),
+      },
+    });
+
     return res.status(200).json({
-      message: "Process edit successfully !",
+      message: "Process updated successfully!",
     });
   } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+    console.error("Error in editProcess:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
@@ -3949,20 +3970,6 @@ const checkStockQuantity = async (req, res) => {
   } catch (error) {}
 };
 
-const addScrapEntries = async (req, res) => {
-  try {
-    const { partId, productId, scrapStatus, returnQuantity } = req.body;
-    console.log("req.body", req.body);
-    return res.status(201).json({
-      message: "This quantity successfully added into scrap entries.",
-    });
-  } catch (error) {
-    return res.status(500).send({
-      message: "Something went wrong . please try again later .",
-    });
-  }
-};
-
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -4031,5 +4038,4 @@ module.exports = {
   deleteSupplierOrder,
   validateStockQty,
   checkStockQuantity,
-  addScrapEntries,
 };
