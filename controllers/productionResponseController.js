@@ -485,6 +485,7 @@ const getScheduleProcessInformation = async (req, res) => {
             id: true,
             orderNumber: true,
             productQuantity: true,
+            partId: true,
             shipDate: true,
             createdAt: true,
           },
@@ -983,7 +984,7 @@ const selectScheduleProcess = async (req, res) => {
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { orderId, partId, employeeId } = req.body;
+    const { orderId, partId, employeeId, productId } = req.body;
 
     await prisma.productionResponse.update({
       where: { id },
@@ -1034,7 +1035,32 @@ const completeScheduleOrder = async (req, res) => {
         status: updatedStatus,
       },
     });
+    console.log("updatedStatusupdatedStatus", updatedStatus);
 
+    if (updatedStatus === "progress") {
+      await prisma.partNumber.update({
+        where: {
+          part_id: partId,
+        },
+        data: {
+          availStock: {
+            decrement: 1,
+          },
+        },
+      });
+    }
+    if (updatedStatus === "completed") {
+      await prisma.partNumber.update({
+        where: {
+          part_id: productId,
+        },
+        data: {
+          availStock: {
+            increment: 1,
+          },
+        },
+      });
+    }
     await prisma.productionResponse.updateMany({
       where: {
         id,
@@ -1353,6 +1379,31 @@ const processBarcodeScan = async (req, res) => {
     res.status(500).json({ message: "An error occurred on the server." });
   }
 };
+
+const deleteScheduleOrder = async (req, res) => {
+  try {
+    const id = req.params.id;
+    prisma.partNumber
+      .update({
+        where: {
+          id: id,
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+        },
+      })
+      .then();
+
+    return res.status(200).json({
+      message: "Employee delete successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
 module.exports = {
   stationLogin,
   stationLogout,
@@ -1366,4 +1417,5 @@ module.exports = {
   scrapScheduleOrder,
   barcodeScan,
   processBarcodeScan,
+  deleteScheduleOrder,
 };

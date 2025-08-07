@@ -114,6 +114,7 @@ const {
   completeTraning,
   scrapScheduleOrder,
   processBarcodeScan,
+  deleteScheduleOrder,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -350,7 +351,6 @@ router.put("/production-response/:id/update-step-time", updateStepTime);
 router.put("/complete-traning/:id", completeTraning);
 router.put("/scrap-order/:id", scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
-// routes/stock.js
 router.post("/validate-stock-quantity", validateStockQty);
-
+router.patch("/delete-schedule-order", deleteScheduleOrder);
 module.exports = router;

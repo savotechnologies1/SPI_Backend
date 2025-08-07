@@ -582,7 +582,6 @@ const deleteSupplier = async (req, res) => {
         },
       })
       .then();
-
     return res.status(200).json({
       message: "Supplier delete successfully !",
     });
@@ -602,7 +601,6 @@ const selectSupplier = async (req, res) => {
         lastName: true,
       },
     });
-
     const formattedSuppliers = suppliers.map((supplier) => ({
       id: supplier.id,
       name: `${supplier.firstName} ${supplier.lastName}`,
@@ -624,7 +622,6 @@ const supplierOrder = async (req, res) => {
       need_date,
       cost,
     } = req.body;
-    console.log("supplier_idsupplier_id", supplier_id);
 
     const data = await prisma.supplier_orders.create({
       data: {
@@ -2720,12 +2717,12 @@ const selectProductNumberForStockOrder = async (req, res) => {
         isDeleted: false,
         type: "product",
         processOrderRequired: true,
-        stockOrders: {
-          none: {
-            status: "scheduled",
-            isDeleted: false,
-          },
-        },
+        // stockOrders: {
+        //   none: {
+        //     status: "scheduled",
+        //     isDeleted: false,
+        //   },
+        // },
       },
       orderBy: {
         partNumber: "asc",
@@ -3179,6 +3176,8 @@ const searchStockOrders = async (req, res) => {
 //     });
 //   }
 // };
+
+// when only part is  going for processing in production response
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
@@ -3251,6 +3250,126 @@ const stockOrderSchedule = async (req, res) => {
     });
   }
 };
+
+// when product is also going for processing in production response
+
+// const stockOrderSchedule = async (req, res) => {
+//   const ordersToSchedule = req.body;
+
+//   try {
+//     const allPrismaPromises = [];
+//     let lastOrderId;
+
+//     for (const order of ordersToSchedule) {
+//       const { order_id, product_id, quantity, delivery_date, status } = order;
+//       lastOrderId = order_id;
+
+//       // ✅ Step 1: Schedule the product itself
+//       if (product_id) {
+//         // Get product part (for processId, etc.)
+//         const productPart = await prisma.partNumber.findUnique({
+//           where: { part_id: product_id },
+//           include: { process: true },
+//         });
+
+//         if (productPart) {
+//           const productSchedule = prisma.stockOrderSchedule.upsert({
+//             where: {
+//               order_id_part_id: {
+//                 order_id: order_id,
+//                 part_id: product_id,
+//               },
+//             },
+//             update: {
+//               delivery_date: new Date(delivery_date),
+//               quantity: quantity,
+//               status: status,
+//               completed_date: null,
+//             },
+//             create: {
+//               delivery_date: new Date(delivery_date),
+//               quantity: quantity,
+//               status: status,
+//               completed_date: null,
+//               submittedBy: { connect: { id: req.user.id } },
+//               order: { connect: { id: order_id } },
+//               part: { connect: { part_id: product_id } },
+//               process: productPart.processId
+//                 ? { connect: { id: productPart.processId } }
+//                 : undefined,
+//             },
+//           });
+
+//           allPrismaPromises.push(productSchedule);
+//         }
+
+//         // ✅ Step 2: Schedule all BOM components of the product
+//         const bomEntries = await prisma.productTree.findMany({
+//           where: { product_id: product_id },
+//           include: { part: { include: { process: true } } },
+//         });
+
+//         const componentSchedulePromises = bomEntries.map((entry) => {
+//           return prisma.stockOrderSchedule.upsert({
+//             where: {
+//               order_id_part_id: {
+//                 order_id: order_id,
+//                 part_id: entry.part.part_id,
+//               },
+//             },
+//             update: {
+//               delivery_date: new Date(delivery_date),
+//               quantity: quantity,
+//               status: status,
+//               completed_date: null,
+//             },
+//             create: {
+//               delivery_date: new Date(delivery_date),
+//               quantity: quantity,
+//               status: status,
+//               completed_date: null,
+//               submittedBy: { connect: { id: req.user.id } },
+//               order: { connect: { id: order_id } },
+//               part: { connect: { part_id: entry.part.part_id } },
+//               process: entry.part.processId
+//                 ? { connect: { id: entry.part.processId } }
+//                 : undefined,
+//             },
+//           });
+//         });
+
+//         allPrismaPromises.push(...componentSchedulePromises);
+//       }
+//     }
+
+//     if (allPrismaPromises.length > 0) {
+//       const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+//       await prisma.stockOrder.updateMany({
+//         where: {
+//           id: lastOrderId,
+//           isDeleted: false,
+//         },
+//         data: {
+//           status: "scheduled",
+//         },
+//       });
+
+//       return res.status(201).json({
+//         message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+//         data: newSchedules,
+//       });
+//     } else {
+//       return res.status(200).json({ message: "No new items to schedule." });
+//     }
+//   } catch (error) {
+//     console.error("Error during batch scheduling:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong during scheduling.",
+//       error: error.message,
+//     });
+//   }
+// };
 
 // const scheduleStockOrdersList = async (req, res) => {
 //   try {
