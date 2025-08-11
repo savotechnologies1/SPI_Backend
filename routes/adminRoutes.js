@@ -118,6 +118,10 @@ const {
   completeScheduleOrderViaGet,
   scrapEntry,
   allScrapEntires,
+  selectScheudlePartNumber,
+  selectScheudleProductNumber,
+  getScrapEntryById,
+  updateScrapEntry,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -355,9 +359,12 @@ router.put("/complete-traning/:id", completeTraning);
 router.put("/scrap-order/:id", scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
 router.post("/validate-stock-quantity", validateStockQty);
-router.patch("/delete-schedule-order", deleteScheduleOrder);
+router.patch("/delete-schedule-order/:id", deleteScheduleOrder);
 router.get("/scan-complete", completeScheduleOrderViaGet);
 router.post("/add-scrap-entry", scrapEntry);
 router.get("/all-scrap-entry", allScrapEntires);
-
+router.get("/select-schedule-part-number", selectScheudlePartNumber);
+router.get("/select-schedule-product-number", selectScheudleProductNumber);
+router.get("/scrap-entry-detail/:id", getScrapEntryById);
+router.put("/update-scrap-entry/:id", updateScrapEntry);
 module.exports = router;

@@ -1152,6 +1152,7 @@ const sendMailToEmplyee = async (req, res) => {
     });
   }
 };
+
 // const createEmployee = async (req, res) => {
 //   try {
 //     const getId = uuidv4().slice(0, 6);

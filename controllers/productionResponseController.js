@@ -245,6 +245,7 @@ const stationLogout = async (req, res) => {
     });
   }
 };
+
 // const getScheduleProcessInformation = async (req, res) => {
 //   try {
 //     const orderId = req.params.id;
@@ -1247,14 +1248,12 @@ const barcodeScan = async (req, res) => {
   try {
     const { barcode } = req.body;
 
-    // Assume barcode == part.barcode
     const part = await prisma.part.findUnique({ where: { barcode } });
 
     if (!part) {
       return res.status(404).json({ message: "❌ Invalid barcode" });
     }
 
-    // Find active order
     const order = await prisma.stockOrderSchedule.findFirst({
       where: {
         part_id: part.id,
@@ -1266,7 +1265,6 @@ const barcodeScan = async (req, res) => {
       return res.status(404).json({ message: "❌ No active order found" });
     }
 
-    // Mark order complete (or in progress)
     const newQty = order.completedQuantity + 1;
     const status = newQty === order.quantity ? "completed" : "progress";
 
@@ -1290,27 +1288,21 @@ const barcodeScan = async (req, res) => {
   }
 };
 
-// Naya controller function
-
 const processBarcodeScan = async (req, res) => {
   try {
-    // Frontend se humein productionId aur scanned barcode milega.
-    const { id } = req.params; // Yeh productionResponse ka ID hai
-    const { barcode, employeeId } = req.body; // 'barcode' woh unique number hai
+    const { id } = req.params;
+    const { barcode, employeeId } = req.body;
 
-    // --- Step 1: Barcode ko database mein dhoondein ---
     const partInstance = await prisma.stockOrderSchedule.findUnique({
       where: { barcode: barcode },
     });
 
-    // Agar barcode database mein nahi mila, toh yeh invalid scan hai.
     if (!partInstance) {
       return res
         .status(404)
         .json({ message: "Invalid Barcode. Part not found." });
     }
 
-    // --- Step 2: Check karein ki part pehle se complete ya scrap toh nahi hai ---
     if (
       partInstance.status === "COMPLETED" ||
       partInstance.status === "SCRAPPED"
@@ -1320,13 +1312,8 @@ const processBarcodeScan = async (req, res) => {
       });
     }
 
-    // --- Step 3: Ab humein orderId aur partId mil gaya hai ---
     const { orderId, partId } = partInstance;
 
-    // --- Step 4: Yahan par aapka 'completeScheduleOrder' wala logic aayega ---
-    // Humne logic ko yahan copy-paste kar liya hai
-
-    // ProductionResponse ko update karein
     await prisma.productionResponse.update({
       where: { id },
       data: {
@@ -1336,7 +1323,6 @@ const processBarcodeScan = async (req, res) => {
       },
     });
 
-    // StockOrderSchedule ko dhoondein aur update karein
     const orderSchedule = await prisma.stockOrderSchedule.findUnique({
       where: { order_id_part_id: { order_id: orderId, part_id: partId } },
     });
@@ -1360,19 +1346,16 @@ const processBarcodeScan = async (req, res) => {
       },
     });
 
-    // Employee ki quantity update karein
     await prisma.productionResponse.updateMany({
       where: { id, stationUserId: employeeId, partId, orderId },
       data: { completedQuantity: { increment: 1 } },
     });
 
-    // --- Step 5: PartInstance ka status update karein taaki dobara scan na ho ---
     await prisma.partInstance.update({
       where: { id: partInstance.id },
       data: { status: "COMPLETED" },
     });
 
-    // --- Step 6: Frontend ko success message bhejein ---
     return res.status(200).json({
       message: "Part completed successfully!",
       status: updatedStatus,
@@ -1419,30 +1402,52 @@ const scrapEntry = async (req, res) => {
       returnSupplierQty,
       createdBy,
     } = req.body;
-
-    if (!type) {
-      return res.status(400).json({ error: "Type is required" });
-    }
-
-    const newEntry = await prisma.scapEntries.create({
-      data: {
-        type,
-        partId: partId,
-        productId: req?.body?.productId,
-        returnQuantity: returnQuantity,
-        scrapStatus: scrapStatus === "yes" ? true : false,
-        createdBy,
-        processId: req?.body?.processId,
-        supplierId,
-        returnSupplierQty,
-      },
+    const part = await prisma.partNumber.findUnique({
+      where: { part_id: partId },
+      select: { availStock: true },
     });
 
-    return res
-      .status(201)
-      .json({ message: "Scrap entry created", data: newEntry });
+    if (!part) {
+      return res.status(404).json({ error: "Part not found" });
+    }
+    console.log("returnQuantityreturnQuantity", returnQuantity);
+
+    if ((part.availStock ?? 0) < Number(returnQuantity)) {
+      return res
+        .status(400)
+        .json({ error: "Insufficient stock to scrap the requested quantity" });
+    }
+
+    const [newEntry] = await prisma.$transaction([
+      prisma.scapEntries.create({
+        data: {
+          type,
+          partId,
+          productId: req?.body?.productId,
+          returnQuantity,
+          scrapStatus: scrapStatus === "yes",
+          createdBy,
+          processId: req?.body?.processId,
+          supplierId,
+          returnSupplierQty,
+        },
+      }),
+      prisma.partNumber.update({
+        where: { part_id: partId },
+        data: {
+          availStock: {
+            decrement: Number(returnQuantity),
+          },
+        },
+      }),
+    ]);
+
+    return res.status(201).json({
+      message: "Scrap entry created and stock updated",
+      data: newEntry,
+    });
   } catch (error) {
-    console.error("Error creating scap entry:", error);
+    console.error("Error creating scrap entry:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -1547,6 +1552,7 @@ const completeScheduleOrderViaGet = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 const allScrapEntires = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -1632,6 +1638,183 @@ const allScrapEntires = async (req, res) => {
   }
 };
 
+const selectScheudlePartNumber = async (req, res) => {
+  try {
+    const process = await prisma.partNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+      },
+      where: {
+        type: "part",
+        isDeleted: false,
+        usedAsPart: {
+          some: {
+            status: { not: "completed" },
+            isDeleted: false,
+          },
+        },
+      },
+    });
+
+    const formattedProcess = process.map((process) => ({
+      id: process.part_id,
+      partNumber: process.partNumber,
+    }));
+    res.status(200).json({
+      data: formattedProcess,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Something went wrong . please try again later ." });
+  }
+};
+
+const selectScheudleProductNumber = async (req, res) => {
+  try {
+    const process = await prisma.partNumber.findMany({
+      select: {
+        part_id: true,
+        partNumber: true,
+      },
+      where: {
+        type: "product",
+        isDeleted: false,
+        StockOrder_StockOrder_productNumberToPartNumber: {
+          some: {
+            isDeleted: false,
+            status: { equals: "scheduled" },
+          },
+        },
+      },
+    });
+
+    const formattedProcess = process.map((process) => ({
+      id: process.part_id,
+      partNumber: process.partNumber,
+    }));
+    res.status(200).json({
+      data: formattedProcess,
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
+    res
+      .status(500)
+      .json({ message: "Something went wrong . please try again later ." });
+  }
+};
+
+const getScrapEntryById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const entry = await prisma.scapEntries.findUnique({
+      where: { id },
+      include: {
+        PartNumber: {
+          select: {
+            part_id: true,
+            partNumber: true,
+          },
+        },
+        supplier: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!entry) {
+      return res.status(404).json({ error: "Scrap entry not found" });
+    }
+
+    res.status(200).json({ data: entry });
+  } catch (error) {
+    console.error("Error fetching scrap entry:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const updateScrapEntry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      type,
+      partId,
+      returnQuantity,
+      scrapStatus,
+      supplierId,
+      returnSupplierQty,
+      createdBy,
+    } = req.body;
+
+    const existingEntry = await prisma.scapEntries.findUnique({
+      where: { id },
+    });
+
+    if (!existingEntry) {
+      return res.status(404).json({ error: "Scrap entry not found" });
+    }
+
+    const part = await prisma.partNumber.findUnique({
+      where: { part_id: existingEntry.partId },
+      select: { availStock: true },
+    });
+
+    if (!part) {
+      return res.status(404).json({ error: "Part not found" });
+    }
+
+    const oldQty = existingEntry.returnQuantity ?? 0;
+    const newQty = Number(returnQuantity);
+
+    // Calculate what the stock will be after adjustment:
+    // Add back the old quantity, then subtract new quantity
+    const adjustedStock = (part.availStock ?? 0) + oldQty - newQty;
+
+    if (adjustedStock < 0) {
+      return res.status(400).json({
+        error: "Insufficient stock to update scrap by the requested quantity",
+      });
+    }
+
+    const [updatedEntry] = await prisma.$transaction([
+      prisma.scapEntries.update({
+        where: { id },
+        data: {
+          type,
+          partId,
+          productId: req?.body?.productId,
+          returnQuantity: newQty,
+          scrapStatus: scrapStatus === "yes",
+          createdBy,
+          processId: req?.body?.processId,
+          supplierId,
+          returnSupplierQty,
+        },
+      }),
+      prisma.partNumber.update({
+        where: { part_id: existingEntry.partId },
+        data: {
+          availStock: adjustedStock, // set new stock value directly
+        },
+      }),
+    ]);
+
+    res.status(200).json({
+      message: "Scrap entry updated and stock adjusted",
+      data: updatedEntry,
+    });
+  } catch (error) {
+    console.error("Error updating scrap entry:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   stationLogin,
   stationLogout,
@@ -1650,4 +1833,8 @@ module.exports = {
   completeScheduleOrderViaGet,
   scrapEntry,
   allScrapEntires,
+  selectScheudlePartNumber,
+  selectScheudleProductNumber,
+  getScrapEntryById,
+  updateScrapEntry,
 };
