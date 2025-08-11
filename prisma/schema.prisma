@@ -352,7 +352,7 @@ model WorkInstructionSteps {
   workInstructionId      String                   @db.Char(36)
   stepNumber             Int
   title                  String
-  instruction            String
+  instruction            String                   @db.VarChar(2000)
   isDeleted              Boolean                  @default(false)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt

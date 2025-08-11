@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { paginationQuery, pagination } = require("../functions/common");
 
 // const stationLogin = async (req, res) => {
 //   try {
@@ -839,13 +840,12 @@ const getNextJobDetails = async (req, res) => {
       }),
     ]);
 
-    // 3. Combine all the fetched data into a single response object
     const jobDetails = {
       scheduleId: nextJob.id,
       order: orderDetails,
       part: partDetails,
       workInstructions:
-        workInstructions.length > 0 ? workInstructions[0] : null, // Assuming one set of instructions per part/process
+        workInstructions.length > 0 ? workInstructions[0] : null,
     };
 
     return res.status(200).json({
@@ -1547,15 +1547,48 @@ const completeScheduleOrderViaGet = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 const allScrapEntires = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+    const { filterScrap, search } = req.query;
+
+    const condition = {
+      isDeleted: false,
+    };
+
+    if (filterScrap && filterScrap.toLowerCase() !== "all") {
+      condition.type = filterScrap;
+    }
+
+    if (search) {
+      condition.OR = [
+        {
+          supplier: {
+            firstName: {
+              contains: search,
+            },
+          },
+        },
+        {
+          supplier: {
+            lastName: {
+              contains: search,
+            },
+          },
+        },
+        {
+          PartNumber: {
+            partNumber: {
+              contains: search,
+            },
+          },
+        },
+      ];
+    }
+
     const [allProcess, totalCount] = await Promise.all([
       prisma.scapEntries.findMany({
-        where: {
-          isDeleted: false,
-        },
+        where: condition,
         skip: paginationData.skip,
         take: paginationData.pageSize,
         include: {
@@ -1574,9 +1607,7 @@ const allScrapEntires = async (req, res) => {
         },
       }),
       prisma.scapEntries.count({
-        where: {
-          isDeleted: false,
-        },
+        where: condition,
       }),
     ]);
 
