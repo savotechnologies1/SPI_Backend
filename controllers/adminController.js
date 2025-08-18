@@ -610,43 +610,122 @@ const selectSupplier = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const supplierOrder = async (req, res) => {
   try {
     const {
       order_number,
       order_date,
       supplier_id,
-      part_id,
       quantity,
       need_date,
-      cost,
+      createdBy,
+      part_id,
     } = req.body;
 
-    const data = await prisma.supplier_orders.create({
-      data: {
-        order_number: order_number,
-        order_date: order_date,
-        supplier_id: supplier_id,
-        part_id: part_id,
-        quantity: quantity,
-        need_date: need_date,
-        cost: cost,
-        createdBy: req.user.id,
+    // 1️⃣ Part details fetch karo
+    const partDetails = await prisma.partNumber.findUnique({
+      where: { part_id },
+      select: {
+        minStock: true,
+        availStock: true,
+        cost: true,
+        processOrderRequired: true,
       },
     });
 
-    return res.status(201).json({
-      message: "Order added successfully !",
-    });
-  } catch (error) {
-    console.log("errorerror", error);
+    if (!partDetails) {
+      return res.status(404).json({ message: "Part not found" });
+    }
 
-    return res.status(500).send({
-      message: "Something went wrong . please try again later.",
+    // 2️⃣ Supplier Order Create karo
+    const newOrder = await prisma.supplier_orders.create({
+      data: {
+        order_number,
+        order_date,
+        supplier_id,
+        quantity,
+        need_date,
+        createdBy,
+        part_id,
+        cost: partDetails.cost,
+      },
     });
+
+    // 3️⃣ Agar processOrderRequired = false hai to Inventory Update karo
+    if (!partDetails.processOrderRequired) {
+      await prisma.supplier_inventory.upsert({
+        where: { part_id },
+        update: {
+          minStock: partDetails.minStock,
+          availStock: partDetails.availStock,
+          cost: partDetails.cost,
+          supplier_id,
+        },
+        create: {
+          part_id,
+          minStock: partDetails.minStock,
+          availStock: partDetails.availStock,
+          cost: partDetails.cost,
+          supplier_id,
+        },
+      });
+    }
+
+    res.status(201).json({ message: "Supplier order created", newOrder });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
+// const supplierOrder = async (req, res) => {
+//   try {
+//     const {
+//       order_number,
+//       order_date,
+//       supplier_id,
+//       part_id,
+//       quantity,
+//       need_date,
+//       cost,
+//     } = req.body;
+
+//     const partDetails = await prisma.partNumber.findUnique({
+//       where: { part_id },
+//       select: { minStock: true, availStock: true, cost: true },
+//     });
+
+//     if (!partDetails) {
+//       return res.status(404).json({ message: "Part not found" });
+//     }
+
+//     // 2️⃣ Supplier order create karo with auto-filled fields
+//     const newOrder = await prisma.supplier_orders.create({
+//       data: {
+//         order_number,
+//         order_date,
+//         supplier_id,
+//         quantity,
+//         need_date,
+//         createdBy,
+//         part_id,
+//         cost: partDetails.cost, // cost from PartNumber
+//         minStock: partDetails.minStock, // new field in supplier_orders
+//         availStock: partDetails.availStock,
+//       },
+//     });
+
+//     return res.status(201).json({
+//       message: "Order added successfully !",
+//     });
+//   } catch (error) {
+//     console.log("errorerror", error);
+
+//     return res.status(500).send({
+//       message: "Something went wrong . please try again later.",
+//     });
+//   }
+// };
 
 const addProcess = async (req, res) => {
   try {
@@ -659,6 +738,7 @@ const addProcess = async (req, res) => {
       processDesc,
       isProcessReq,
     } = req.body;
+    console.log("isProcessReqisProcessReq", isProcessReq);
 
     const trimmedProcessName = processName.trim();
     const checkExistingProcess = await prisma.process.findFirst({
@@ -675,7 +755,7 @@ const addProcess = async (req, res) => {
         message: "Process name already exists.",
       });
     }
-
+    const isProcessRequired = String(isProcessReq).toLowerCase() === "true";
     const getId = uuidv4().slice(0, 6);
     await prisma.process.create({
       data: {
@@ -686,8 +766,8 @@ const addProcess = async (req, res) => {
         partFamily: partFamily.trim(),
         processDesc: processDesc.trim(),
         cycleTime: cycleTime.trim(),
-        isProcessReq: Boolean(isProcessReq),
-        orderNeeded: Boolean(isProcessReq),
+        isProcessReq: Boolean(isProcessRequired),
+        orderNeeded: Boolean(isProcessRequired),
         createdBy: req.user?.id,
       },
     });
@@ -696,8 +776,6 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
-    console.log("error", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -916,8 +994,6 @@ const createEmployee = async (req, res) => {
       message: "Employee added successfully!",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1674,8 +1750,6 @@ const partNumberList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("error", error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -1700,10 +1774,12 @@ const createProductNumber = async (req, res) => {
       availStock,
       cycleTime,
       processOrderRequired,
+      instructionRequired,
       processId,
       processDesc,
       parts = [],
     } = req.body;
+    console.log("processIdprocessId", processId);
 
     const existingPart = await prisma.partNumber.findUnique({
       where: {
@@ -1748,7 +1824,6 @@ const createProductNumber = async (req, res) => {
     console.log("parsedPartsparsedParts", parsedParts);
 
     for (const part of parsedParts) {
-      console.log("partpart", part);
       const componentPart = await prisma.partNumber.findUnique({
         where: {
           part_id: part.part_id,
@@ -1758,13 +1833,13 @@ const createProductNumber = async (req, res) => {
         },
       });
 
-      console.log("componentPartcomponentPart", componentPart);
-
       await prisma.productTree.create({
         data: {
           product_id: getId,
           part_id: part.part_id,
           partQuantity: Number(part.qty),
+          processOrderRequired: processOrderRequired === "true" ? true : false,
+          instructionRequired: instructionRequired === "true",
         },
       });
 
@@ -1774,7 +1849,9 @@ const createProductNumber = async (req, res) => {
           type: "product",
         },
         data: {
-          processOrderRequired: componentPart.processOrderRequired,
+          // processOrderRequired: componentPart.processOrderRequired,
+          processOrderRequired: processOrderRequired === "true" ? true : false,
+          instructionRequired: instructionRequired === "true",
         },
       });
     }
@@ -1782,8 +1859,6 @@ const createProductNumber = async (req, res) => {
       message: "Product number and parts added successfully!",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     // try {
     //   const fileData = await fileUploadFunc(req, res);
     //   const getPartImages = fileData?.data?.filter(
@@ -2376,8 +2451,6 @@ const getSingleProductTree = async (req, res) => {
       },
     });
 
-    console.log("productInfoproductInfo", productInfo);
-
     if (!productInfo) {
       return res.status(404).json({ message: "Product not found!" });
     }
@@ -2625,8 +2698,6 @@ const updateProductNumber = async (req, res) => {
       data: updatedProduct,
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).json({
       message: "Something went wrong while updating the product.",
     });
@@ -2750,7 +2821,6 @@ const selectProductNumberForStockOrder = async (req, res) => {
         partNumber: "asc",
       },
     });
-    console.log("datadata", data);
 
     return res.status(200).json({
       message: "Product number retrived successfully !",
@@ -2923,6 +2993,7 @@ const searchStockOrders = async (req, res) => {
 
       include: {
         customer: true,
+
         part: {
           include: {
             components: {
@@ -2943,8 +3014,6 @@ const searchStockOrders = async (req, res) => {
         },
       },
     });
-
-    console.log("ordersorders", orders);
 
     const data = await prisma.stockOrderSchedule.findFirst({});
 
@@ -3200,138 +3269,37 @@ const searchStockOrders = async (req, res) => {
 // };
 
 // when only part is  going for processing in production response
-const stockOrderSchedule = async (req, res) => {
-  const ordersToSchedule = req.body;
-  try {
-    const allPrismaPromises = [];
-    let lastOrderId;
-    for (const order of ordersToSchedule) {
-      const { order_id, product_id, quantity, delivery_date, status } = order;
-      lastOrderId = order_id;
-      if (product_id) {
-        const bomEntries = await prisma.productTree.findMany({
-          where: { product_id: product_id },
-          include: { part: { include: { process: true } } },
-        });
-        const componentSchedulePromises = bomEntries.map((entry) => {
-          const createData = {
-            delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
-            completed_date: null,
-            submittedBy: { connect: { id: req.user.id } },
-            order: { connect: { id: order_id } },
-            part: { connect: { part_id: entry.part.part_id } },
-            process: { connect: { id: entry.part.processId } },
-          };
-          const updateData = {
-            delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
-            completed_date: null,
-          };
-          return prisma.stockOrderSchedule.upsert({
-            where: {
-              order_id_part_id: {
-                order_id: order_id,
-                part_id: entry.part.part_id,
-              },
-            },
-            update: updateData,
-            create: createData,
-          });
-        });
-        allPrismaPromises.push(...componentSchedulePromises);
-      }
-    }
-
-    if (allPrismaPromises.length > 0) {
-      const newSchedules = await prisma.$transaction(allPrismaPromises);
-      await prisma.stockOrder.updateMany({
-        where: {
-          id: lastOrderId,
-          isDeleted: false,
-        },
-        data: {
-          status: "scheduled",
-        },
-      });
-
-      return res.status(201).json({
-        message: `Successfully scheduled or updated ${newSchedules.length} items.`,
-        data: newSchedules,
-      });
-    } else {
-      return res.status(200).json({ message: "No new items to schedule." });
-    }
-  } catch (error) {
-    console.error("Error during batch scheduling:", error);
-    return res.status(500).json({
-      message: "Something went wrong during scheduling.",
-      error: error.message,
-    });
-  }
-};
-
-// when product is also going for processing in production response
 
 // const stockOrderSchedule = async (req, res) => {
 //   const ordersToSchedule = req.body;
-
 //   try {
 //     const allPrismaPromises = [];
 //     let lastOrderId;
-
 //     for (const order of ordersToSchedule) {
 //       const { order_id, product_id, quantity, delivery_date, status } = order;
 //       lastOrderId = order_id;
-
-//       // ✅ Step 1: Schedule the product itself
 //       if (product_id) {
-//         // Get product part (for processId, etc.)
-//         const productPart = await prisma.partNumber.findUnique({
-//           where: { part_id: product_id },
-//           include: { process: true },
-//         });
-
-//         if (productPart) {
-//           const productSchedule = prisma.stockOrderSchedule.upsert({
-//             where: {
-//               order_id_part_id: {
-//                 order_id: order_id,
-//                 part_id: product_id,
-//               },
-//             },
-//             update: {
-//               delivery_date: new Date(delivery_date),
-//               quantity: quantity,
-//               status: status,
-//               completed_date: null,
-//             },
-//             create: {
-//               delivery_date: new Date(delivery_date),
-//               quantity: quantity,
-//               status: status,
-//               completed_date: null,
-//               submittedBy: { connect: { id: req.user.id } },
-//               order: { connect: { id: order_id } },
-//               part: { connect: { part_id: product_id } },
-//               process: productPart.processId
-//                 ? { connect: { id: productPart.processId } }
-//                 : undefined,
-//             },
-//           });
-
-//           allPrismaPromises.push(productSchedule);
-//         }
-
-//         // ✅ Step 2: Schedule all BOM components of the product
 //         const bomEntries = await prisma.productTree.findMany({
 //           where: { product_id: product_id },
 //           include: { part: { include: { process: true } } },
 //         });
-
 //         const componentSchedulePromises = bomEntries.map((entry) => {
+//           const createData = {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             submittedBy: { connect: { id: req.user.id } },
+//             order: { connect: { id: order_id } },
+//             part: { connect: { part_id: entry.part.part_id } },
+//             process: { connect: { id: entry.part.processId } },
+//           };
+//           const updateData = {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//           };
 //           return prisma.stockOrderSchedule.upsert({
 //             where: {
 //               order_id_part_id: {
@@ -3339,34 +3307,16 @@ const stockOrderSchedule = async (req, res) => {
 //                 part_id: entry.part.part_id,
 //               },
 //             },
-//             update: {
-//               delivery_date: new Date(delivery_date),
-//               quantity: quantity,
-//               status: status,
-//               completed_date: null,
-//             },
-//             create: {
-//               delivery_date: new Date(delivery_date),
-//               quantity: quantity,
-//               status: status,
-//               completed_date: null,
-//               submittedBy: { connect: { id: req.user.id } },
-//               order: { connect: { id: order_id } },
-//               part: { connect: { part_id: entry.part.part_id } },
-//               process: entry.part.processId
-//                 ? { connect: { id: entry.part.processId } }
-//                 : undefined,
-//             },
+//             update: updateData,
+//             create: createData,
 //           });
 //         });
-
 //         allPrismaPromises.push(...componentSchedulePromises);
 //       }
 //     }
 
 //     if (allPrismaPromises.length > 0) {
 //       const newSchedules = await prisma.$transaction(allPrismaPromises);
-
 //       await prisma.stockOrder.updateMany({
 //         where: {
 //           id: lastOrderId,
@@ -3392,6 +3342,204 @@ const stockOrderSchedule = async (req, res) => {
 //     });
 //   }
 // };
+
+// const stockOrderSchedule = async (req, res) => {
+//   const ordersToSchedule = req.body;
+//   try {
+//     const allPrismaPromises = [];
+//     let lastOrderId;
+//     for (const order of ordersToSchedule) {
+//       const { order_id, product_id, quantity, delivery_date, status } = order;
+//       lastOrderId = order_id;
+//       if (product_id) {
+//         const bomEntries = await prisma.productTree.findMany({
+//           where: { product_id: product_id },
+//           include: { part: { include: { process: true } } },
+//         });
+//         const componentSchedulePromises = bomEntries.map((entry) => {
+//           const createData = {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             submittedBy: { connect: { id: req.user.id } },
+//             order: { connect: { id: order_id } },
+//             part: { connect: { part_id: entry.part.part_id } },
+//             process: { connect: { id: entry.part.processId } },
+//           };
+//           const updateData = {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//           };
+//           return prisma.stockOrderSchedule.upsert({
+//             where: {
+//               order_id_part_id: {
+//                 order_id: order_id,
+//                 part_id: entry.part.part_id,
+//               },
+//             },
+//             update: updateData,
+//             create: createData,
+//           });
+//         });
+//         allPrismaPromises.push(...componentSchedulePromises);
+//       }
+//     }
+
+//     if (allPrismaPromises.length > 0) {
+//       const newSchedules = await prisma.$transaction(allPrismaPromises);
+//       await prisma.stockOrder.updateMany({
+//         where: {
+//           id: lastOrderId,
+//           isDeleted: false,
+//         },
+//         data: {
+//           status: "scheduled",
+//         },
+//       });
+
+//       return res.status(201).json({
+//         message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+//         data: newSchedules,
+//       });
+//     } else {
+//       return res.status(200).json({ message: "No new items to schedule." });
+//     }
+//   } catch (error) {
+//     console.error("Error during batch scheduling:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong during scheduling.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// when product is also going for processing in production response
+
+const stockOrderSchedule = async (req, res) => {
+  const ordersToSchedule = req.body;
+  try {
+    const allPrismaPromises = [];
+    let lastOrderId;
+
+    for (const order of ordersToSchedule) {
+      const { order_id, product_id, quantity, delivery_date, status, type } =
+        order;
+      lastOrderId = order_id;
+
+      if (product_id) {
+        const productPart = await prisma.partNumber.findUnique({
+          where: { part_id: product_id },
+          include: { process: true },
+        });
+        const scheudleQty = quantity * productPart.minStock;
+        console.log("scheudleQtyscheudleQty".scheudleQty);
+
+        if (productPart) {
+          const productSchedule = prisma.stockOrderSchedule.upsert({
+            where: {
+              order_id_part_id: {
+                order_id: order_id,
+                part_id: product_id,
+              },
+            },
+            update: {
+              delivery_date: new Date(delivery_date),
+              quantity: quantity,
+              status: status,
+              completed_date: null,
+              type: type,
+            },
+            create: {
+              delivery_date: new Date(delivery_date),
+              quantity: quantity,
+              status: status,
+              completed_date: null,
+              submittedBy: { connect: { id: req.user.id } },
+              order: { connect: { id: order_id } },
+              part: { connect: { part_id: product_id } },
+              process: productPart.processId
+                ? { connect: { id: productPart.processId } }
+                : undefined,
+              scheduleQuantity: quantity,
+              remainingQty: quantity,
+            },
+          });
+
+          allPrismaPromises.push(productSchedule);
+        }
+
+        const bomEntries = await prisma.productTree.findMany({
+          where: { product_id: product_id },
+          include: { part: { include: { process: true } } },
+        });
+        const componentSchedulePromises = bomEntries.map((entry) => {
+          const scheudleQty1 = quantity * entry.part.minStock;
+          return prisma.stockOrderSchedule.upsert({
+            where: {
+              order_id_part_id: {
+                order_id: order_id,
+                part_id: entry.part.part_id,
+              },
+            },
+            update: {
+              delivery_date: new Date(delivery_date),
+              quantity: quantity,
+              status: status,
+              completed_date: null,
+            },
+            create: {
+              delivery_date: new Date(delivery_date),
+              quantity: quantity,
+              status: status,
+              completed_date: null,
+              submittedBy: { connect: { id: req.user.id } },
+              order: { connect: { id: order_id } },
+              part: { connect: { part_id: entry.part.part_id } },
+              process: entry.part.processId
+                ? { connect: { id: entry.part.processId } }
+                : undefined,
+              type: type,
+              scheduleQuantity: scheudleQty1,
+              remainingQty: scheudleQty1,
+            },
+          });
+        });
+
+        allPrismaPromises.push(...componentSchedulePromises);
+      }
+    }
+
+    if (allPrismaPromises.length > 0) {
+      const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+      await prisma.stockOrder.updateMany({
+        where: {
+          id: lastOrderId,
+          isDeleted: false,
+        },
+        data: {
+          status: "scheduled",
+        },
+      });
+
+      return res.status(201).json({
+        message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+        data: newSchedules,
+      });
+    } else {
+      return res.status(200).json({ message: "No new items to schedule." });
+    }
+  } catch (error) {
+    console.error("Error during batch scheduling:", error);
+    return res.status(500).json({
+      message: "Something went wrong during scheduling.",
+      error: error.message,
+    });
+  }
+};
 
 // const scheduleStockOrdersList = async (req, res) => {
 //   try {
@@ -3523,7 +3671,6 @@ const scheduleStockOrdersList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log(error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
       error: error.message,
@@ -3721,8 +3868,6 @@ const updateSupplierOrder = async (req, res) => {
     const { id } = req.params;
     const { order_date, part_name, quantity, cost, need_date } = req.body;
 
-    console.log("see the body", req.body);
-
     const result = await prisma.supplier_orders.updateMany({
       where: {
         id: id,
@@ -3761,12 +3906,10 @@ const deleteSupplierOrder = async (req, res) => {
       },
     });
 
-    console.log("see the result", result);
     return res.status(200).json({
       message: "SupplierOrder delete successfully !",
     });
   } catch (error) {
-    console.log("see the error ", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -3962,13 +4105,151 @@ const checkStockQuantity = async (req, res) => {
       },
     });
     const partId = data.part_id;
-
-    console.log(partId);
-
     return res.status(200).json({
       message: "Stock quantity ",
     });
   } catch (error) {}
+};
+
+const getSupplierInventory = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { search = "", sort = "" } = req.query;
+
+    // 🔍 Search conditions
+    const orConditions = [];
+    if (search) {
+      orConditions.push(
+        {
+          part: {
+            partNumber: {
+              contains: search,
+            },
+          },
+        },
+        {
+          supplier: {
+            firstName: {
+              contains: search,
+            },
+          },
+        },
+        {
+          supplier: {
+            lastName: {
+              contains: search,
+            },
+          },
+        }
+      );
+    }
+
+    const whereFilter = {
+      isDeleted: false,
+      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
+    };
+
+    let orderBy = { createdAt: "desc" };
+    if (sort === "oldest") {
+      orderBy = { createdAt: "asc" };
+    }
+
+    // 📊 Query
+    const [inventoryData, totalCount] = await Promise.all([
+      prisma.supplier_inventory.findMany({
+        where: whereFilter,
+        include: {
+          part: {
+            select: {
+              part_id: true,
+              partNumber: true,
+              partDescription: true,
+            },
+          },
+          supplier: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+      }),
+      prisma.supplier_inventory.count({
+        where: whereFilter,
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Supplier Inventory retrieved successfully!",
+      data: inventoryData,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+const deleteSupplierInventory = async (req, res) => {
+  try {
+    const id = req.params.id;
+    prisma.supplier_inventory
+      .update({
+        where: {
+          id: id,
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+        },
+      })
+      .then();
+
+    return res.status(200).json({
+      message: "Supplier inventory delete successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  } finally {
+  }
+};
+
+const deleteScrapEntry = async (req, res) => {
+  try {
+    const id = req.params.id;
+    prisma.scapEntries
+      .update({
+        where: {
+          id: id,
+          isDeleted: false,
+        },
+        data: {
+          isDeleted: true,
+        },
+      })
+      .then();
+
+    return res.status(200).json({
+      message: "Supplier inventory delete successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  } finally {
+  }
 };
 
 module.exports = {
@@ -4039,4 +4320,7 @@ module.exports = {
   deleteSupplierOrder,
   validateStockQty,
   checkStockQuantity,
+  getSupplierInventory,
+  deleteSupplierInventory,
+  deleteScrapEntry,
 };

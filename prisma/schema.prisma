@@ -108,6 +108,7 @@ model process {
   processLogin         processLogin[]
   ProcessOrderTable    ProcessOrderTable[]
   scapEntries          scapEntries[]
+  ProductTree          ProductTree[]
 }
 
 model suppliers {
@@ -122,28 +123,48 @@ model suppliers {
   createdAt    DateTime? @default(now()) @db.DateTime(0)
   updatedAt    DateTime? @default(now()) @db.DateTime(0)
 
-  orders      supplier_orders[]
-  scapEntries scapEntries[]
+  orders             supplier_orders[]
+  scapEntries        scapEntries[]
+  supplier_inventory supplier_inventory[]
 }
 
 model supplier_orders {
-  id           String      @id @default(uuid()) @db.Char(36)
-  order_number String?     @db.VarChar(50)
-  order_date   String?     @db.VarChar(50)
-  supplier_id  String?     @db.VarChar(100)
+  id           String  @id @default(uuid()) @db.Char(36)
+  order_number String? @db.VarChar(50)
+  order_date   String? @db.VarChar(50)
+  supplier_id  String? @db.VarChar(100)
   quantity     Int?
   cost         Int?
-  need_date    String?     @db.VarChar(50)
-  createdBy    String?     @db.VarChar(255)
-  isDeleted    Boolean?    @default(false)
-  createdAt    DateTime?   @default(now()) @db.DateTime(0)
-  updatedAt    DateTime?   @default(now()) @db.DateTime(0)
-  part_id      String?     @db.VarChar(100)
-  part         PartNumber? @relation(fields: [part_id], references: [part_id])
-  supplier     suppliers?  @relation(fields: [supplier_id], references: [id])
+
+  need_date String?     @db.VarChar(50)
+  createdBy String?     @db.VarChar(255)
+  isDeleted Boolean?    @default(false)
+  createdAt DateTime?   @default(now()) @db.DateTime(0)
+  updatedAt DateTime?   @default(now()) @db.DateTime(0)
+  part_id   String?     @db.VarChar(100)
+  part      PartNumber? @relation(fields: [part_id], references: [part_id])
+  supplier  suppliers?  @relation(fields: [supplier_id], references: [id])
 
   @@index([supplier_id], map: "supplier_orders_supplier_id_fkey")
   @@index([part_id], map: "supplier_orders_supplier_part_id_fkey")
+}
+
+model supplier_inventory {
+  id          String  @id @default(uuid()) @db.Char(36)
+  part_id     String  @db.VarChar(100)
+  minStock    Int?
+  availStock  Int?
+  cost        Float?
+  supplier_id String? @db.VarChar(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  part      PartNumber @relation(fields: [part_id], references: [part_id])
+  supplier  suppliers? @relation(fields: [supplier_id], references: [id])
+  isDeleted Boolean?   @default(false)
+
+  @@unique([part_id])
 }
 
 model users {
@@ -198,10 +219,10 @@ model StockOrder {
   customer                                        customers            @relation(fields: [customerId], references: [id])
   part                                            PartNumber           @relation("part", fields: [partId], references: [part_id])
   PartNumber_StockOrder_productNumberToPartNumber PartNumber           @relation("StockOrder_productNumberToPartNumber", fields: [productNumber], references: [partNumber])
-  StockOrderSchedule                              StockOrderSchedule[]
   processLogin                                    processLogin[]
   ProcessOrderTable                               ProcessOrderTable[]
   scapEntries                                     scapEntries[]
+  schedules                                       StockOrderSchedule[]
 
   @@index([customerId], map: "StockOrder_customerId_fkey")
   @@index([partId], map: "StockOrder_partId_fkey")
@@ -289,6 +310,7 @@ model PartNumber {
   StockOrderSchedule   StockOrderSchedule[]
   ProcessOrderTable    ProcessOrderTable[]
   scapEntries          scapEntries[]
+  supplier_inventory   supplier_inventory?
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -312,12 +334,16 @@ model ProductTree {
   part_id              String?                @db.Char(36)
   partQuantity         Int
   isDeleted            Boolean                @default(false)
+  processOrderRequired Boolean                @default(false)
   instructionRequired  Boolean                @default(false)
+  processId            String?                @db.VarChar(10)
+  processDesc          String?                @db.VarChar(255)
   createdBy            String?                @db.Char(36)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   WorkInstructionSteps WorkInstructionSteps[]
   part                 PartNumber?            @relation(name: "ComponentParts", fields: [part_id], references: [part_id])
+  process              process?               @relation(fields: [processId], references: [id])
 
   // *** ADD THIS NEW RELATION for the parent product ***
   product           PartNumber  @relation(name: "ParentProduct", fields: [product_id], references: [part_id])
@@ -366,7 +392,7 @@ model WorkInstructionSteps {
   process                process?                 @relation(fields: [processId], references: [id])
   productTree            ProductTree?             @relation(fields: [productTreeId], references: [id])
   WorkInstructionApply   WorkInstructionApply?    @relation(fields: [workInstructionApplyId], references: [id])
-  workInstruction        WorkInstruction          @relation(fields: [workInstructionId], references: [id])
+  workInstruction        WorkInstruction?         @relation(fields: [workInstructionId], references: [id])
   ProductionStepTracking ProductionStepTracking[]
 
   @@index([processId], map: "WorkInstructionSteps_processId_fkey")
@@ -456,14 +482,16 @@ model StockOrderSchedule {
   quantity          Int?
   completedQuantity Int?        @default(0)
   scrapQuantity     Int?        @default(0)
+  scheduleQuantity  Int?        @default(0)
+  remainingQty      Int?        @default(0)
   status            String      @default("new") @db.VarChar(60)
+  type              String      @default("") @db.VarChar(100)
   order_date        DateTime    @default(now())
   delivery_date     DateTime    @default(now())
   completed_date    DateTime?
   completed_by      String?
   submitted_by      String?
   processOrder      Boolean     @default(false)
-  order             StockOrder  @relation(fields: [order_id], references: [id])
   part              PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
   PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
   submittedBy       admin?      @relation(fields: [submitted_by], references: [id])
@@ -473,6 +501,7 @@ model StockOrderSchedule {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @default(now()) @updatedAt
   isDeleted         Boolean     @default(false)
+  order             StockOrder  @relation(fields: [order_id], references: [id])
 
   @@unique([order_id, part_id])
   @@index([order_id], map: "ProductionResponse_order_id_fkey")
@@ -489,6 +518,8 @@ model ProductionResponse {
   stepstartTime     DateTime?
   stepstartEnd      DateTime?
   quantity          Boolean?  @default(false)
+  scheduleQuantity  Int?      @default(0)
+  remainingQty      Int?      @default(0)
   completedQuantity Int?      @default(0)
   scrapQuantity     Int?      @default(0)
   scrap             Boolean?  @default(false)
@@ -594,6 +625,16 @@ model scapEntries {
 
   @@index([processId], map: "ScapEntries_processId_fkey")
   @@index([partId], map: "ScapEntries_partId_fkey")
+}
+
+model stationNotification {
+  id         String   @id @default(uuid())
+  employeeId String?
+  comment    String?
+  enqueryImg String?
+  status     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  isDeleted  Boolean? @default(false)
 }
 
 enum admin_roles {

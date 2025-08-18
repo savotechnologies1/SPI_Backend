@@ -65,6 +65,9 @@ const {
   scheduleStockOrdersList,
   getStockAvailability,
   validateStockQty,
+  getSupplierInventory,
+  deleteSupplierInventory,
+  deleteScrapEntry,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -122,6 +125,9 @@ const {
   selectScheudleProductNumber,
   getScrapEntryById,
   updateScrapEntry,
+  stationSendNotification,
+  getStationNotifications,
+  changeStationNotification,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -367,4 +373,18 @@ router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.get("/select-schedule-product-number", selectScheudleProductNumber);
 router.get("/scrap-entry-detail/:id", getScrapEntryById);
 router.put("/update-scrap-entry/:id", updateScrapEntry);
+router.get("/supplier-inventory", getSupplierInventory);
+router.patch("/delete-supplier-invetory/:id", deleteSupplierInventory);
+router.post("/send-notification", adminValidateToken, stationSendNotification);
+router.get(
+  "/all-station-notification",
+  adminValidateToken,
+  getStationNotifications
+);
+router.patch(
+  "/change-station-notification-status/:id",
+  adminValidateToken,
+  changeStationNotification
+);
+router.patch("/delete-scrap-entry/:id", adminValidateToken, deleteScrapEntry);
 module.exports = router;

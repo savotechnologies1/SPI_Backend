@@ -331,8 +331,6 @@ const createWorkInstructionDetail = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const uploadedFiles = fileData?.data || [];
-    console.log("fileDatafileData", fileData);
-
     const { processId, productId, instructionTitle, instructionSteps } =
       req.body;
 
@@ -1223,115 +1221,11 @@ const selectInstruction = async (req, res) => {
   }
 };
 
-// const applyWorkInstruction = async (req, res) => {
-//   try {
-//     const { workInstructionId, processId, productId } = req.body;
-//     const newTitle = await prisma.workInstruction.findFirst({
-//       where: {
-//         id: workInstructionId,
-//         isDeleted: false,
-//       },
-//       select: {
-//         instructionTitle: true,
-//       },
-//     });
-//     const existingSteps = await prisma.workInstructionSteps.findMany({
-//       where: {
-//         workInstructionId,
-//         isDeleted: false,
-//       },
-//       include: {
-//         images: true,
-//         videos: true,
-//       },
-//     });
-
-//     if (!existingSteps || existingSteps.length === 0) {
-//       return res.status(404).json({
-//         message: "No steps found for the given Work Instruction ID.",
-//       });
-//     }
-
-//     const newWorkInstruction = await prisma.workInstructionApply.create({
-//       data: {
-//         processId,
-//         productId,
-//         instructionTitle: newTitle.instructionTitle,
-//         instructionId: workInstructionId.trim(),
-//         type: "applied",
-//       },
-//     });
-
-//     // const newWorkInstructionId = newWorkInstruction.id;
-
-//     // for (const step of existingSteps) {
-//     //   const stepId = uuidv4();
-
-//     //   await prisma.workInstructionSteps.create({
-//     //     data: {
-//     //       id: stepId,
-//     //       workInstructionId: newWorkInstructionId,
-//     //       part_id: step.part_id,
-//     //       stepNumber: step.stepNumber,
-//     //       title: step.title,
-//     //       instruction: step.instruction,
-//     //       processId,
-//     //     },
-//     //   });
-//     //   for (const img of step.images || []) {
-//     //     await prisma.instructionImage.create({
-//     //       data: {
-//     //         stepId,
-//     //         imagePath: img.imagePath,
-//     //       },
-//     //     });
-//     //   }
-
-//     //   for (const vid of step.videos || []) {
-//     //     await prisma.instructionVideo.create({
-//     //       data: {
-//     //         stepId,
-//     //         workInstructionId: newWorkInstructionId,
-//     //         videoPath: vid.videoPath,
-//     //       },
-//     //     });
-//     //   }
-//     // }
-
-//     return res.status(201).json({
-//       message: " Work Instruction copied successfully!",
-//       newWorkInstruction,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       error: "Something went wrong",
-//       details: error.message,
-//     });
-//   }
-// };
-
 const applyWorkInstruction = async (req, res) => {
   try {
     const { workInstructionId, processId, productId } = req.body;
 
-    // ✅ Check if already exists for same process + product
-    const existingApplied = await prisma.workInstructionApply.findFirst({
-      where: {
-        processId,
-        productId,
-        isDeleted: false,
-      },
-    });
-
-    if (existingApplied) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "A work instruction for this process and product already exists.",
-      });
-    }
-
-    // ✅ Get original title
+    // 1️⃣ Pehle original title nikal lo
     const newTitle = await prisma.workInstruction.findFirst({
       where: {
         id: workInstructionId,
@@ -1344,12 +1238,28 @@ const applyWorkInstruction = async (req, res) => {
 
     if (!newTitle) {
       return res.status(404).json({
-        success: false,
-        message: "Original Work Instruction not found.",
+        message: "Work Instruction not found.",
       });
     }
 
-    // ✅ Get original steps with images/videos
+    // 2️⃣ Duplicate check
+    const alreadyExists = await prisma.workInstructionApply.findFirst({
+      where: {
+        instructionTitle: newTitle.instructionTitle,
+        processId,
+        productId,
+        isDeleted: false, // agar aapke WorkInstructionApply me isDeleted column hai
+      },
+    });
+
+    if (alreadyExists) {
+      return res.status(400).json({
+        message:
+          "This Work Instruction is already applied for the same process and product.",
+      });
+    }
+
+    // 3️⃣ Existing steps fetch karo
     const existingSteps = await prisma.workInstructionSteps.findMany({
       where: {
         workInstructionId,
@@ -1363,12 +1273,11 @@ const applyWorkInstruction = async (req, res) => {
 
     if (!existingSteps || existingSteps.length === 0) {
       return res.status(404).json({
-        success: false,
         message: "No steps found for the given Work Instruction ID.",
       });
     }
 
-    // ✅ Create new applied instruction
+    // 4️⃣ Create WorkInstructionApply
     const newWorkInstruction = await prisma.workInstructionApply.create({
       data: {
         processId,
@@ -1379,56 +1288,137 @@ const applyWorkInstruction = async (req, res) => {
       },
     });
 
-    // ✅ Copy steps with images/videos
-    for (const step of existingSteps) {
-      const stepId = uuidv4();
-
-      await prisma.workInstructionSteps.create({
-        data: {
-          id: stepId,
-          workInstructionApplyId: newWorkInstruction.id,
-          part_id: step.part_id,
-          stepNumber: step.stepNumber,
-          title: step.title,
-          instruction: step.instruction,
-          processId,
-        },
-      });
-
-      for (const img of step.images || []) {
-        await prisma.instructionImage.create({
-          data: {
-            stepId,
-            imagePath: img.imagePath,
-          },
-        });
-      }
-
-      for (const vid of step.videos || []) {
-        await prisma.instructionVideo.create({
-          data: {
-            stepId,
-            workInstructionId: newWorkInstruction.id,
-            videoPath: vid.videoPath,
-          },
-        });
-      }
-    }
-
     return res.status(201).json({
-      success: true,
       message: "Work Instruction copied successfully!",
       newWorkInstruction,
     });
   } catch (error) {
-    console.error("Apply Work Instruction Error:", error);
     return res.status(500).json({
-      success: false,
-      message: "Something went wrong",
+      error: "Something went wrong",
       details: error.message,
     });
   }
 };
+
+// const applyWorkInstruction = async (req, res) => {
+//   try {
+//     const { workInstructionId, processId, productId } = req.body;
+
+//     // ✅ Check if already exists for same process + product
+//     const existingApplied = await prisma.workInstructionApply.findFirst({
+//       where: {
+//         processId,
+//         productId,
+//         isDeleted: false,
+//       },
+//     });
+
+//     if (existingApplied) {
+//       return res.status(409).json({
+//         success: false,
+//         message:
+//           "A work instruction for this process and product already exists.",
+//       });
+//     }
+
+//     // ✅ Get original title
+//     const newTitle = await prisma.workInstruction.findFirst({
+//       where: {
+//         id: workInstructionId,
+//         isDeleted: false,
+//       },
+//       select: {
+//         instructionTitle: true,
+//       },
+//     });
+
+//     if (!newTitle) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Original Work Instruction not found.",
+//       });
+//     }
+
+//     // ✅ Get original steps with images/videos
+//     const existingSteps = await prisma.workInstructionSteps.findMany({
+//       where: {
+//         workInstructionId,
+//         isDeleted: false,
+//       },
+//       include: {
+//         images: true,
+//         videos: true,
+//       },
+//     });
+
+//     if (!existingSteps || existingSteps.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No steps found for the given Work Instruction ID.",
+//       });
+//     }
+
+//     // ✅ Create new applied instruction
+//     const newWorkInstruction = await prisma.workInstructionApply.create({
+//       data: {
+//         processId,
+//         productId,
+//         instructionTitle: newTitle.instructionTitle,
+//         instructionId: workInstructionId.trim(),
+//         type: "applied",
+//       },
+//     });
+
+//     // ✅ Copy steps with images/videos
+//     for (const step of existingSteps) {
+//       const stepId = uuidv4();
+
+//       await prisma.workInstructionSteps.create({
+//         data: {
+//           id: stepId,
+//           workInstructionApplyId: newWorkInstruction.id,
+//           part_id: step.part_id,
+//           stepNumber: step.stepNumber,
+//           title: step.title,
+//           instruction: step.instruction,
+//           processId,
+//         },
+//       });
+
+//       for (const img of step.images || []) {
+//         await prisma.instructionImage.create({
+//           data: {
+//             stepId,
+//             imagePath: img.imagePath,
+//           },
+//         });
+//       }
+
+//       for (const vid of step.videos || []) {
+//         await prisma.instructionVideo.create({
+//           data: {
+//             stepId,
+//             workInstructionId: newWorkInstruction.id,
+//             videoPath: vid.videoPath,
+//           },
+//         });
+//       }
+//     }
+
+//     return res.status(201).json({
+//       success: true,
+//       message: "Work Instruction copied successfully!",
+//       newWorkInstruction,
+//     });
+//   } catch (error) {
+//     console.error("Apply Work Instruction Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Something went wrong",
+//       details: error.message,
+//     });
+//   }
+// };
 
 const selectByProductNumberOrDesc = async (req, res) => {
   try {
