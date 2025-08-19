@@ -238,18 +238,28 @@ model CustomOrder {
   customerName    String
   customerEmail   String
   customerPhone   String
-  productNumber   String
   cost            Decimal         @db.Decimal(10, 2)
   productQuantity Int
+  productId       String?         @db.Char(36)
+  partId          String?         @db.Char(36)
+  partNumber      String?
+  type            String?
+  status          String          @default("") @db.VarChar(60)
   createdBy       String?         @db.Char(36)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   isDeleted       Boolean         @default(false)
-  partNumber      String
   totalCost       Decimal         @db.Decimal(10, 2)
   customer        customers       @relation(fields: [customerId], references: [id])
+  part            PartNumber?     @relation(fields: [partId], references: [part_id])
   processDetails  ProcessDetail[]
 
+  product PartNumber? @relation("ProductForOrder", fields: [productId], references: [part_id])
+
+  schedules          StockOrderSchedule[]
+  ProductionResponse ProductionResponse[]
+
+  @@index([productId], map: "CustomOrder_productId_fkey") // यह भी जोड़ना अच्छा हैn
   @@index([customerId], map: "CustomOrder_customerId_fkey")
 }
 
@@ -265,11 +275,11 @@ model ProcessDetail {
 }
 
 model PartNumber {
-  part_id          String @id @default(uuid()) @db.Char(36)
-  partFamily       String @db.Char(36)
-  partNumber       String @unique @db.Char(36)
-  partDescription  String @db.VarChar(255)
-  type             String @db.VarChar(100)
+  part_id          String  @id @default(uuid()) @db.Char(36)
+  partFamily       String  @db.Char(36)
+  partNumber       String  @unique @db.Char(36)
+  partDescription  String? @db.VarChar(255)
+  type             String  @db.VarChar(100)
   cost             Float
   leadTime         Int
   minStock         Int
@@ -311,6 +321,8 @@ model PartNumber {
   ProcessOrderTable    ProcessOrderTable[]
   scapEntries          scapEntries[]
   supplier_inventory   supplier_inventory?
+  CustomOrder          CustomOrder[]
+  ordersAsProduct      CustomOrder[]          @relation("ProductForOrder")
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -350,6 +362,7 @@ model ProductTree {
   PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
   partNumberPart_id String?     @db.Char(36)
 
+  @@unique([product_id, part_id], name: "product_part_unique")
   @@index([part_id])
   @@index([product_id], map: "ProductTree_product_id_fkey")
 }
@@ -418,6 +431,7 @@ model WorkInstructionApply {
   PartNumber       PartNumber             @relation(fields: [productId], references: [part_id])
   steps            WorkInstructionSteps[]
 
+  @@index([productId], map: "WorkInstructionApply_productId_custom_fk")
   @@index([instructionId], map: "WorkInstructionApply_instructionId_fkey")
   @@index([processId], map: "WorkInstructionApply_processId_fkey")
   @@index([productId], map: "WorkInstructionApply_productId_fkey")
@@ -476,66 +490,87 @@ model processLogin {
 }
 
 model StockOrderSchedule {
-  id                String      @id @default(uuid()) @db.Char(36)
-  order_id          String      @db.Char(36)
-  part_id           String?     @db.Char(36)
+  id String @id @default(uuid()) @db.Char(36)
+
+  // --- CHANGES START HERE ---
+  // These two fields create the polymorphic relationship.
+  // `order_id` is now just a string, not a foreign key.
+  order_id   String @db.Char(36)
+  order_type String @db.VarChar(100) // 'StockOrder' or 'CustomOrder'
+  // --- CHANGES END HERE ---
+
+  part_id           String?   @db.Char(36)
   quantity          Int?
-  completedQuantity Int?        @default(0)
-  scrapQuantity     Int?        @default(0)
-  scheduleQuantity  Int?        @default(0)
-  remainingQty      Int?        @default(0)
-  status            String      @default("new") @db.VarChar(60)
-  type              String      @default("") @db.VarChar(100)
-  order_date        DateTime    @default(now())
-  delivery_date     DateTime    @default(now())
+  completedQuantity Int?      @default(0)
+  scrapQuantity     Int?      @default(0)
+  scheduleQuantity  Int?      @default(0)
+  remainingQty      Int?      @default(0)
+  status            String    @default("new") @db.VarChar(60)
+  type              String    @default("") @db.VarChar(100)
+  order_date        DateTime  @default(now())
+  delivery_date     DateTime  @default(now())
   completed_date    DateTime?
   completed_by      String?
   submitted_by      String?
-  processOrder      Boolean     @default(false)
-  part              PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
-  PartNumber        PartNumber? @relation(fields: [partNumberPart_id], references: [part_id])
-  submittedBy       admin?      @relation(fields: [submitted_by], references: [id])
-  partNumberPart_id String?     @db.Char(36)
-  process           process?    @relation(fields: [processId], references: [id])
-  processId         String?     @db.VarChar(10)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @default(now()) @updatedAt
-  isDeleted         Boolean     @default(false)
-  order             StockOrder  @relation(fields: [order_id], references: [id])
+  processOrder      Boolean   @default(false)
 
-  @@unique([order_id, part_id])
-  @@index([order_id], map: "ProductionResponse_order_id_fkey")
-  @@index([part_id], map: "ProductionResponse_part_id_fkey")
-  @@index([submitted_by], map: "submitted_by_submitted_by_fkey")
+  part        PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
+  submittedBy admin?      @relation(fields: [submitted_by], references: [id])
+  process     process?    @relation(fields: [processId], references: [id])
+  processId   String?     @db.VarChar(10)
+
+  // REMOVE the direct relations to StockOrder and CustomOrder
+  // order       StockOrder? @relation(fields: [order_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // customOrder   CustomOrder? @relation(fields: [customOrderId], references: [id])
+  // REMOVE the redundant customOrderId field
+  // customOrderId String?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @default(now()) @updatedAt
+  isDeleted         Boolean      @default(false)
+  PartNumber        PartNumber?  @relation(fields: [partNumberPart_id], references: [part_id])
+  partNumberPart_id String?      @db.Char(36)
+  StockOrder        StockOrder?  @relation(fields: [stockOrderId], references: [id])
+  stockOrderId      String?      @db.Char(36)
+  CustomOrder       CustomOrder? @relation(fields: [customOrderId], references: [id])
+  customOrderId     String?      @db.Char(36)
+
+  // This unique constraint is now correct and essential for your upsert to work properly!
+  @@unique([order_id, part_id, order_type])
+  @@index([order_id, order_type])
+  @@index([part_id])
+  @@index([submitted_by])
 }
 
 model ProductionResponse {
-  id                String    @id @default(uuid()) @db.Char(36)
-  partId            String?   @db.Char(36)
-  processId         String    @db.Char(36)
-  orderId           String    @db.Char(36)
-  instructionId     String?   @db.Char(36)
-  stepstartTime     DateTime?
-  stepstartEnd      DateTime?
-  quantity          Boolean?  @default(false)
-  scheduleQuantity  Int?      @default(0)
-  remainingQty      Int?      @default(0)
-  completedQuantity Int?      @default(0)
-  scrapQuantity     Int?      @default(0)
-  scrap             Boolean?  @default(false)
-  cycleTimeStart    DateTime? @default(now())
-  cycleTimeEnd      DateTime? @default(now())
-  submittedBy       String?   @db.VarChar(100)
-  submittedDateTime DateTime? @default(now())
-  createdBy         String?   @db.Char(36)
-  stationUserId     String?   @db.Char(36)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  traniningStatus   Boolean   @default(false)
-  isDeleted         Boolean   @default(false)
-  type              String?   @db.VarChar(36)
-
+  id                     String                   @id @default(uuid()) @db.Char(36)
+  partId                 String?                  @db.Char(36)
+  processId              String                   @db.Char(36)
+  orderId                String?                  @db.Char(36) // This field MUST exist
+  customOrderId          String?
+  instructionId          String?                  @db.Char(36)
+  stepstartTime          DateTime?
+  stepstartEnd           DateTime?
+  quantity               Boolean?                 @default(false)
+  scheduleQuantity       Int?                     @default(0)
+  remainingQty           Int?                     @default(0)
+  completedQuantity      Int?                     @default(0)
+  scrapQuantity          Int?                     @default(0)
+  scrap                  Boolean?                 @default(false)
+  cycleTimeStart         DateTime?                @default(now())
+  cycleTimeEnd           DateTime?                @default(now())
+  submittedBy            String?                  @db.VarChar(100)
+  submittedDateTime      DateTime?                @default(now())
+  createdBy              String?                  @db.Char(36)
+  stationUserId          String?                  @db.Char(36)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  traniningStatus        Boolean                  @default(false)
+  isDeleted              Boolean                  @default(false)
+  type                   String?                  @db.VarChar(36)
+  order_type             String?                  @db.VarChar(100) // This will hold 'StockOrder' or 'CustomOrder'
   StockOrder             StockOrder?              @relation(fields: [orderId], references: [id])
+  CustomOrder            CustomOrder?             @relation(fields: [customOrderId], references: [id])
   PartNumber             PartNumber?              @relation(fields: [partId], references: [part_id])
   process                process?                 @relation(fields: [processId], references: [id])
   customers              customers?               @relation(fields: [customersId], references: [id])
@@ -543,6 +578,7 @@ model ProductionResponse {
   customersId            String?                  @db.Char(36)
   ProductionStepTracking ProductionStepTracking[]
 
+  @@index([orderId, order_type]) // Add an index for performance
   @@index([orderId], map: "ProductionResponse_orderId_fkey")
   @@index([processId], map: "ProductionResponse_processId_fkey")
   @@index([partId], map: "ProductionResponse_partId_fkey")

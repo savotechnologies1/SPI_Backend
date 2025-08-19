@@ -68,6 +68,8 @@ const {
   getSupplierInventory,
   deleteSupplierInventory,
   deleteScrapEntry,
+  searchCustomOrders,
+  customOrderSchedule,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -297,6 +299,7 @@ router.post(
 );
 
 router.get("/search-stock-order", adminValidateToken, searchStockOrders);
+router.get("/search-custom-order", adminValidateToken, searchCustomOrders);
 
 router.get(
   "/select-work-instruction-title",
@@ -337,6 +340,7 @@ router.put(
 router.post("/station-login", adminValidateToken, stationLogin);
 router.post("/station-logout/:id", adminValidateToken, stationLogout);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
+router.post("/custom-order-schedule", adminValidateToken, customOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
   adminValidateToken,
