@@ -13039,6 +13039,7 @@ const getScheduleProcessInformation = async (req, res) => {
             createdAt: true,
             productQuantity: true,
             partId: true,
+            productId: true,
           },
         });
       }
@@ -13166,6 +13167,7 @@ const getScheduleProcessInformation = async (req, res) => {
     const scheduleQuantity = nextJob.scheduleQuantity || 0;
     const completedQuantity = nextJob.completedQuantity || 0;
     const remainingQuantity = nextJob.remainingQty;
+    console.log("nextJob.ordernextJob.order", nextJob.order);
 
     const responseData = {
       ...nextJob,
@@ -13522,14 +13524,13 @@ const getScheduleProcessInformation = async (req, res) => {
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { orderId, partId, employeeId, productId, order_type } = req.body;
+    const { orderId, partId, employeeId, productId, order_type, type } =
+      req.body;
 
-    // Validation for the polymorphic key
     if (!order_type) {
       return res.status(400).json({ message: "order_type is required." });
     }
 
-    // Update the production response log
     await prisma.productionResponse.update({
       where: { id },
       data: {
@@ -13539,7 +13540,6 @@ const completeScheduleOrder = async (req, res) => {
       },
     });
 
-    // Find the correct schedule using the 3-part unique key
     const orderSchedule = await prisma.stockOrderSchedule.findUnique({
       where: {
         order_id_part_id_order_type: {
@@ -13576,8 +13576,15 @@ const completeScheduleOrder = async (req, res) => {
     // Calculate new quantities and status
     const newCompletedQty = completedQuantity + 1;
     const newRemainingQty = totalScheduleQty - newCompletedQty;
+    console.log(
+      "newCompletedQtynewCompletedQty",
+      newCompletedQty,
+      totalScheduleQty
+    );
+
     const updatedStatus =
       newCompletedQty >= totalScheduleQty ? "completed" : "progress";
+    console.log("updatedStatusupdatedStatus", updatedStatus);
 
     // Update the schedule using the 3-part unique key
     await prisma.stockOrderSchedule.update({
@@ -13596,27 +13603,27 @@ const completeScheduleOrder = async (req, res) => {
       },
     });
 
-    // Decrement stock for the component part that was just used
-    if (updatedStatus === "progress") {
-      await prisma.partNumber.update({
-        where: { part_id: partId },
-        data: { availStock: { decrement: 1 } },
-      });
+    if (type === "part") {
+      if (updatedStatus === "progress") {
+        await prisma.partNumber.update({
+          where: { part_id: partId },
+          data: { availStock: { decrement: 1 } },
+        });
+      }
     }
 
-    // --- SOLUTION FOR THE LATEST ERROR IS HERE ---
-    // If the entire order is now complete, increment the final product's stock
-    if (updatedStatus === "completed") {
-      // Add validation: If the order is complete, we MUST have the final productId.
+    if (type === "product") {
+      if (updatedStatus === "completed") {
+        console.log("completedcompletedcompleted", updatedStatus);
+        console.log("productIdproductId", productId);
+        console.log("999999");
 
-      await prisma.partNumber.update({
-        where: { part_id: productId }, // We are now sure productId is not undefined
-        data: { availStock: { increment: 1 } },
-      });
+        await prisma.partNumber.update({
+          where: { part_id: partId },
+          data: { availStock: { increment: completedQuantity } },
+        });
+      }
     }
-    // --- END OF SOLUTION ---
-
-    // Update the production log with the new quantities
     await prisma.productionResponse.updateMany({
       where: {
         id,

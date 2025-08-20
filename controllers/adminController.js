@@ -1410,6 +1410,10 @@ const sendMailToEmplyee = async (req, res) => {
 //     });
 //   }
 // };
+// createStockOrder.js
+
+// Assuming 'prisma' is your Prisma client instance
+// const { prisma } = require('../db');
 
 const createStockOrder = async (req, res) => {
   try {
@@ -1423,30 +1427,68 @@ const createStockOrder = async (req, res) => {
       cost,
       totalCost,
       productId,
-      customerId,
+      customerId, // Can be a real ID or a temporary UUID for a new customer
       customerEmail,
       customerName,
       customerPhone,
     } = req.body;
-    const existingOrder = await prisma.stockOrder.findFirst({
-      where: {
-        customerId,
-        partId: productId,
-        shipDate,
-        isDeleted: false,
-      },
+
+    let finalCustomerId; // This will hold the ID of the customer for the order
+
+    // --- CORRECTED LOGIC TO HANDLE NEW OR EXISTING CUSTOMER ---
+
+    // We receive a customerId for both existing and new customers.
+    // The key is to check if this ID actually exists in our database.
+    const existingCustomerById = await prisma.customers.findUnique({
+      where: { id: customerId },
     });
 
+    if (existingCustomerById) {
+      // CASE 1: The customerId provided exists. This is an existing customer.
+      finalCustomerId = existingCustomerById.id;
+    } else {
+      // CASE 2: The customerId was not found. This is a new customer.
+      // The frontend sent a temporary UUID which we can now ignore.
+
+      // 1. Check for duplicates using email or phone number to be safe.
+      const duplicateCustomer = await prisma.customers.findFirst({
+        where: {
+          OR: [{ email: customerEmail }, { customerPhone: customerPhone }],
+        },
+      });
+
+      if (duplicateCustomer) {
+        return res.status(409).json({
+          // 409 Conflict is more appropriate here
+          message: "A customer with this email or phone number already exists.",
+        });
+      }
+
+      // 2. Create the new customer since no duplicate was found.
+      const newCustomer = await prisma.customers.create({
+        data: {
+          // Note: Handle names carefully. If customerName can be a single word, this logic is needed.
+          firstName: customerName.split(" ")[0],
+          lastName: customerName.split(" ").slice(1).join(" ") || "", // Provide empty string if no last name
+          email: customerEmail,
+          customerPhone: customerPhone,
+          createdBy: req.user?.id, // Assuming req.user is populated by authentication middleware
+        },
+      });
+
+      // 3. Use the newly created customer's ID for the order.
+      finalCustomerId = newCustomer.id;
+    }
+
+    // --- CONTINUE WITH ORDER CREATION USING finalCustomerId ---
+
+    // Validate Product and Stock
     const product = await prisma.partNumber.findUnique({
-      where: {
-        part_id: productId,
-      },
+      where: { part_id: productId },
     });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found.",
-      });
+      return res.status(404).json({ message: "Product not found." });
     }
 
     if (parseInt(productQuantity, 10) > (product.availStock || 0)) {
@@ -1456,12 +1498,25 @@ const createStockOrder = async (req, res) => {
         } units are available in stock.`,
       });
     }
+
+    // Check for duplicate order (optional but good practice)
+    const existingOrder = await prisma.stockOrder.findFirst({
+      where: {
+        customerId: finalCustomerId,
+        partId: productId,
+        shipDate,
+        isDeleted: false,
+      },
+    });
+
     if (existingOrder) {
       return res.status(400).json({
         message:
           "This product is already added for the selected customer on this date.",
       });
     }
+
+    // Create the Stock Order
     await prisma.stockOrder.create({
       data: {
         orderNumber,
@@ -1472,31 +1527,163 @@ const createStockOrder = async (req, res) => {
         productDescription,
         cost,
         totalCost,
-        customerName,
+        customerName, // Storing these might be redundant if you join tables, but can be useful for historical data
         customerEmail,
         customerPhone,
-        customerId: customerId,
+        customerId: finalCustomerId, // This ID is now guaranteed to be a valid one
         partId: productId,
       },
-      include: {
-        customer: true,
-        part: true,
-      },
     });
 
-    res.status(201).json({
-      message: "Stock order added successfully !",
-    });
+    res.status(201).json({ message: "Stock order added successfully!" });
   } catch (error) {
-    console.log("errorerror", error);
-
+    console.error("Error creating stock order:", error);
     res
-
       .status(500)
-      .json({ error: "Something went wrong . please try again later ." });
+      .json({ error: "Something went wrong. Please try again later." });
   }
 };
+const addCustomOrder = async (req, res) => {
+  try {
+    const {
+      orderNumber,
+      orderDate,
+      shipDate,
+      customerId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      productId,
+      part_id, // This can be an empty string ""
+      cost,
+      totalCost,
+      productQuantity,
+      newParts,
+    } = req.body;
 
+    if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
+      return res
+        .status(400)
+        .send({ message: "At least one process detail must be added." });
+    }
+
+    const newCustomOrder = await prisma.$transaction(async (tx) => {
+      // --- CUSTOMER LOGIC (This part is correct) ---
+      let customer;
+      if (customerId) {
+        customer = await tx.customers.findUnique({
+          where: { id: customerId },
+        });
+      }
+
+      if (!customer) {
+        if (!customerName || !customerEmail) {
+          throw new Error(
+            "Customer name and email are required to create a new customer."
+          );
+        }
+        customer = await tx.customers.create({
+          data: {
+            firstName: customerName.split(" ")[0],
+            lastName: customerName.split(" ").slice(1).join(" ") || "",
+            email: customerEmail,
+            customerPhone: customerPhone,
+            createdBy: req.user?.id,
+          },
+        });
+      }
+      // --- CUSTOMER LOGIC ENDS ---
+
+      // --- SOLUTION IS HERE ---
+      // Create the custom order using the final customer's ID.
+      const createdOrder = await tx.customOrder.create({
+        data: {
+          orderNumber,
+          orderDate: new Date(orderDate),
+          shipDate: new Date(shipDate),
+          customerId: customer.id,
+          customerName,
+          customerEmail,
+          customerPhone,
+          productId,
+          // Conditionally add partId only if it has a valid value.
+          // If part_id is "" or null, this line will not be added to the data object.
+          ...(part_id && { partId: part_id }),
+          cost: parseFloat(cost),
+          totalCost: parseFloat(totalCost),
+          productQuantity: parseInt(productQuantity, 10),
+          processDetails: {
+            create: newParts.map((item) => ({
+              totalTime: parseInt(item.totalTime, 10),
+              process: item.processId,
+              assignTo: item.part,
+            })),
+          },
+        },
+      });
+
+      // The rest of your logic for handling parts and product tree remains the same.
+      for (const processItem of newParts) {
+        let partRecord = await tx.partNumber.findUnique({
+          where: { partNumber: processItem.part },
+        });
+
+        if (!partRecord) {
+          partRecord = await tx.partNumber.create({
+            data: {
+              partNumber: processItem.part,
+              partFamily: `${processItem.part} Family`,
+              type: "part",
+              cost: parseFloat(cost),
+              leadTime: parseInt(processItem.totalTime, 10) || 0,
+              minStock: 0,
+              companyName: "SPI Custom",
+              processId: processItem.processId,
+            },
+          });
+        } else {
+          partRecord = await tx.partNumber.update({
+            where: { part_id: partRecord.part_id },
+            data: { processId: processItem.processId },
+          });
+        }
+
+        await tx.productTree.upsert({
+          where: {
+            product_part_unique: {
+              product_id: productId,
+              part_id: partRecord.part_id,
+            },
+          },
+          update: {
+            processId: processItem.processId,
+            partQuantity: { increment: 1 },
+          },
+          create: {
+            product_id: productId,
+            part_id: partRecord.part_id,
+            partQuantity: 1,
+            processId: processItem.processId,
+            createdBy: customer.id,
+          },
+        });
+      }
+      return createdOrder;
+    });
+
+    return res.status(201).json({
+      message:
+        "Custom order created and product structure updated successfully!",
+      data: newCustomOrder,
+    });
+  } catch (error) {
+    console.error("Error during custom order transaction:", error);
+    return res.status(500).send({
+      message: "Something went wrong. The operation was rolled back.",
+      error: error.message,
+    });
+  }
+};
 const selectCustomer = async (req, res) => {
   try {
     const customer = await prisma.customers.findMany({
@@ -1867,10 +2054,14 @@ const createProductNumber = async (req, res) => {
         },
       },
     });
+    console.log("partsparts", parts);
+
     const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
     console.log("parsedPartsparsedParts", parsedParts);
 
     for (const part of parsedParts) {
+      console.log("3333");
+
       const componentPart = await prisma.partNumber.findUnique({
         where: {
           part_id: part.part_id,
@@ -1879,14 +2070,21 @@ const createProductNumber = async (req, res) => {
           processOrderRequired: true,
         },
       });
-
+      console.log(
+        "getIdgetId",
+        getId,
+        part,
+        processOrderRequired,
+        instructionRequired
+      );
       await prisma.productTree.create({
         data: {
           product_id: getId,
+          processId: processId,
           part_id: part.part_id,
           partQuantity: Number(part.qty),
           processOrderRequired: processOrderRequired === "true" ? true : false,
-          instructionRequired: instructionRequired === "true",
+          instructionRequired: instructionRequired === "true" ? true : false,
         },
       });
 
@@ -1896,6 +2094,7 @@ const createProductNumber = async (req, res) => {
           type: "product",
         },
         data: {
+          processId: processId,
           // processOrderRequired: componentPart.processOrderRequired,
           processOrderRequired: processOrderRequired === "true" ? true : false,
           instructionRequired: instructionRequired === "true",
@@ -1906,220 +2105,6 @@ const createProductNumber = async (req, res) => {
       message: "Product number and parts added successfully!",
     });
   } catch (error) {
-    // try {
-    //   const fileData = await fileUploadFunc(req, res);
-    //   const getPartImages = fileData?.data?.filter(
-    //     (file) => file.fieldname === "partImages"
-    //   );
-    //   const {
-    //     partFamily,
-    //     productNumber,
-    //     partDescription,
-    //     cost,
-    //     leadTime,
-    //     supplierOrderQty,
-    //     companyName,
-    //     minStock,
-    //     availStock,
-    //     cycleTime,
-    //     processOrderRequired,
-    //     processId,
-    //     processDesc,
-    //     parts = [],
-    //   } = req.body;
-
-    //   const existingPart = await prisma.partNumber.findUnique({
-    //     where: {
-    //       partNumber: productNumber.trim(),
-    //     },
-    //   });
-
-    //   if (existingPart) {
-    //     return res.status(400).json({
-    //       message: "Product Number already exists.",
-    //     });
-    //   }
-
-    //   // Pehle Naya Product (PartNumber) banayein
-    //   const newProduct = await prisma.PartNumber.create({
-    //     data: {
-    //       // part_id Prisma schema mein @default(uuid()) hai, to humein alag se dene ki zaroorat nahi
-    //       // Lekin agar aapko wahi 6 digit ka ID chahiye, to use karein.
-    //       // part_id: uuidv4().slice(0, 6),
-    //       partFamily,
-    //       partNumber: productNumber.trim(),
-    //       partDescription,
-    //       cost: parseFloat(cost),
-    //       leadTime: parseInt(leadTime),
-    //       supplierOrderQty: parseInt(supplierOrderQty),
-    //       companyName,
-    //       minStock: parseInt(minStock),
-    //       availStock: parseInt(availStock),
-    //       cycleTime: parseInt(cycleTime),
-    //       processOrderRequired: processOrderRequired === "true",
-    //       processId,
-    //       processDesc,
-    //       type: "product",
-    //       submittedBy: req.user.id,
-    //       partImages: {
-    //         create: getPartImages?.map((img) => ({
-    //           imageUrl: img.filename,
-    //           type: "product",
-    //         })),
-    //       },
-    //     },
-    //     // Naye product ka part_id get karne ke liye select karein
-    //     select: {
-    //       part_id: true,
-    //     },
-    //   });
-
-    //   const productId = newProduct.part_id; // Yahan se naye product ka ID mil gaya
-
-    //   const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
-
-    //   // Ab parts ke liye loop chalayein
-    //   for (const part of parsedParts) {
-    //     // Step 1: Har part ka data 'PartNumber' table se nikalein
-    //     // taki uska 'processOrderRequired' status pata chale.
-    //     const componentPart = await prisma.partNumber.findUnique({
-    //       where: {
-    //         part_id: part.part_id,
-    //       },
-    //       select: {
-    //         processOrderRequired: true, // Sirf zaroori field hi select karein
-    //       },
-    //     });
-
-    //     // Agar part database mein nahi mila, to use skip kar dein
-    //     if (!componentPart) {
-    //       console.warn(`Part with ID ${part.part_id} not found. Skipping.`);
-    //       continue;
-    //     }
-
-    //     // Step 2: 'ProductTree' mein record banayein
-    //     await prisma.productTree.create({
-    //       data: {
-    //         product_id: productId, // Naye banaye gaye product ka ID
-    //         part_id: part.part_id,
-    //         partQuantity: Number(part.qty),
-    //         // Yahan par hum component part se mili value ka istemal kar rahe hain
-    //         processOrderRequired: componentPart.processOrderRequired,
-    //       },
-    //     });
-    //   }
-
-    //   return res.status(201).json({
-    //     message: "Product number and parts added successfully!",
-    //   });
-    // }
-
-    // try {
-    //   const fileData = await fileUploadFunc(req, res);
-    //   const getPartImages = fileData?.data?.filter(
-    //     (file) => file.fieldname === "partImages"
-    //   );
-    //   const {
-    //     partFamily,
-    //     productNumber,
-    //     partDescription,
-    //     cost,
-    //     leadTime,
-    //     supplierOrderQty,
-    //     companyName,
-    //     minStock,
-    //     availStock,
-    //     cycleTime,
-    //     // processOrderRequired is no longer needed from the body for the product itself
-    //     processId,
-    //     processDesc,
-    //     parts = [], // Expecting an array of objects like [{ part_id: '...', qty: 2 }]
-    //   } = req.body;
-
-    //   // 1. Check if the product number already exists
-    //   const existingPart = await prisma.partNumber.findUnique({
-    //     where: { partNumber: productNumber.trim() },
-    //   });
-
-    //   if (existingPart) {
-    //     return res
-    //       .status(400)
-    //       .json({ message: "Product Number already exists." });
-    //   }
-
-    //   // 2. Parse the incoming parts array
-    //   const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
-    //   let isProcessRequiredForProduct = false; // Default status is false
-
-    //   // 3. Check the status of component parts IF they exist
-    //   if (parsedParts && parsedParts.length > 0) {
-    //     // Get all part_ids from the incoming array
-    //     const componentPartIds = parsedParts.map((p) => p.part_id);
-
-    //     // Fetch the actual data for these parts from the database
-    //     const componentPartsFromDb = await prisma.partNumber.findMany({
-    //       where: {
-    //         part_id: { in: componentPartIds },
-    //         isDeleted: false,
-    //       },
-    //       select: {
-    //         processOrderRequired: true,
-    //       },
-    //     });
-
-    //     // Check if ANY of the component parts has processOrderRequired as true
-    //     isProcessRequiredForProduct = componentPartsFromDb.some(
-    //       (part) => part.processOrderRequired === true
-    //     );
-    //   }
-
-    //   // 4. Create the new Product with the CORRECT processOrderRequired status
-    //   const getId = uuidv4().slice(0, 6);
-    //   const newProduct = await prisma.partNumber.create({
-    //     data: {
-    //       part_id: getId,
-    //       partFamily,
-    //       partNumber: productNumber.trim(),
-    //       partDescription,
-    //       cost: parseFloat(cost),
-    //       leadTime: parseInt(leadTime),
-    //       supplierOrderQty: parseInt(supplierOrderQty),
-    //       companyName,
-    //       minStock: parseInt(minStock),
-    //       availStock: parseInt(availStock),
-    //       cycleTime: parseInt(cycleTime),
-    //       processId,
-    //       processDesc,
-    //       type: "product",
-    //       submittedBy: req.user.id,
-    //       // The status is now determined by its parts
-    //       processOrderRequired: isProcessRequiredForProduct,
-    //       partImages: {
-    //         create: getPartImages?.map((img) => ({
-    //           imageUrl: img.filename,
-    //           type: "product",
-    //         })),
-    //       },
-    //     },
-    //   });
-
-    //   // 5. Create the links in the ProductTree table (if parts were provided)
-    //   if (parsedParts && parsedParts.length > 0) {
-    //     // Using createMany for better performance instead of a loop
-    //     await prisma.productTree.createMany({
-    //       data: parsedParts.map((part) => ({
-    //         product_id: getId, // Use the ID of the product we just created
-    //         part_id: part.part_id,
-    //         partQuantity: Number(part.qty),
-    //       })),
-    //     });
-    //   }
-
-    //   return res.status(201).json({
-    //     message: "Product created successfully!",
-    //     data: newProduct,
-    //   });
-    // }
     console.error("errorerror", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
@@ -2302,6 +2287,7 @@ const partNumberDetail = async (req, res) => {
         supplierOrderQty: true,
         availStock: true,
         cycleTime: true,
+        instructionRequired: true,
       },
     });
     return res.status(200).json({
@@ -2495,6 +2481,11 @@ const getSingleProductTree = async (req, res) => {
         leadTime: true,
         minStock: true,
         partImages: true,
+        supplierOrderQty: true,
+        instructionRequired: true,
+        processDesc: true,
+        processId: true,
+        processOrderRequired: true,
       },
     });
 
@@ -2512,6 +2503,7 @@ const getSingleProductTree = async (req, res) => {
         part_id: true,
         partQuantity: true,
         instructionRequired: true,
+
         part: {
           select: {
             partNumber: true,
@@ -2551,6 +2543,11 @@ const getSingleProductTree = async (req, res) => {
       cycleTime: productInfo.cycleTime,
       leadTime: productInfo.leadTime,
       minStock: productInfo.minStock,
+      supplierOrderQty: productInfo.supplierOrderQty,
+      instructionRequired: productInfo.instructionRequired,
+      processDesc: productInfo.processDesc,
+      processId: productInfo.processId,
+      processOrderRequired: productInfo.processOrderRequired,
       productImages: productInfo.partImages,
       parts,
     };
@@ -2627,7 +2624,7 @@ const updatePartNumber = async (req, res) => {
       await Promise.all(imagePromises);
     }
     return res.status(200).json({
-      message: "Part updated successfully with new images!",
+      message: "Part updated successfully!",
     });
   } catch (error) {
     return res
@@ -2655,9 +2652,13 @@ const updateProductNumber = async (req, res) => {
       minStock,
       availStock,
       processId,
-      parts = [],
+      processDesc,
+      processOrderRequired,
       instructionRequired,
+      // -----------------------------------------------------------
+      parts = [],
     } = req.body;
+
     const updatedProduct = await prisma.partNumber.update({
       where: { part_id: id },
       data: {
@@ -2672,6 +2673,11 @@ const updateProductNumber = async (req, res) => {
         minStock: parseInt(minStock),
         availStock: parseInt(availStock),
         processId: processId || null,
+        // --- FIX: Add the fields to the Prisma update data object ---
+        processDesc: processDesc,
+        processOrderRequired: processOrderRequired === "true", // Convert form string to boolean
+        instructionRequired: instructionRequired === "true", // Convert form string to boolean
+        // ---------------------------------------------------------
       },
     });
 
@@ -2686,7 +2692,6 @@ const updateProductNumber = async (req, res) => {
 
     for (const part of parsedParts) {
       const existing = existingPartMap.get(part.part_id);
-
       const partInstructionRequired = part.instructionRequired === "Yes";
 
       if (existing) {
@@ -2703,7 +2708,6 @@ const updateProductNumber = async (req, res) => {
           });
         }
       } else {
-        // Create new BOM entry
         await prisma.productTree.create({
           data: {
             product_id: id,
@@ -2715,7 +2719,6 @@ const updateProductNumber = async (req, res) => {
       }
     }
 
-    // 7. Delete removed parts
     for (const oldPart of existingParts) {
       if (!incomingPartIds.has(oldPart.part_id)) {
         await prisma.productTree.delete({
@@ -2724,7 +2727,6 @@ const updateProductNumber = async (req, res) => {
       }
     }
 
-    // 8. Upload new part images if available
     if (getPartImages?.length > 0) {
       for (const image of getPartImages) {
         await prisma.partImage.create({
@@ -2739,18 +2741,18 @@ const updateProductNumber = async (req, res) => {
       }
     }
 
-    // 9. Send success response
     return res.status(200).json({
       message: "Product and BOM updated successfully!",
       data: updatedProduct,
     });
   } catch (error) {
+    // Add better logging for easier debugging
+    console.error("Error while updating product:", error);
     return res.status(500).json({
       message: "Something went wrong while updating the product.",
     });
   }
 };
-
 const deletePartNumber = async (req, res) => {
   try {
     const id = req.params.id;
@@ -2981,117 +2983,6 @@ const selectPartNumberForCustomOrder = async (req, res) => {
 //   }
 // };
 
-const addCustomOrder = async (req, res) => {
-  try {
-    const {
-      orderNumber,
-      orderDate,
-      shipDate,
-      customerId,
-      customerName,
-      customerEmail,
-      customerPhone,
-      productId,
-      part_id,
-      cost,
-      totalCost,
-      productQuantity,
-      newParts,
-    } = req.body;
-
-    if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
-      return res
-        .status(400)
-        .send({ message: "At least one process detail must be added." });
-    }
-
-    const newCustomOrder = await prisma.$transaction(async (tx) => {
-      const createdOrder = await tx.customOrder.create({
-        data: {
-          orderNumber,
-          orderDate: new Date(orderDate),
-          shipDate: new Date(shipDate),
-          customerId,
-          customerName,
-          customerEmail,
-          customerPhone,
-          productId,
-          partId: part_id,
-          cost: parseFloat(cost),
-          totalCost: parseFloat(totalCost),
-          productQuantity: parseInt(productQuantity, 10),
-          processDetails: {
-            create: newParts.map((item) => ({
-              totalTime: parseInt(item.totalTime, 10),
-              process: item.processId,
-              assignTo: item.part,
-            })),
-          },
-        },
-      });
-
-      for (const processItem of newParts) {
-        let partRecord = await tx.partNumber.findUnique({
-          where: { partNumber: processItem.part },
-        });
-
-        if (!partRecord) {
-          partRecord = await tx.partNumber.create({
-            data: {
-              partNumber: processItem.part,
-              partFamily: `${processItem.part} Family`,
-              type: "part",
-              cost: parseFloat(cost),
-              leadTime: parseInt(processItem.totalTime, 10) || 0,
-              minStock: 0,
-              companyName: "SPI Custom",
-              processId: processItem.processId,
-            },
-          });
-        } else {
-          partRecord = await tx.partNumber.update({
-            where: { part_id: partRecord.part_id },
-            data: { processId: processItem.processId },
-          });
-        }
-
-        await tx.productTree.upsert({
-          where: {
-            product_part_unique: {
-              // This now works because of the schema change
-              product_id: productId,
-              part_id: partRecord.part_id,
-            },
-          },
-          update: {
-            processId: processItem.processId,
-            partQuantity: { increment: 1 },
-          },
-          create: {
-            product_id: productId,
-            part_id: partRecord.part_id,
-            partQuantity: 1,
-            processId: processItem.processId,
-            createdBy: customerId,
-          },
-        });
-      }
-      return createdOrder;
-    });
-
-    return res.status(201).json({
-      message:
-        "Custom order created and product structure updated successfully!",
-      data: newCustomOrder,
-    });
-  } catch (error) {
-    console.error("Error during custom order transaction:", error);
-    return res.status(500).send({
-      message: "Something went wrong. The operation was rolled back.",
-      error: error.message,
-    });
-  }
-};
 const getCustomOrderById = async (req, res) => {
   const { id } = req.params;
 
@@ -3173,6 +3064,9 @@ const searchStockOrders = async (req, res) => {
               select: {
                 partQuantity: true,
                 part: {
+                  where: {
+                    processOrderRequired: true,
+                  },
                   select: {
                     part_id: true,
                     partNumber: true,
@@ -3912,20 +3806,17 @@ const searchCustomOrders = async (req, res) => {
       });
     }
 
-    // Ek hi query mein order, main item (part/product), aur uske components fetch karein
     const orders = await prisma.customOrder.findMany({
       where: { AND: andConditions },
       orderBy: { createdAt: "desc" },
       include: {
         customer: true,
-        // Dono relations ko include karein, kyunki main item kisi mein bhi ho sakta hai
         part: {
           include: {
-            // Agar yeh item ek product hai, toh uske components (ProductTree) laayein
             components: {
               where: { isDeleted: false },
               include: {
-                part: true, // Component PartNumber ki details
+                part: true,
               },
             },
           },
@@ -3938,18 +3829,17 @@ const searchCustomOrders = async (req, res) => {
                 processName: true,
               },
             },
-            // Agar yeh item ek product hai, toh uske components (ProductTree) laayein
             components: {
               where: { isDeleted: false },
               include: {
                 part: true,
-                // Component PartNumber ki details
               },
             },
           },
         },
       },
     });
+    console.log("ordersorders", orders);
 
     if (orders.length === 0) {
       return res.status(200).json({
@@ -3958,34 +3848,25 @@ const searchCustomOrders = async (req, res) => {
       });
     }
 
-    // Data ko format karke `assemblyList` banayein
     const formattedOrders = orders.map((order) => {
-      // part aur product ko order object se alag karein
       const { part, product, ...restOfOrder } = order;
-
-      // Order se juda hua main item (chahe part ho ya product) chunein
       const mainItem = product || part;
-      console.log("productproductproduct", product);
       const productFamily = [];
-
       if (mainItem) {
-        // Step 1: Main item ko assembly list mein add karein
         productFamily.push({
           ...mainItem,
-          isParent: true, // Identify karne ke liye ki yeh main item hai
-          quantityRequired: order.productQuantity || 1, // Order se quantity lein
-          components: undefined, // Redundant nested data ko hata dein
+          isParent: true,
+          quantityRequired: order.productQuantity || 1,
+          components: undefined,
         });
 
-        // Step 2: Agar main item ke components hain, toh unhe list mein add karein
         if (mainItem.components && mainItem.components.length > 0) {
           mainItem.components.forEach((componentEntry) => {
-            // componentEntry ProductTree ka record hai
             if (componentEntry.part) {
               productFamily.push({
                 ...componentEntry.part,
-                isParent: false, // Identify karne ke liye ki yeh component hai
-                quantityRequired: componentEntry.partQuantity, // ProductTree se quantity lein
+                isParent: false,
+                quantityRequired: componentEntry.partQuantity,
               });
             }
           });
@@ -4186,8 +4067,11 @@ const customOrderSchedule = async (req, res) => {
         console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
         continue;
       }
-
-      const scheduleQuantity = quantity * (partDetails.minStock || 1);
+      const scheduleQuantity =
+        quantity *
+        (partDetails.type === "product"
+          ? quantity || 1
+          : partDetails.minStock || 1);
 
       const schedulePromise = prisma.stockOrderSchedule.upsert({
         // The unique constraint now correctly identifies the record
@@ -4410,13 +4294,17 @@ const scheduleStockOrdersList = async (req, res) => {
         : Promise.resolve([]),
 
       // Fetch CustomOrders if there are any IDs for them
+      // Fetch CustomOrders if there are any IDs for them
       customOrderIds.length > 0
         ? prisma.customOrder.findMany({
             where: { id: { in: customOrderIds } },
-            select: {
-              id: true,
-              // Add relevant fields from your CustomOrder model
-              // e.g., customerName: true, orderNumber: true, status: true
+            include: {
+              // 'include' is only used for relations
+              product: {
+                select: {
+                  partNumber: true,
+                },
+              },
             },
           })
         : Promise.resolve([]),
@@ -4429,6 +4317,8 @@ const scheduleStockOrdersList = async (req, res) => {
     const customOrderMap = new Map(
       customOrders.map((order) => [order.id, order])
     );
+    console.log("stockOrderMapstockOrderMap", stockOrderMap);
+    console.log("customOrderMapcustomOrderMapcustomOrderMap", customOrderMap);
 
     // Step 5: "Stitch" the order data back onto the schedule objects
     const schedulesWithOrders = allSchedules.map((schedule) => {

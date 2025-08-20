@@ -243,7 +243,6 @@ router.post(
   adminValidateToken,
   createWorkInstruction
 );
-
 router.post(
   "/create-work-instruction-detail",
   adminValidateToken,
@@ -284,23 +283,19 @@ router.put(
   adminValidateToken,
   updateWorkInstructionDetail
 );
-
 router.put(
   "/delete-work-instruction/:id",
   adminValidateToken,
   deleteWorkInstruction
 );
-
 router.get("/select-work-instructiuon", adminValidateToken, selectInstruction);
 router.post(
   "/apply-work-instruction",
   adminValidateToken,
   applyWorkInstruction
 );
-
 router.get("/search-stock-order", adminValidateToken, searchStockOrders);
 router.get("/search-custom-order", adminValidateToken, searchCustomOrders);
-
 router.get(
   "/select-work-instruction-title",
   adminValidateToken,
