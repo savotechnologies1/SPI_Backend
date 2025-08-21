@@ -19,24 +19,6 @@ const storage = multer.diskStorage({
       cb(new Error("Invalid file fieldname"), false);
     }
   },
-
-  // filename: function (req, file, cb) {
-  //   const fileExtension = file.originalname.substr(
-  //     file.originalname.lastIndexOf(".") + 1,
-  //     file.originalname.length
-  //   );
-  //   let data = req?.user?.id;
-  //   if (
-  //     ["workInstructionImg", "workInstructionVideo", "partImages"].includes(
-  //       file?.fieldname
-  //     )
-  //   ) {
-  //     data = uuidv4();
-  //   }
-  //   console.log("22222222222222", data, fileExtension);
-
-  //   cb(null, `${data}.${fileExtension}`);
-  // },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const randomChars = crypto.randomBytes(4).toString("hex");

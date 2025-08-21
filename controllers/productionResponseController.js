@@ -13941,8 +13941,6 @@ const completeScheduleOrder = async (req, res) => {
         });
       } else if (type === "product") {
         if (updatedStatus === "completed") {
-          console.log("updatedStatusupdatedStatus", updatedStatus);
-
           if (!productId) {
             throw new Error(
               "productId is required to update final product stock."
@@ -14576,8 +14574,6 @@ const allScrapEntires = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("error", error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });

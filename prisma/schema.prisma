@@ -112,7 +112,7 @@ model process {
 }
 
 model suppliers {
-  id           String    @id @db.VarChar(100)
+  id           String    @id @default(uuid()) @db.VarChar(100)
   firstName    String?   @db.VarChar(255)
   lastName     String?   @db.VarChar(255)
   email        String?   @db.VarChar(255)
@@ -129,21 +129,25 @@ model suppliers {
 }
 
 model supplier_orders {
-  id           String  @id @default(uuid()) @db.Char(36)
-  order_number String? @db.VarChar(50)
-  order_date   String? @db.VarChar(50)
-  supplier_id  String? @db.VarChar(100)
+  id           String      @id @default(uuid()) @db.Char(36)
+  order_number String?     @db.VarChar(50)
+  order_date   String?     @db.VarChar(50)
+  supplier_id  String?     @db.VarChar(100)
+  firstName    String?     @db.VarChar(255)
+  lastName     String?     @db.VarChar(255)
+  email        String?     @db.VarChar(100)
+  phone        String?     @db.VarChar(100)
   quantity     Int?
   cost         Int?
-
-  need_date String?     @db.VarChar(50)
-  createdBy String?     @db.VarChar(255)
-  isDeleted Boolean?    @default(false)
-  createdAt DateTime?   @default(now()) @db.DateTime(0)
-  updatedAt DateTime?   @default(now()) @db.DateTime(0)
-  part_id   String?     @db.VarChar(100)
-  part      PartNumber? @relation(fields: [part_id], references: [part_id])
-  supplier  suppliers?  @relation(fields: [supplier_id], references: [id])
+  status       String?     @default("pending")
+  need_date    String?     @db.VarChar(50)
+  createdBy    String?     @db.VarChar(255)
+  isDeleted    Boolean?    @default(false)
+  createdAt    DateTime?   @default(now()) @db.DateTime(0)
+  updatedAt    DateTime?   @default(now()) @db.DateTime(0)
+  part_id      String?     @db.VarChar(100)
+  part         PartNumber? @relation(fields: [part_id], references: [part_id])
+  supplier     suppliers?  @relation(fields: [supplier_id], references: [id])
 
   @@index([supplier_id], map: "supplier_orders_supplier_id_fkey")
   @@index([part_id], map: "supplier_orders_supplier_part_id_fkey")

@@ -610,6 +610,7 @@ const selectSupplier = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 const supplierOrder = async (req, res) => {
   try {
     const {
@@ -618,11 +619,11 @@ const supplierOrder = async (req, res) => {
       supplier_id,
       quantity,
       need_date,
+      newSupplier,
       createdBy,
       part_id,
     } = req.body;
 
-    // 1️⃣ Part details fetch karo
     const partDetails = await prisma.partNumber.findUnique({
       where: { part_id },
       select: {
@@ -637,21 +638,60 @@ const supplierOrder = async (req, res) => {
       return res.status(404).json({ message: "Part not found" });
     }
 
-    // 2️⃣ Supplier Order Create karo
-    const newOrder = await prisma.supplier_orders.create({
+    let finalSupplierId = supplier_id;
+    let supplierDetails = {}; // Variable to hold supplier's details
+
+    if (finalSupplierId === null && newSupplier) {
+      const newSupplierRecord = await prisma.suppliers.create({
+        data: {
+          firstName: newSupplier.firstName,
+          lastName: newSupplier.lastName,
+          email: newSupplier.email,
+        },
+      });
+      finalSupplierId = newSupplierRecord.id;
+      supplierDetails = {
+        firstName: newSupplierRecord.firstName,
+        lastName: newSupplierRecord.lastName,
+        email: newSupplierRecord.email,
+      };
+    } else if (finalSupplierId) {
+      // If using an existing supplier, fetch their details
+      const existingSupplier = await prisma.suppliers.findUnique({
+        where: { id: finalSupplierId },
+      });
+      if (!existingSupplier) {
+        return res
+          .status(404)
+          .json({ message: "Existing supplier not found." });
+      }
+      supplierDetails = {
+        firstName: existingSupplier.firstName,
+        lastName: existingSupplier.lastName,
+        email: existingSupplier.email,
+      };
+    }
+
+    if (!finalSupplierId) {
+      return res.status(400).json({ message: "Supplier ID is missing." });
+    }
+
+    await prisma.supplier_orders.create({
       data: {
         order_number,
         order_date,
-        supplier_id,
+        supplier_id: finalSupplierId,
+        firstName: supplierDetails.firstName,
+        lastName: supplierDetails.lastName,
+        email: supplierDetails.email,
         quantity,
         need_date,
-        createdBy,
+        createdBy: req.user?.id,
         part_id,
         cost: partDetails.cost,
       },
     });
 
-    // 3️⃣ Agar processOrderRequired = false hai to Inventory Update karo
     if (!partDetails.processOrderRequired) {
       await prisma.supplier_inventory.upsert({
         where: { part_id },
@@ -659,21 +699,110 @@ const supplierOrder = async (req, res) => {
           minStock: partDetails.minStock,
           availStock: partDetails.availStock,
           cost: partDetails.cost,
-          supplier_id,
+          supplier_id: finalSupplierId,
         },
         create: {
           part_id,
           minStock: partDetails.minStock,
           availStock: partDetails.availStock,
           cost: partDetails.cost,
-          supplier_id,
+          supplier_id: finalSupplierId,
         },
       });
     }
 
-    res.status(201).json({ message: "Supplier order created", newOrder });
+    res.status(201).json({ message: "Supplier order created" });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const supplierOrderDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await prisma.supplier_orders.findFirst({
+      where: {
+        id: id,
+      },
+    });
+    return res.status(200).json({
+      message: "Supplier order  detail retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later.",
+    });
+  }
+};
+
+const sendSupplierEmail = async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    const orderDetail = await prisma.supplier_orders.findUnique({
+      where: { id: id, isDeleted: false },
+      select: {
+        id: true,
+        order_date: true,
+        order_number: true,
+        cost: true,
+        quantity: true,
+        need_date: true,
+        supplier: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        part: {
+          select: {
+            partNumber: true,
+          },
+        },
+      },
+    });
+
+    if (!orderDetail) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    const formattedOrderDate = new Date(
+      orderDetail.order_date
+    ).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const formattedNeedDate = new Date(
+      orderDetail.need_date
+    ).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const templateData = {
+      "{{supplier_name}}": `${orderDetail.supplier.firstName} ${orderDetail.supplier.lastName}`,
+      "{{order_number}}": orderDetail.order_number,
+      "{{order_date}}": formattedOrderDate,
+      "{{part_name}}": orderDetail.part.partNumber,
+      "{{quantity}}": orderDetail.quantity,
+      "{{cost}}": `$${parseFloat(orderDetail.cost).toFixed(2)}`,
+      "{{need_date}}": formattedNeedDate,
+    };
+
+    const supplierEmail = orderDetail.supplier.email;
+
+    await sendMail("send-order-to-the-supplier", templateData, supplierEmail);
+
+    return res.status(200).json({
+      message: "Email successfully sent to the supplier.",
+    });
+  } catch (error) {
+    console.error("Failed to send supplier email:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -738,8 +867,6 @@ const addProcess = async (req, res) => {
       processDesc,
       isProcessReq,
     } = req.body;
-    console.log("isProcessReqisProcessReq", isProcessReq);
-
     const trimmedProcessName = processName.trim();
     const checkExistingProcess = await prisma.process.findFirst({
       where: {
@@ -3839,8 +3966,6 @@ const searchCustomOrders = async (req, res) => {
         },
       },
     });
-    console.log("ordersorders", orders);
-
     if (orders.length === 0) {
       return res.status(200).json({
         message: "No custom orders found matching your criteria.",
@@ -4013,7 +4138,7 @@ const stockOrderSchedule = async (req, res) => {
       });
 
       return res.status(201).json({
-        message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+        message: `Successfully scheduled or updated  items.`,
         data: newSchedules,
       });
     } else {
@@ -4027,7 +4152,6 @@ const stockOrderSchedule = async (req, res) => {
     });
   }
 };
-// controllers/adminController.js
 
 const customOrderSchedule = async (req, res) => {
   const partsToSchedule = req.body;
@@ -4501,6 +4625,7 @@ const getAllSupplierOrder = async (req, res) => {
             select: {
               firstName: true,
               lastName: true,
+              email: true,
             },
           },
         },
@@ -4540,7 +4665,8 @@ const getAllSupplierOrder = async (req, res) => {
 const updateSupplierOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    const { order_date, part_name, quantity, cost, need_date } = req.body;
+    const { order_date, part_name, quantity, cost, need_date, status } =
+      req.body;
 
     const result = await prisma.supplier_orders.updateMany({
       where: {
@@ -4558,6 +4684,43 @@ const updateSupplierOrder = async (req, res) => {
 
     return res.status(200).json({
       message: "SupplierOrder updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating SupplierOrder", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const updateSupplierOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, quantity, part_id } = req.body;
+    const result = await prisma.supplier_orders.update({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      data: {
+        status: status,
+      },
+    });
+
+    if (status === "Delivered") {
+      prisma.partNumber
+        .update({
+          where: {
+            part_id: part_id,
+          },
+          data: {
+            supplierOrderQty: { increment: quantity },
+          },
+        })
+        .then();
+    }
+    return res.status(200).json({
+      message: "Order status updated successfully",
     });
   } catch (error) {
     console.error("Error updating SupplierOrder", error);
@@ -4819,7 +4982,12 @@ const getSupplierInventory = async (req, res) => {
     }
 
     const whereFilter = {
+      status: "Delivered",
       isDeleted: false,
+      // NEW: Filter by the related PartNumber's processOrderRequired field
+      part: {
+        processOrderRequired: false,
+      },
       ...(orConditions.length > 0 ? { OR: orConditions } : {}),
     };
 
@@ -4828,9 +4996,8 @@ const getSupplierInventory = async (req, res) => {
       orderBy = { createdAt: "asc" };
     }
 
-    // 📊 Query
     const [inventoryData, totalCount] = await Promise.all([
-      prisma.supplier_inventory.findMany({
+      prisma.supplier_orders.findMany({
         where: whereFilter,
         include: {
           part: {
@@ -4838,6 +5005,9 @@ const getSupplierInventory = async (req, res) => {
               part_id: true,
               partNumber: true,
               partDescription: true,
+              supplierOrderQty: true,
+              availStock: true,
+              minStock: true,
             },
           },
           supplier: {
@@ -4851,7 +5021,7 @@ const getSupplierInventory = async (req, res) => {
         skip: paginationData.skip,
         take: paginationData.pageSize,
       }),
-      prisma.supplier_inventory.count({
+      prisma.supplier_orders.count({
         where: whereFilter,
       }),
     ]);
@@ -4991,6 +5161,7 @@ module.exports = {
   profileDetail,
   deleteProfileImage,
   getAllSupplierOrder,
+  supplierOrderDetail,
   updateSupplierOrder,
   deleteSupplierOrder,
   validateStockQty,
@@ -4999,4 +5170,6 @@ module.exports = {
   deleteSupplierInventory,
   deleteScrapEntry,
   customOrderSchedule,
+  sendSupplierEmail,
+  updateSupplierOrderStatus,
 };

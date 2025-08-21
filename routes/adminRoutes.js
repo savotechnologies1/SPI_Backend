@@ -70,6 +70,9 @@ const {
   deleteScrapEntry,
   searchCustomOrders,
   customOrderSchedule,
+  sendSupplierEmail,
+  supplierOrderDetail,
+  updateSupplierOrderStatus,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -107,14 +110,6 @@ const {
   getScheduleProcessInformation,
   completeScheduleOrder,
   stationLogout,
-  completeTrainingSession,
-  startTrainingStep,
-  getTrainingStatus,
-  stepClickHandler,
-  completeStepAndStartNext,
-  startStep,
-  completeStep,
-  markStepAsCompleted,
   updateStepTime,
   completeTraning,
   scrapScheduleOrder,
@@ -168,6 +163,28 @@ router.put(
 router.put("/delete-supplier/:id", adminValidateToken, deleteSupplier);
 router.get("/select-supplier", adminValidateToken, selectSupplier);
 router.post("/add-supplier-order", adminValidateToken, supplierOrder);
+router.get("/supplier-order-list", adminValidateToken, getAllSupplierOrder);
+router.put(
+  "/update-supplier-order/:id",
+  adminValidateToken,
+  updateSupplierOrder
+);
+router.patch(
+  "/change-order-status/:id",
+  adminValidateToken,
+  updateSupplierOrderStatus
+);
+router.get(
+  "/get-supplier-order-detail/:id",
+  adminValidateToken,
+  supplierOrderDetail
+);
+
+router.put(
+  "/delete-supplier-order/:id",
+  adminValidateToken,
+  deleteSupplierOrder
+);
 router.post("/add-process", adminValidateToken, processValidation, addProcess);
 router.get("/all-process", adminValidateToken, processList);
 router.get("/get-process-detail/:id", adminValidateToken, processDetail);
@@ -217,6 +234,9 @@ router.get(
   adminValidateToken,
   selectPartNumberForCustomOrder
 );
+
+router.get("/search-stock-order", adminValidateToken, searchStockOrders);
+router.get("/search-custom-order", adminValidateToken, searchCustomOrders);
 router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/add-custom-orders", adminValidateToken, addCustomOrder);
 router.get("/get-customOrders/:id", adminValidateToken, getCustomOrderById);
@@ -294,8 +314,6 @@ router.post(
   adminValidateToken,
   applyWorkInstruction
 );
-router.get("/search-stock-order", adminValidateToken, searchStockOrders);
-router.get("/search-custom-order", adminValidateToken, searchCustomOrders);
 router.get(
   "/select-work-instruction-title",
   adminValidateToken,
@@ -321,17 +339,7 @@ router.patch(
 router.get("/profile-detail", adminValidateToken, profileDetail);
 router.put("/profile-update", adminValidateToken, updateProfileApi);
 router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
-router.get("/supplier-order-list", adminValidateToken, getAllSupplierOrder);
-router.put(
-  "/update-supplier-order/:id",
-  adminValidateToken,
-  updateSupplierOrder
-);
-router.put(
-  "/delete-supplier-order/:id",
-  adminValidateToken,
-  deleteSupplierOrder
-);
+
 router.post("/station-login", adminValidateToken, stationLogin);
 router.post("/station-logout/:id", adminValidateToken, stationLogout);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
@@ -386,4 +394,5 @@ router.patch(
   changeStationNotification
 );
 router.patch("/delete-scrap-entry/:id", adminValidateToken, deleteScrapEntry);
+router.post("/supplier-order-email", adminValidateToken, sendSupplierEmail);
 module.exports = router;
