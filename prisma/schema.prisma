@@ -29,6 +29,7 @@ model admin {
   zipCode      String       @default("") @db.Char(50)
 
   submittedBy StockOrderSchedule[]
+  scapEntries scapEntries[]
 }
 
 model customers {
@@ -650,18 +651,21 @@ model scapEntries {
   type             String?  @db.VarChar(36)
   returnSupplierId String?  @db.VarChar(100)
 
-  supplierId String?    @db.VarChar(100) // Renamed from suppliersId
-  supplier   suppliers? @relation(fields: [supplierId], references: [id])
-
+  supplierId             String?                  @db.VarChar(100) // Renamed from suppliersId
+  supplier               suppliers?               @relation(fields: [supplierId], references: [id])
+  createdByAdminId       String?                  @db.Char(36)
+  createdByEmployeeId    String?                  @db.Char(36)
   PartNumber             PartNumber?              @relation(fields: [partId], references: [part_id])
   customers              customers?               @relation(fields: [customersId], references: [id])
   customersId            String?                  @db.Char(36)
-  employee               employee?                @relation(fields: [employeeId], references: [id])
   employeeId             String?                  @db.Char(36)
   process                process?                 @relation(fields: [processId], references: [id])
   StockOrder             StockOrder?              @relation(fields: [stockOrderId], references: [id])
   stockOrderId           String?                  @db.Char(36)
   ProductionStepTracking ProductionStepTracking[]
+
+  createdByAdmin    admin?    @relation(fields: [createdByAdminId], references: [id])
+  createdByEmployee employee? @relation(fields: [createdByEmployeeId], references: [id])
 
   @@index([processId], map: "ScapEntries_processId_fkey")
   @@index([partId], map: "ScapEntries_partId_fkey")

@@ -4017,7 +4017,7 @@ const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
     const allPrismaPromises = [];
-    const orderIdsToUpdate = new Set(); // Using a Set is better for multiple orders
+    const orderIdsToUpdate = new Set();
 
     for (const order of ordersToSchedule) {
       const { order_id, product_id, quantity, delivery_date, status, type } =
@@ -4041,7 +4041,6 @@ const stockOrderSchedule = async (req, res) => {
       if (productPart) {
         const productSchedule = prisma.stockOrderSchedule.upsert({
           where: {
-            // --- CHANGE #1: Use the new unique identifier ---
             order_id_part_id_order_type: {
               order_id: order_id,
               part_id: product_id,
@@ -4341,25 +4340,167 @@ const customOrderSchedule = async (req, res) => {
 //   }
 // };
 
+// correct code
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+
+//     // Step 1: Fetch the schedules and the total count
+//     const [allSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//           isDeleted: false,
+//           // You can add more filters here, e.g., for order_type
+//           // order_type: 'StockOrder'
+//         },
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: {
+//           createdAt: "desc",
+//         },
+//         include: {
+//           // 'part' is still a valid direct relation, so we can include it
+//           part: {
+//             select: {
+//               partNumber: true,
+//               process: true,
+//             },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({
+//         where: {
+//           isDeleted: false,
+//         },
+//       }),
+//     ]);
+
+//     // If there are no schedules, return early
+//     if (allSchedules.length === 0) {
+//       return res.status(200).json({
+//         message: "No scheduled orders found.",
+//         data: [],
+//         pagination: await pagination({
+//           page: paginationData.page,
+//           pageSize: paginationData.pageSize,
+//           total: 0,
+//         }),
+//       });
+//     }
+
+//     // Step 2: Separate the order IDs by their type
+//     const stockOrderIds = [];
+//     const customOrderIds = [];
+
+//     for (const schedule of allSchedules) {
+//       if (schedule.order_type === "StockOrder" && schedule.order_id) {
+//         stockOrderIds.push(schedule.order_id);
+//       } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
+//         customOrderIds.push(schedule.order_id);
+//       }
+//     }
+
+//     // Step 3: Fetch the related orders in parallel
+//     const [stockOrders, customOrders] = await Promise.all([
+//       // Fetch StockOrders if there are any IDs for them
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({
+//             where: { id: { in: stockOrderIds } },
+//             select: {
+//               id: true,
+//               orderNumber: true,
+//               orderDate: true,
+//               shipDate: true,
+//               status: true,
+//               part: { select: { partNumber: true } },
+//             },
+//           })
+//         : Promise.resolve([]),
+
+//       // Fetch CustomOrders if there are any IDs for them
+//       // Fetch CustomOrders if there are any IDs for them
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: {
+//               // 'include' is only used for relations
+//               product: {
+//                 select: {
+//                   partNumber: true,
+//                 },
+//               },
+//             },
+//           })
+//         : Promise.resolve([]),
+//     ]);
+
+//     // Step 4: Create lookup maps for easy access (much faster than nested loops)
+//     const stockOrderMap = new Map(
+//       stockOrders.map((order) => [order.id, order])
+//     );
+//     const customOrderMap = new Map(
+//       customOrders.map((order) => [order.id, order])
+//     );
+//     console.log("stockOrderMapstockOrderMap", stockOrderMap);
+//     console.log("customOrderMapcustomOrderMapcustomOrderMap", customOrderMap);
+
+//     // Step 5: "Stitch" the order data back onto the schedule objects
+//     const schedulesWithOrders = allSchedules.map((schedule) => {
+//       let orderData = null;
+//       if (schedule.order_type === "StockOrder") {
+//         orderData = stockOrderMap.get(schedule.order_id) || null;
+//       } else if (schedule.order_type === "CustomOrder") {
+//         orderData = customOrderMap.get(schedule.order_id) || null;
+//       }
+//       // Add the fetched order data to a new property, matching your original desired structure
+//       return { ...schedule, order: orderData };
+//     });
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Scheduled orders retrieved successfully!",
+//       data: schedulesWithOrders, // Send the stitched data
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Error retrieving scheduled orders:", error); // Log the error for debugging
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+// correct code end
+// controllers/scheduleController.js
 const scheduleStockOrdersList = async (req, res) => {
   try {
+    const { search, order_type } = req.query;
     const paginationData = await paginationQuery(req.query);
+    const whereClause = {
+      isDeleted: false,
+    };
+    if (order_type && order_type !== "all") {
+      whereClause.order_type = order_type;
+    }
 
-    // Step 1: Fetch the schedules and the total count
-    const [allSchedules, totalCount] = await Promise.all([
+    if (search) {
+      whereClause.OR = [{ part: { partNumber: { contains: search } } }];
+    }
+
+    const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
-        where: {
-          isDeleted: false,
-          // You can add more filters here, e.g., for order_type
-          // order_type: 'StockOrder'
-        },
+        where: whereClause,
         skip: paginationData.skip,
         take: paginationData.pageSize,
         orderBy: {
           createdAt: "desc",
         },
         include: {
-          // 'part' is still a valid direct relation, so we can include it
           part: {
             select: {
               partNumber: true,
@@ -4369,14 +4510,11 @@ const scheduleStockOrdersList = async (req, res) => {
         },
       }),
       prisma.stockOrderSchedule.count({
-        where: {
-          isDeleted: false,
-        },
+        where: whereClause,
       }),
     ]);
 
-    // If there are no schedules, return early
-    if (allSchedules.length === 0) {
+    if (filteredSchedules.length === 0) {
       return res.status(200).json({
         message: "No scheduled orders found.",
         data: [],
@@ -4387,12 +4525,10 @@ const scheduleStockOrdersList = async (req, res) => {
         }),
       });
     }
-
-    // Step 2: Separate the order IDs by their type
     const stockOrderIds = [];
     const customOrderIds = [];
 
-    for (const schedule of allSchedules) {
+    for (const schedule of filteredSchedules) {
       if (schedule.order_type === "StockOrder" && schedule.order_id) {
         stockOrderIds.push(schedule.order_id);
       } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
@@ -4400,59 +4536,34 @@ const scheduleStockOrdersList = async (req, res) => {
       }
     }
 
-    // Step 3: Fetch the related orders in parallel
     const [stockOrders, customOrders] = await Promise.all([
-      // Fetch StockOrders if there are any IDs for them
       stockOrderIds.length > 0
         ? prisma.stockOrder.findMany({
             where: { id: { in: stockOrderIds } },
-            select: {
-              id: true,
-              orderNumber: true,
-              orderDate: true,
-              shipDate: true,
-              status: true,
-              part: { select: { partNumber: true } },
-            },
+            include: { part: { select: { partNumber: true } } },
           })
         : Promise.resolve([]),
 
-      // Fetch CustomOrders if there are any IDs for them
-      // Fetch CustomOrders if there are any IDs for them
       customOrderIds.length > 0
         ? prisma.customOrder.findMany({
             where: { id: { in: customOrderIds } },
-            include: {
-              // 'include' is only used for relations
-              product: {
-                select: {
-                  partNumber: true,
-                },
-              },
-            },
+            include: { product: { select: { partNumber: true } } },
           })
         : Promise.resolve([]),
     ]);
-
-    // Step 4: Create lookup maps for easy access (much faster than nested loops)
     const stockOrderMap = new Map(
       stockOrders.map((order) => [order.id, order])
     );
     const customOrderMap = new Map(
       customOrders.map((order) => [order.id, order])
     );
-    console.log("stockOrderMapstockOrderMap", stockOrderMap);
-    console.log("customOrderMapcustomOrderMapcustomOrderMap", customOrderMap);
-
-    // Step 5: "Stitch" the order data back onto the schedule objects
-    const schedulesWithOrders = allSchedules.map((schedule) => {
+    const schedulesWithOrders = filteredSchedules.map((schedule) => {
       let orderData = null;
       if (schedule.order_type === "StockOrder") {
         orderData = stockOrderMap.get(schedule.order_id) || null;
       } else if (schedule.order_type === "CustomOrder") {
         orderData = customOrderMap.get(schedule.order_id) || null;
       }
-      // Add the fetched order data to a new property, matching your original desired structure
       return { ...schedule, order: orderData };
     });
 
@@ -4464,18 +4575,17 @@ const scheduleStockOrdersList = async (req, res) => {
 
     return res.status(200).json({
       message: "Scheduled orders retrieved successfully!",
-      data: schedulesWithOrders, // Send the stitched data
+      data: schedulesWithOrders,
       pagination: getPagination,
     });
   } catch (error) {
-    console.error("Error retrieving scheduled orders:", error); // Log the error for debugging
+    console.error("Error retrieving scheduled orders:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
       error: error.message,
     });
   }
 };
-
 const deleteProductTreeById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -4984,7 +5094,6 @@ const getSupplierInventory = async (req, res) => {
     const whereFilter = {
       status: "Delivered",
       isDeleted: false,
-      // NEW: Filter by the related PartNumber's processOrderRequired field
       part: {
         processOrderRequired: false,
       },

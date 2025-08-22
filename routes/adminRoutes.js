@@ -339,7 +339,6 @@ router.patch(
 router.get("/profile-detail", adminValidateToken, profileDetail);
 router.put("/profile-update", adminValidateToken, updateProfileApi);
 router.put("/delete-profile-image", adminValidateToken, deleteProfileImage);
-
 router.post("/station-login", adminValidateToken, stationLogin);
 router.post("/station-logout/:id", adminValidateToken, stationLogout);
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
@@ -366,15 +365,19 @@ router.get(
   adminValidateToken,
   getScheduleProcessInformation
 );
-router.put("/complete-order/:id", completeScheduleOrder);
-router.put("/production-response/:id/update-step-time", updateStepTime);
-router.put("/complete-traning/:id", completeTraning);
-router.put("/scrap-order/:id", scrapScheduleOrder);
+router.put("/complete-order/:id", adminValidateToken, completeScheduleOrder);
+router.put(
+  "/production-response/:id/update-step-time",
+  adminValidateToken,
+  updateStepTime
+);
+router.put("/complete-traning/:id", adminValidateToken, completeTraning);
+router.put("/scrap-order/:id", adminValidateToken, scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
 router.post("/validate-stock-quantity", validateStockQty);
 router.patch("/delete-schedule-order/:id", deleteScheduleOrder);
 router.get("/scan-complete", completeScheduleOrderViaGet);
-router.post("/add-scrap-entry", scrapEntry);
+router.post("/add-scrap-entry", adminValidateToken, scrapEntry);
 router.get("/all-scrap-entry", allScrapEntires);
 router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.get("/select-schedule-product-number", selectScheudleProductNumber);
