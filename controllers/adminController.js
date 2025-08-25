@@ -27,6 +27,7 @@ const login = async (req, res) => {
       select: {
         id: true,
         email: true,
+        roles: true,
         password: true,
         tokens: true,
         isDeleted: true,
@@ -40,7 +41,7 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role: user.roles },
       process.env.ACCESS_TOKEN_SECRET,
       {
         expiresIn: "5d",
@@ -134,16 +135,11 @@ const validOtp = async (req, res) => {
       },
     });
 
-    // Check 1: User nahi mila ya OTP galat hai
     if (!user || !user.otp || user.otp !== otp) {
       return res.status(400).send({ message: "Invalid OTP" });
     }
 
-    // === YAHAN SE BADLAAV SHURU ===
-
-    // Check 2: OTP expire ho chuka hai
     if (new Date() > user.otpExpiresAt) {
-      // Expired OTP ko DB se clear kar dein
       await prisma.admin.update({
         where: { id: user.id },
         data: { otp: null, otpExpiresAt: null },
@@ -153,17 +149,14 @@ const validOtp = async (req, res) => {
         .send({ message: "OTP has expired. Please request a new one." });
     }
 
-    // === BADLAAV KHATAM ===
-
     const token = uuidv4();
 
-    // OTP aab valid hai, to use clear kar dein aur reset token save karein
     await prisma.admin.update({
       where: { id: user.id },
       data: {
         resetToken: token,
         otp: null,
-        otpExpiresAt: null, // Expiry time ko bhi null kar dein
+        otpExpiresAt: null,
       },
     });
 
@@ -228,6 +221,49 @@ const resetPassword = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Internal server error.", error: error.message });
+  }
+};
+
+const checkToken = async (req, res) => {
+  try {
+    const user = await prisma.admin.findFirst({
+      where: {
+        id: req.user.id,
+        isDeleted: false,
+      },
+    });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "Token expired or invalid. Please re-login." });
+    }
+
+    let isConnectAccountEnabled = false;
+
+    if (user.accountId) {
+      const account = await getAccounts(user.accountId);
+
+      if (account?.data?.payouts_enabled) {
+        isConnectAccountEnabled = true;
+      }
+    }
+
+    return res.status(200).json({
+      message: "Token is valid",
+      user: {
+        id: user.id,
+        fullName: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        profileImg: user.profileImg,
+        role: user.roles,
+        isConnectAccount: isConnectAccountEnabled,
+      },
+    });
+  } catch (error) {
+    console.error("Error in checkToken:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
   }
 };
 
@@ -5205,11 +5241,115 @@ const deleteScrapEntry = async (req, res) => {
   }
 };
 
+// helper function to format time (e.g., 08:00 AM)
+const formatTime = (dateString) => {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+// Main controller function
+const allEmployeeTimeLine = async (req, res) => {
+  try {
+    // We fetch ALL events first, then group them.
+    // For large datasets, you'd add date filters here (e.g., for 'This Week').
+    const allEvents = await prisma.timeClock.findMany({
+      where: {
+        isDeleted: false,
+        // You might want to add a filter for a specific employeeId here
+        // employeeId: req.query.employeeId
+      },
+      orderBy: {
+        timestamp: "asc", // Important to process events in order
+      },
+    });
+
+    // Group events by date using a reducer
+    const groupedByDate = allEvents.reduce((acc, event) => {
+      const date = new Date(event.timestamp).toISOString().split("T")[0]; // '2025-03-20'
+
+      // Initialize the day's object if it doesn't exist
+      if (!acc[date]) {
+        acc[date] = {
+          date: date,
+          loginTime: null,
+          lunchStart: null,
+          lunchEnd: null,
+          logout: null,
+          exceptionStart: null, // Placeholder
+          exceptionEnd: null, // Placeholder
+          vacation: "No", // Placeholder
+        };
+      }
+
+      switch (event.eventType) {
+        case "CLOCK_IN":
+          acc[date].loginTime = formatTime(event.timestamp);
+          break;
+        case "START_LUNCH":
+          acc[date].lunchStart = formatTime(event.timestamp);
+          break;
+        case "END_LUNCH":
+          acc[date].lunchEnd = formatTime(event.timestamp);
+          break;
+        case "CLOCK_OUT":
+          acc[date].logout = formatTime(event.timestamp);
+          break;
+        case "START_EXCEPTION":
+          acc[date].exceptionStart = formatTime(event.timestamp);
+          break;
+        case "END_EXCEPTION":
+          acc[date].exceptionEnd = formatTime(event.timestamp);
+          break;
+        // Add cases for other event types like 'EXCEPTION_START', etc.
+      }
+
+      return acc;
+    }, {});
+
+    // Convert the grouped object back into an array
+    const timeSheetData = Object.values(groupedByDate);
+
+    // --- Pagination (Now we paginate the PROCESSED data) ---
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 8; // 8 rows per page like in the image
+    const totalCount = timeSheetData.length;
+
+    const paginatedData = timeSheetData.slice(
+      (page - 1) * pageSize,
+      page * pageSize
+    );
+
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    return res.status(200).json({
+      message: "Employee timesheet retrieved successfully!",
+      data: paginatedData, // Send only the data for the current page
+      totalCounts: totalCount,
+      pagination: {
+        page: page,
+        totalPages: totalPages,
+        hasPrevious: page > 1,
+        hasNext: page < totalPages,
+      },
+    });
+  } catch (error) {
+    console.error("Employee Timesheet Fetch Error:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
 module.exports = {
   login,
   sendForgotPasswordOTP,
   validOtp,
   resetPassword,
+  checkToken,
   createCustomer,
   customerList,
   customerDetail,
@@ -5281,4 +5421,5 @@ module.exports = {
   customOrderSchedule,
   sendSupplierEmail,
   updateSupplierOrderStatus,
+  allEmployeeTimeLine,
 };

@@ -22,12 +22,6 @@ const adminValidateToken = async (req, res, next) => {
       },
     });
 
-    if (!admin) {
-      return res.status(401).json({
-        message: "Token expired or invalid. Please re-login.",
-      });
-    }
-
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
       if (err) {
         return res.status(401).json({ message: "User is not authorized" });

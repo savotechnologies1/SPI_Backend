@@ -204,9 +204,209 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const checkToken = async (req, res) => {
+  try {
+    const user = await prisma.employee.findFirst({
+      where: {
+        id: req.user.id,
+        isDeleted: false,
+      },
+    });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "Token expired or invalid. Please re-login." });
+    }
+
+    let isConnectAccountEnabled = false;
+
+    if (user.accountId) {
+      const account = await getAccounts(user.accountId);
+
+      if (account?.data?.payouts_enabled) {
+        isConnectAccountEnabled = true;
+      }
+    }
+
+    return res.status(200).json({
+      message: "Token is valid",
+      user: {
+        id: user.id,
+        fullName: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        profileImg: user.profileImg,
+        role: user.role,
+        isConnectAccount: isConnectAccountEnabled,
+      },
+    });
+  } catch (error) {
+    console.error("Error in checkToken:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const employeeTimeLineDetail = async (req, res) => {
+  try {
+    const id = req.user?.id;
+    const data = await prisma.employee.findUnique({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        fullName: true,
+        email: true,
+        startDate: true,
+        phoneNumber: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Employee detail retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const getEmployeeStatus = async (req, res) => {
+  try {
+    // हम मान रहे हैं कि प्रमाणीकरण (authentication) से हमें यूजर ID मिल रही है
+    const employeeId = req.user?.id;
+
+    if (!employeeId) {
+      return res.status(401).json({ message: "Not authorized." });
+    }
+
+    // Prisma का उपयोग करके TimeClock टेबल में सबसे हालिया रिकॉर्ड ढूंढें
+    const lastEvent = await prisma.timeClock.findFirst({
+      where: {
+        employeeId: employeeId,
+      },
+      orderBy: {
+        timestamp: "desc", // timestamp के अनुसार घटते क्रम में, ताकि सबसे नया पहले मिले
+      },
+    });
+
+    // अगर कोई रिकॉर्ड नहीं मिलता है
+    if (!lastEvent) {
+      return res.status(200).json({
+        status: "NOT_CLOCKED_IN",
+        lastPunch: null,
+      });
+    }
+
+    // अगर रिकॉर्ड मिलता है, तो उसे भेजें
+    return res.status(200).json({
+      status: lastEvent.eventType, // जैसे 'CLOCK_IN', 'CLOCK_OUT'
+      lastPunch: lastEvent, // पूरा आखिरी पंच ऑब्जेक्ट
+    });
+  } catch (error) {
+    console.error("Error fetching employee status:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+// controllers/shopFloorController.js
+
+// ... getEmployeeStatus फंक्शन के बाद ...
+
+const getEmployeeTimeline = async (req, res) => {
+  try {
+    const employeeId = req.user?.id;
+
+    if (!employeeId) {
+      return res.status(401).json({ message: "Not authorized." });
+    }
+
+    // आज की शुरुआत और अंत का समय निर्धारित करें
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // findMany का उपयोग करके आज के सभी रिकॉर्ड्स प्राप्त करें
+    const timelineEvents = await prisma.timeClock.findMany({
+      where: {
+        employeeId: employeeId,
+        timestamp: {
+          gte: startOfDay, // gte = Greater than or equal to
+          lte: endOfDay, // lte = Less than or equal to
+        },
+      },
+      orderBy: {
+        timestamp: "asc", // पुराने से नए क्रम में ताकि टाइमलाइन सीधी दिखे
+      },
+      select: {
+        // सिर्फ जरूरी डेटा चुनें
+        eventType: true,
+        timestamp: true,
+        notes: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Timeline retrieved successfully!",
+      data: timelineEvents,
+    });
+  } catch (error) {
+    console.error("Error in getEmployeeTimeline:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+// createTimeLine को थोड़ा बेहतर करें
+const createTimeLine = async (req, res) => {
+  try {
+    // फ्रंटएंड से employeeId लेने के बजाय, हम सीधे प्रमाणित यूजर की ID का उपयोग करेंगे
+    const employeeId = req.user.id;
+    const { eventType, timestamp, notes } = req.body;
+
+    if (!eventType) {
+      return res.status(400).json({ message: "eventType is required." });
+    }
+
+    const newTimeClockEntry = await prisma.timeClock.create({
+      data: {
+        employeeId: employeeId,
+        eventType: eventType,
+        timestamp: timestamp ? new Date(timestamp) : new Date(), // अगर फ्रंटएंड से टाइम आता है तो उसे लें, नहीं तो सर्वर का टाइम
+        notes: notes,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Time clock event created successfully!",
+      data: newTimeClockEntry, // बनाया गया ऑब्जेक्ट वापस भेजें
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
   validOtp,
   resetPassword,
+  checkToken,
+  employeeTimeLineDetail,
+  createTimeLine,
+  getEmployeeStatus,
+  getEmployeeTimeline,
 };

@@ -14362,7 +14362,7 @@ const scrapEntry = async (req, res) => {
 
     // SOLUTION 2 & 3: User ke role ke basis par creator ko connect karein
     // Yeh maante hue ki aapke auth middleware se req.user.role set hota hai
-    if (req.user && req.user.role === "admin") {
+    if (req.user && req.user.role === "superAdmin") {
       dataForPrisma.createdByAdmin = {
         connect: { id: req.user.id },
       };
@@ -14515,6 +14515,8 @@ const allScrapEntires = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
     const { filterScrap, search } = req.query;
+    const user = req.user;
+    console.log("user1111", user);
 
     const condition = {
       isDeleted: false,
@@ -14523,7 +14525,9 @@ const allScrapEntires = async (req, res) => {
     if (filterScrap && filterScrap.toLowerCase() !== "all") {
       condition.type = filterScrap;
     }
-
+    if (user?.role === "Shop_Floor" && user?.id) {
+      condition.createdByEmployeeId = user?.id;
+    }
     if (search) {
       condition.OR = [
         {
@@ -14599,6 +14603,8 @@ const allScrapEntires = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log("errorerrorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });

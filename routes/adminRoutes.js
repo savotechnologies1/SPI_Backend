@@ -73,6 +73,8 @@ const {
   sendSupplierEmail,
   supplierOrderDetail,
   updateSupplierOrderStatus,
+  checkToken,
+  allEmployeeTimeLine,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -131,6 +133,8 @@ router.post("/login", adminLogin, login);
 router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
 router.post("/validate-otp", otpVerify, validOtp);
 router.post("/reset-password", resetPass, resetPassword);
+router.get("/check-token", adminValidateToken, checkToken);
+
 router.post(
   "/create-customer",
   adminValidateToken,
@@ -398,4 +402,5 @@ router.patch(
 );
 router.patch("/delete-scrap-entry/:id", adminValidateToken, deleteScrapEntry);
 router.post("/supplier-order-email", adminValidateToken, sendSupplierEmail);
+router.get("/all-employee-timeline", adminValidateToken, allEmployeeTimeLine);
 module.exports = router;

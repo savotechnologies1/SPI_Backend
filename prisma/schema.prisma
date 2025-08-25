@@ -83,6 +83,51 @@ model employee {
   zipCode            String?              @db.VarChar(100)
   ProductionResponse ProductionResponse[]
   scapEntries        scapEntries[]
+  timeClocks         TimeClock[]
+  VacationRequest    VacationRequest[]
+}
+
+enum TimeClockEventType {
+  CLOCK_IN
+  CLOCK_OUT
+  START_LUNCH
+  END_LUNCH
+  START_EXCEPTION
+  END_EXCEPTION
+}
+
+model TimeClock {
+  id         String             @id @default(uuid()) @db.Char(36)
+  employeeId String             @db.Char(36)
+  eventType  TimeClockEventType
+  timestamp  DateTime           @default(now())
+  notes      String?
+
+  employee  employee  @relation(fields: [employeeId], references: [id])
+  createdAt DateTime? @default(now()) @db.DateTime(0)
+  createdBy String?   @db.VarChar(255)
+  isDeleted Boolean?  @default(false)
+}
+
+enum VacationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model VacationRequest {
+  id         Int            @id @default(autoincrement())
+  employeeId String         @db.Char(36)
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  status     VacationStatus @default(PENDING)
+  reviewedBy String? // ID of the admin who reviewed the request
+
+  employee employee @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model process {
@@ -495,15 +540,9 @@ model processLogin {
 }
 
 model StockOrderSchedule {
-  id String @id @default(uuid()) @db.Char(36)
-
-  // --- CHANGES START HERE ---
-  // These two fields create the polymorphic relationship.
-  // `order_id` is now just a string, not a foreign key.
-  order_id   String @db.Char(36)
-  order_type String @db.VarChar(100) // 'StockOrder' or 'CustomOrder'
-  // --- CHANGES END HERE ---
-
+  id                String    @id @default(uuid()) @db.Char(36)
+  order_id          String    @db.Char(36)
+  order_type        String    @db.VarChar(100)
   part_id           String?   @db.Char(36)
   quantity          Int?
   completedQuantity Int?      @default(0)

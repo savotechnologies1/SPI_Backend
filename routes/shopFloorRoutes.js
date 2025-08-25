@@ -4,6 +4,11 @@ const {
   sendForgotPasswordOTP,
   validOtp,
   resetPassword,
+  checkToken,
+  employeeTimeLineDetail,
+  createTimeLine,
+  getEmployeeStatus,
+  getEmployeeTimeline,
 } = require("../controllers/shopFloorController");
 const {
   adminLogin,
@@ -25,13 +30,18 @@ const {
   selectScheudlePartNumber,
   scrapEntry,
   allScrapEntires,
+  selectScheudleProductNumber,
 } = require("../controllers/productionResponseController");
-const { selectSupplier } = require("../controllers/adminController");
+const {
+  selectSupplier,
+  allEmployeeTimeLine,
+} = require("../controllers/adminController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
 router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
 router.post("/validate-otp", otpVerify, validOtp);
 router.post("/reset-password", resetPass, resetPassword);
+router.get("/check-token", validateToken, checkToken);
 router.post("/process-login", validateToken, stationLogin);
 router.get("/select-schedule-process", validateToken, selectScheduleProcess);
 router.get(
@@ -69,5 +79,15 @@ router.get("/select-supplier", validateToken, selectSupplier);
 router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.post("/add-scrap-entry", validateToken, scrapEntry);
 router.get("/all-scrap-entry", validateToken, allScrapEntires);
+router.get(
+  "/select-schedule-product-number",
+  validateToken,
+  selectScheudleProductNumber
+);
+router.get("/employee-time-line-detail", validateToken, employeeTimeLineDetail);
+router.post("/create-timeline", validateToken, createTimeLine);
+router.get("/employee-timeline-status", validateToken, getEmployeeStatus);
+router.get("/employee-timeline", validateToken, getEmployeeTimeline);
+router.get("/all-employee-timeline", validateToken, allEmployeeTimeLine);
 
 module.exports = router;
