@@ -9,6 +9,7 @@ const {
   createTimeLine,
   getEmployeeStatus,
   getEmployeeTimeline,
+  vacationReq,
 } = require("../controllers/shopFloorController");
 const {
   adminLogin,
@@ -89,5 +90,5 @@ router.post("/create-timeline", validateToken, createTimeLine);
 router.get("/employee-timeline-status", validateToken, getEmployeeStatus);
 router.get("/employee-timeline", validateToken, getEmployeeTimeline);
 router.get("/all-employee-timeline", validateToken, allEmployeeTimeLine);
-
+router.post("/apply-vacation-request", validateToken, vacationReq);
 module.exports = router;

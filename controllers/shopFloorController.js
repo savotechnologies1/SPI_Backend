@@ -399,6 +399,36 @@ const createTimeLine = async (req, res) => {
   }
 };
 
+const vacationReq = async (req, res) => {
+  try {
+    const { startDate, endDate, hours, notes, employeeId } = req.body;
+    const userId = req.user.id;
+
+    await prisma.vacationRequest.create({
+      data: {
+        employeeId: userId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        hours: Number(hours),
+        notes: notes,
+        createdBy: userId,
+      },
+    });
+
+    return res.status(201).json({
+      message: "vacationReq added successfully!",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -409,4 +439,5 @@ module.exports = {
   createTimeLine,
   getEmployeeStatus,
   getEmployeeTimeline,
+  vacationReq,
 };

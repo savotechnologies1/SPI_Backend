@@ -116,18 +116,20 @@ enum VacationStatus {
 }
 
 model VacationRequest {
-  id         Int            @id @default(autoincrement())
+  id         String         @id @default(uuid()) @db.Char(36)
   employeeId String         @db.Char(36)
   startDate  DateTime
   endDate    DateTime
   reason     String?
+  hours      Int?
+  notes      String?
   status     VacationStatus @default(PENDING)
-  reviewedBy String? // ID of the admin who reviewed the request
-
-  employee employee @relation(fields: [employeeId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  reviewedBy String?
+  employee   employee       @relation(fields: [employeeId], references: [id])
+  createdBy  String?        @db.VarChar(255)
+  isDeleted  Boolean?       @default(false)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }
 
 model process {
@@ -325,29 +327,27 @@ model ProcessDetail {
 }
 
 model PartNumber {
-  part_id          String  @id @default(uuid()) @db.Char(36)
-  partFamily       String  @db.Char(36)
-  partNumber       String  @unique @db.Char(36)
-  partDescription  String? @db.VarChar(255)
-  type             String  @db.VarChar(100)
-  cost             Float
-  leadTime         Int
-  minStock         Int
-  availStock       Int?
-  supplierOrderQty Int?
-
+  part_id              String   @id @default(uuid()) @db.Char(36)
+  partFamily           String   @db.Char(36)
+  partNumber           String   @unique @db.Char(36)
+  partDescription      String?  @db.VarChar(255)
+  type                 String   @db.VarChar(100)
+  cost                 Float
+  leadTime             Int
+  minStock             Int?     @default(0)
+  availStock           Int?     @default(0)
+  supplierOrderQty     Int?     @default(0)
   cycleTime            Int?
-  processId            String? @db.VarChar(10)
-  processDesc          String? @db.VarChar(255)
-  processOrderRequired Boolean @default(false)
-  instructionRequired  Boolean @default(false)
-
-  companyName String   @db.VarChar(100)
-  submittedBy String?  @db.VarChar(100)
-  createdBy   String?  @db.Char(36)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  isDeleted   Boolean  @default(false)
+  processId            String?  @db.VarChar(10)
+  processDesc          String?  @db.VarChar(255)
+  processOrderRequired Boolean  @default(false)
+  instructionRequired  Boolean  @default(false)
+  companyName          String   @db.VarChar(100)
+  submittedBy          String?  @db.VarChar(100)
+  createdBy            String?  @db.Char(36)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  isDeleted            Boolean  @default(false)
 
   process process? @relation(fields: [processId], references: [id])
 

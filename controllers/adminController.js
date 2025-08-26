@@ -1877,6 +1877,7 @@ const selectProcess = async (req, res) => {
         id: true,
         processName: true,
         partFamily: true,
+        processDesc: true,
       },
       where: {
         isDeleted: false,
@@ -1887,6 +1888,7 @@ const selectProcess = async (req, res) => {
       id: process.id,
       name: process.processName,
       partFamily: process.partFamily,
+      processDesc: process.processDesc,
     }));
     res.status(200).json(formattedProcess);
   } catch (error) {
@@ -2059,7 +2061,7 @@ const createPartNumber = async (req, res) => {
       partImages,
     } = req.body;
     const getId = uuidv4().slice(0, 6);
-    const existingPart = await prisma.PartNumber.findUnique({
+    const existingPart = await prisma.partNumber.findUnique({
       where: {
         partNumber: partNumber,
       },
@@ -2070,7 +2072,7 @@ const createPartNumber = async (req, res) => {
         message: "Part Number already exists.",
       });
     }
-    await prisma.PartNumber.create({
+    await prisma.partNumber.create({
       data: {
         part_id: getId,
         partFamily,
@@ -2080,9 +2082,9 @@ const createPartNumber = async (req, res) => {
         leadTime: parseInt(leadTime),
         supplierOrderQty: parseInt(supplierOrderQty),
         companyName,
-        minStock: parseInt(minStock),
-        availStock: parseInt(availStock),
-        cycleTime: parseInt(cycleTime),
+        minStock: parseInt(req?.body?.minStock),
+        availStock: parseInt(req?.body?.availStock),
+        cycleTime: parseInt(req?.body?.cycleTime),
         processOrderRequired: processOrderRequired === "true",
         processId,
         processDesc,
@@ -2101,6 +2103,8 @@ const createPartNumber = async (req, res) => {
       message: "Part number created successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -5344,6 +5348,120 @@ const allEmployeeTimeLine = async (req, res) => {
     });
   }
 };
+
+const allVacationReq = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { search = "", isShopFloor } = req.query;
+
+    const whereCondition = {
+      isDeleted: false,
+      ...(search && {
+        OR: [
+          { firstName: { contains: search } },
+          { lastName: { contains: search } },
+        ],
+      }),
+      ...(isShopFloor && {
+        shopFloorLogin: {
+          equals: isShopFloor,
+        },
+      }),
+    };
+
+    const [employeeData, totalCount] = await Promise.all([
+      prisma.vacationRequest.findMany({
+        where: whereCondition,
+        include: {
+          employee: {
+            select: {
+              firstName: true,
+              email: true, // ✅ Only include these
+            },
+          },
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+      }),
+      prisma.vacationRequest.count({
+        where: whereCondition, // ✅ No include here
+      }),
+    ]);
+
+    const paginationObj = {
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    };
+
+    const getPagination = await pagination(paginationObj);
+
+    return res.status(200).json({
+      message: "Employee list retrieved successfully!",
+      data: employeeData,
+      totalCounts: totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.error("Employee Fetch Error:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const vacationReqDetail = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const data = await prisma.vacationRequest.findUnique({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      include: {
+        employee: {
+          select: {
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            email: true, // ✅ Only include these
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      message: "Employee detail retrived successfully !",
+      data: data,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const changeVacationRequestStatus = async (req, res) => {
+  try {
+    const { id, status } = req.body;
+    await prisma.vacationRequest.update({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      data: {
+        status: status,
+      },
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -5422,4 +5540,7 @@ module.exports = {
   sendSupplierEmail,
   updateSupplierOrderStatus,
   allEmployeeTimeLine,
+  allVacationReq,
+  vacationReqDetail,
+  changeVacationRequestStatus,
 };

@@ -1,7 +1,6 @@
 const md5 = require("md5");
 const prisma = require("./prisma");
 const { v4: uuidv4 } = require("uuid");
-
 const connectDB = async () => {
   try {
     await prisma.$connect();
