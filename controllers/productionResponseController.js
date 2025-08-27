@@ -14410,6 +14410,7 @@ const scrapEntry = async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
 const completeScheduleOrderViaGet = async (req, res) => {
   try {
     const { id, orderId, partId, employeeId, productId } = req.query;

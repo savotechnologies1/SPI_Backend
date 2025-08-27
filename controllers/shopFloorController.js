@@ -384,6 +384,7 @@ const createTimeLine = async (req, res) => {
         eventType: eventType,
         timestamp: timestamp ? new Date(timestamp) : new Date(), // अगर फ्रंटएंड से टाइम आता है तो उसे लें, नहीं तो सर्वर का टाइम
         notes: notes,
+        createdBy: employeeId,
       },
     });
 
@@ -426,8 +427,6 @@ const vacationReq = async (req, res) => {
     });
   }
 };
-
-
 
 module.exports = {
   login,

@@ -78,6 +78,8 @@ const {
   allVacationReq,
   vacationReqDetail,
   changeVacationRequestStatus,
+  timeClockList,
+  sendVacationStatus,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -408,5 +410,8 @@ router.patch(
   adminValidateToken,
   changeVacationRequestStatus
 );
+router.get("/all-time-clock-list", adminValidateToken, timeClockList);
+router.post("/send-email-to-employee", adminValidateToken, sendMailToEmplyee);
+router.post("/send-vacation-status", adminValidateToken, sendVacationStatus);
 
 module.exports = router;

@@ -5246,29 +5246,80 @@ const deleteScrapEntry = async (req, res) => {
 };
 
 // helper function to format time (e.g., 08:00 AM)
-const formatTime = (dateString) => {
-  if (!dateString) return null;
-  const date = new Date(dateString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-};
-
-// Main controller function
 const allEmployeeTimeLine = async (req, res) => {
   try {
-    // We fetch ALL events first, then group them.
-    // For large datasets, you'd add date filters here (e.g., for 'This Week').
+    const {
+      page,
+      limit,
+      filter,
+      search,
+      employeeId: queryEmployeeId,
+    } = req.query;
+
+    const currentPage = parseInt(page) || 1;
+    const itemsPerPage = parseInt(limit) || 8;
+
+    let startDate = null;
+    let endDate = null;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    switch (filter) {
+      case "This Week":
+        const dayOfWeek = now.getDay();
+        startDate = new Date(now);
+        startDate.setDate(
+          now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+        );
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "Last Week":
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay() - 6);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case "This Month":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      default:
+        break;
+    }
+    const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
+
+    const whereConditions = {
+      isDeleted: false,
+      ...(isSuperAdmin && { createdBy: req.user?.id }),
+      ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+      ...(startDate &&
+        endDate && {
+          timestamp: {
+            gte: startDate.toISOString(),
+            lte: endDate.toISOString(),
+          },
+        }),
+    };
+
     const allEvents = await prisma.timeClock.findMany({
-      where: {
-        isDeleted: false,
-        // You might want to add a filter for a specific employeeId here
-        // employeeId: req.query.employeeId
-      },
+      where: whereConditions,
       orderBy: {
-        timestamp: "asc", // Important to process events in order
+        timestamp: "asc",
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -5280,6 +5331,11 @@ const allEmployeeTimeLine = async (req, res) => {
       if (!acc[date]) {
         acc[date] = {
           date: date,
+          employeeId: event.employeeId,
+          employeeName: `${event.employee?.firstName || ""} ${
+            event.employee?.lastName || ""
+          }`.trim(),
+          employeeEmail: event.employee?.email || "",
           loginTime: null,
           lunchStart: null,
           lunchEnd: null,
@@ -5309,36 +5365,44 @@ const allEmployeeTimeLine = async (req, res) => {
         case "END_EXCEPTION":
           acc[date].exceptionEnd = formatTime(event.timestamp);
           break;
-        // Add cases for other event types like 'EXCEPTION_START', etc.
       }
-
       return acc;
     }, {});
 
     // Convert the grouped object back into an array
-    const timeSheetData = Object.values(groupedByDate);
+    let timeSheetData = Object.values(groupedByDate);
 
-    // --- Pagination (Now we paginate the PROCESSED data) ---
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 8; // 8 rows per page like in the image
+    // --- Searching Logic (applied AFTER grouping) ---
+    if (search) {
+      const lowercasedSearch = search.toLowerCase();
+      timeSheetData = timeSheetData.filter((entry) => {
+        // Search by date, employee name, or employee email
+        return (
+          entry.date.toLowerCase().includes(lowercasedSearch) ||
+          entry.employeeName.toLowerCase().includes(lowercasedSearch) ||
+          entry.employeeEmail.toLowerCase().includes(lowercasedSearch)
+        );
+      });
+    }
+
+    // --- Pagination (Now we paginate the PROCESSED and SEARCHED data) ---
     const totalCount = timeSheetData.length;
-
     const paginatedData = timeSheetData.slice(
-      (page - 1) * pageSize,
-      page * pageSize
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
     );
 
-    const totalPages = Math.ceil(totalCount / pageSize);
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
 
     return res.status(200).json({
       message: "Employee timesheet retrieved successfully!",
-      data: paginatedData, // Send only the data for the current page
+      data: paginatedData,
       totalCounts: totalCount,
       pagination: {
-        page: page,
+        page: currentPage,
         totalPages: totalPages,
-        hasPrevious: page > 1,
-        hasNext: page < totalPages,
+        hasPrevious: currentPage > 1,
+        hasNext: currentPage < totalPages,
       },
     });
   } catch (error) {
@@ -5349,23 +5413,35 @@ const allEmployeeTimeLine = async (req, res) => {
   }
 };
 
+// Helper function (if not already defined)
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 const allVacationReq = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
-    const { search = "", isShopFloor } = req.query;
+    const { search = "", sortBy = "desc" } = req.query;
 
     const whereCondition = {
       isDeleted: false,
       ...(search && {
         OR: [
-          { firstName: { contains: search } },
-          { lastName: { contains: search } },
+          {
+            employee: {
+              OR: [
+                { firstName: { contains: search } },
+                { lastName: { contains: search } },
+                { email: { contains: search } },
+              ],
+            },
+          },
         ],
-      }),
-      ...(isShopFloor && {
-        shopFloorLogin: {
-          equals: isShopFloor,
-        },
       }),
     };
 
@@ -5376,15 +5452,19 @@ const allVacationReq = async (req, res) => {
           employee: {
             select: {
               firstName: true,
-              email: true, // ✅ Only include these
+              lastName: true,
+              email: true,
             },
           },
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: {
+          createdAt: sortBy === "asc" ? "asc" : "desc",
+        },
       }),
       prisma.vacationRequest.count({
-        where: whereCondition, // ✅ No include here
+        where: whereCondition,
       }),
     ]);
 
@@ -5424,7 +5504,7 @@ const vacationReqDetail = async (req, res) => {
             firstName: true,
             lastName: true,
             fullName: true,
-            email: true, // ✅ Only include these
+            email: true,
           },
         },
       },
@@ -5453,11 +5533,207 @@ const changeVacationRequestStatus = async (req, res) => {
         status: status,
       },
     });
+    return res.status(200).json({
+      message: `Vacation  successfully ${status}`,
+    });
   } catch (error) {
     console.log("errorerror", error);
 
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const timeClockList = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { search = "", filter = "" } = req.query; // Changed 'partfamily' to 'role' to align with UI
+
+    console.log("searchsearch", filter);
+
+    const whereFilter = {
+      isDeleted: false,
+      type: "run_schedule",
+      traniningStatus: false,
+
+      ...(search && {
+        OR: [
+          {
+            employeeInfo: {
+              OR: [
+                { firstName: { contains: search } },
+                { lastName: { contains: search } },
+                { email: { contains: search } },
+              ],
+            },
+          },
+        ],
+      }),
+
+      process: {
+        processName: { contains: filter },
+      },
+    };
+
+    const [allProcess, totalCount] = await Promise.all([
+      prisma.productionResponse.findMany({
+        where: whereFilter,
+        select: {
+          // Use select to get only necessary fields
+          id: true,
+          cycleTimeStart: true,
+          cycleTimeEnd: true,
+          submittedDateTime: true, // For 'Vacation' and 'Hour' columns
+          process: {
+            select: {
+              processName: true,
+            },
+          },
+          employeeInfo: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        orderBy: {
+          submittedDateTime: "desc", // Order by latest submissions
+        },
+      }),
+      prisma.productionResponse.count({
+        where: whereFilter,
+      }),
+    ]);
+
+    // Map the data to match the UI table structure
+    const formattedData = allProcess.map((item) => {
+      const startTime = new Date(item.cycleTimeStart);
+      const endTime = new Date(item.cycleTimeEnd);
+      const submittedDate = new Date(item.submittedDateTime);
+
+      // Calculate hours difference (simple duration, adjust as needed for actual work hours)
+      console.log("itemitem", item);
+
+      let readableDuration = "N/A";
+
+      if (item.cycleTimeStart && item.cycleTimeEnd) {
+        const diffMs = endTime - startTime;
+
+        const totalSeconds = Math.floor(diffMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        const parts = [];
+        if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? "s" : ""}`);
+        if (minutes > 0)
+          parts.push(`${minutes} minute${minutes !== 1 ? "s" : ""}`);
+        if (seconds > 0 || parts.length === 0)
+          parts.push(`${seconds} second${seconds !== 1 ? "s" : ""}`);
+
+        readableDuration = parts.join(" ");
+      }
+
+      return {
+        id: item.id,
+        name: `${item.employeeInfo?.firstName || ""} ${
+          item.employeeInfo?.lastName || ""
+        }`,
+        email: item.employeeInfo?.email || "",
+        process: item.process?.processName || "N/A",
+        hours: readableDuration, // now human readable
+        vacationDate: submittedDate.toISOString().split("T")[0],
+        vacationHours: readableDuration, // same here, or replace with hours only if needed
+      };
+    });
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.limit,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Process data retrieved successfully!",
+      data: formattedData,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.error("Error in timeClockList:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+const sendVacationStatus = async (req, res) => {
+  try {
+    const { id, email, status } = req.body;
+
+    const user = await prisma.vacationRequest.findFirst({
+      where: {
+        id: id,
+        isDeleted: false,
+      },
+      include: {
+        employee: true, // assuming relation to get employee name
+      },
+    });
+    console.log("useruser", user);
+
+    if (!user) {
+      return res.status(400).send({ message: "Employee not found" });
+    }
+
+    const fullName = `${user.employee?.firstName || ""} ${
+      user.employee?.lastName || ""
+    }`.trim();
+    console.log("fullNamefullName", fullName);
+
+    // Dynamic status styling
+    let statusMessage = "";
+    let statusColor = "";
+    let statusBgColor = "";
+
+    if (status.toLowerCase() === "APPROVED") {
+      statusMessage = "✓ Approved Successfully";
+      statusColor = "#2ecc71";
+      statusBgColor = "#e8f5e9";
+    } else if (status.toLowerCase() === "REJECTED") {
+      statusMessage = "✗ Rejected";
+      statusColor = "#e74c3c";
+      statusBgColor = "#fdecea";
+    } else {
+      statusMessage = status;
+      statusColor = "#f39c12";
+      statusBgColor = "#fff8e1";
+    }
+
+    // Send dynamic email
+    await sendMail(
+      "send-employee-vacation-req-status",
+      {
+        "%name%": fullName || "Employee",
+        "%status%": status,
+        "%statusMessage%": statusMessage,
+        "%statusColor%": statusColor,
+        "%statusBgColor%": statusBgColor,
+      },
+      email
+    );
+
+    return res.status(201).json({
+      message: "Email sent successfully",
+    });
+  } catch (error) {
+    console.error("Email error:", error);
+    return res.status(500).json({
+      message: "Something went wrong",
+      error: error.message,
     });
   }
 };
@@ -5543,4 +5819,6 @@ module.exports = {
   allVacationReq,
   vacationReqDetail,
   changeVacationRequestStatus,
+  timeClockList,
+  sendVacationStatus,
 };
