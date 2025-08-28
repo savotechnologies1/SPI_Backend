@@ -80,6 +80,7 @@ const {
   changeVacationRequestStatus,
   timeClockList,
   sendVacationStatus,
+  deleteProductPartsNumber,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -315,6 +316,11 @@ router.patch(
   "/delete-product-number/:id",
   adminValidateToken,
   deleteProductTreeById
+);
+router.delete(
+  "/delete-product-part-number/:id",
+  adminValidateToken,
+  deleteProductPartsNumber
 );
 router.get(
   "/work-instruction-detail/:id",

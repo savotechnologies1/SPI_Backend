@@ -61,7 +61,6 @@ router.get(
   validateToken,
   selectScheduleProcess
 );
-
 router.post("/station-login", validateToken, stationLogin);
 router.get(
   "/get-schedule-process-information/:id",
@@ -93,5 +92,4 @@ router.get("/employee-timeline", validateToken, getEmployeeTimeline);
 router.get("/all-employee-timeline", validateToken, allEmployeeTimeLine);
 router.post("/apply-vacation-request", validateToken, vacationReq);
 router.post("/station-logout/:id", validateToken, stationLogout);
-
 module.exports = router;

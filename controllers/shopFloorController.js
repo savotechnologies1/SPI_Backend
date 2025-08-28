@@ -367,22 +367,18 @@ const getEmployeeTimeline = async (req, res) => {
     });
   }
 };
-// createTimeLine को थोड़ा बेहतर करें
 const createTimeLine = async (req, res) => {
   try {
-    // फ्रंटएंड से employeeId लेने के बजाय, हम सीधे प्रमाणित यूजर की ID का उपयोग करेंगे
     const employeeId = req.user.id;
     const { eventType, timestamp, notes } = req.body;
-
     if (!eventType) {
       return res.status(400).json({ message: "eventType is required." });
     }
-
     const newTimeClockEntry = await prisma.timeClock.create({
       data: {
         employeeId: employeeId,
         eventType: eventType,
-        timestamp: timestamp ? new Date(timestamp) : new Date(), // अगर फ्रंटएंड से टाइम आता है तो उसे लें, नहीं तो सर्वर का टाइम
+        timestamp: timestamp ? new Date(timestamp) : new Date(),
         notes: notes,
         createdBy: employeeId,
       },
@@ -390,7 +386,7 @@ const createTimeLine = async (req, res) => {
 
     return res.status(201).json({
       message: "Time clock event created successfully!",
-      data: newTimeClockEntry, // बनाया गया ऑब्जेक्ट वापस भेजें
+      data: newTimeClockEntry,
     });
   } catch (error) {
     console.log("errorerror", error);
@@ -404,7 +400,6 @@ const vacationReq = async (req, res) => {
   try {
     const { startDate, endDate, hours, notes, employeeId } = req.body;
     const userId = req.user.id;
-
     await prisma.vacationRequest.create({
       data: {
         employeeId: userId,
@@ -415,13 +410,10 @@ const vacationReq = async (req, res) => {
         createdBy: userId,
       },
     });
-
     return res.status(201).json({
       message: "vacationReq added successfully!",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });

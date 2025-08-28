@@ -286,13 +286,11 @@ const createCustomer = async (req, res) => {
         OR: [{ email: email }, { customerPhone: customerPhone }],
       },
     });
-
     if (existingCustomer) {
       return res.status(400).json({
         message: "Customer with this email or phone number already exists.",
       });
     }
-
     await prisma.customers.create({
       data: {
         id: getId,
@@ -324,7 +322,7 @@ const customerList = async (req, res) => {
       prisma.customers.findMany({
         where: {
           email: {
-            contains: search,
+            contains: search.trim(),
           },
           isDeleted: false,
         },
@@ -386,21 +384,29 @@ const customerDetail = async (req, res) => {
 
 const editCustomerDetail = async (req, res) => {
   try {
-    const id = req.params.id;
+    const id = req.params.id; // The ID of the customer being updated
     const { firstName, lastName, email, customerPhone, address, billingTerms } =
       req.body;
-    const existingCustomer = await prisma.customers.findFirst({
+
+    // Find if any OTHER customer has the same email or phone number
+    const existingOtherCustomer = await prisma.customers.findFirst({
       where: {
+        id: {
+          not: id, // Exclude the current customer being updated
+        },
         isDeleted: false,
         OR: [{ email: email }, { customerPhone: customerPhone }],
       },
     });
-    if ((existingCustomer && existingCustomer.id !== id) === true) {
+
+    if (existingOtherCustomer) {
       return res.status(400).json({
-        message: "Customer with this email or phone number already exists.",
+        message:
+          "Customer with this email or phone number already exists for another customer.",
       });
     }
-    prisma.customers
+
+    await prisma.customers // Added await here to ensure the update completes before sending response
       .update({
         where: {
           id: id,
@@ -414,19 +420,18 @@ const editCustomerDetail = async (req, res) => {
           address: address,
           billingTerms: billingTerms,
         },
-      })
-      .then();
+      });
 
     return res.status(200).send({
       message: "Customer detail updated successfully !",
     });
   } catch (error) {
+    console.error("Error updating customer:", error); // Log the error for debugging
     return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
-
 const deleteCustomer = async (req, res) => {
   try {
     const id = req.params.id;
@@ -925,7 +930,7 @@ const addProcess = async (req, res) => {
         id: getId,
         processName: processName.trim(),
         machineName: machineName.trim(),
-        ratePerHour: ratePerHour.trim(),
+        ratePerHour: ratePerHour,
         partFamily: partFamily.trim(),
         processDesc: processDesc.trim(),
         cycleTime: cycleTime.trim(),
@@ -939,6 +944,7 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
+    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -993,6 +999,8 @@ const processList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log("errorerrorerrorm", error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -2061,13 +2069,18 @@ const createPartNumber = async (req, res) => {
       partImages,
     } = req.body;
     const getId = uuidv4().slice(0, 6);
-    const existingPart = await prisma.partNumber.findUnique({
+    console.log("partNumberpartNumber", partNumber);
+
+    const existingActivePart = await prisma.partNumber.findFirst({
       where: {
         partNumber: partNumber,
+        isDeleted: false, // Only consider active part numbers as existing
       },
     });
 
-    if (existingPart) {
+    console.log("existingPartexistingPart", existingActivePart);
+
+    if (existingActivePart) {
       return res.status(400).json({
         message: "Part Number already exists.",
       });
@@ -2371,7 +2384,7 @@ const bomDataList = async (req, res) => {
 
     if (search) {
       filterConditions.partNumber = {
-        contains: search,
+        contains: search.trim(),
       };
     }
     if (type && type !== "all") {
@@ -2936,7 +2949,28 @@ const deletePartNumber = async (req, res) => {
       .then();
 
     return res.status(200).json({
-      message: "Supplier delete successfully !",
+      message: "Part delete successfully !",
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const deleteProductPartsNumber = async (req, res) => {
+  try {
+    const id = req.params.id;
+    prisma.partNumber
+      .delete({
+        where: {
+          id: id,
+        },
+      })
+      .then();
+
+    return res.status(200).json({
+      message: "Part removed from product successfully!",
     });
   } catch (error) {
     return res.status(500).send({
@@ -5792,6 +5826,7 @@ module.exports = {
   stockOrderSchedule,
   searchCustomOrders,
   scheduleStockOrdersList,
+  deleteProductPartsNumber,
   deleteProductPart,
   deleteProductTreeById,
   createEmployee,
