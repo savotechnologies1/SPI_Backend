@@ -10,6 +10,9 @@ const {
   getEmployeeStatus,
   getEmployeeTimeline,
   vacationReq,
+  profileDetail,
+  updateProfileApi,
+  deleteProfileImage,
 } = require("../controllers/shopFloorController");
 const {
   adminLogin,
@@ -92,4 +95,7 @@ router.get("/employee-timeline", validateToken, getEmployeeTimeline);
 router.get("/all-employee-timeline", validateToken, allEmployeeTimeLine);
 router.post("/apply-vacation-request", validateToken, vacationReq);
 router.post("/station-logout/:id", validateToken, stationLogout);
+router.get("/profile-detail", validateToken, profileDetail);
+router.put("/profile-update", validateToken, updateProfileApi);
+router.patch("/delete-profile-image", validateToken, deleteProfileImage);
 module.exports = router;

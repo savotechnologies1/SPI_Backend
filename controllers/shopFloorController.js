@@ -4,7 +4,7 @@ const md5 = require("md5");
 const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const { sendMail } = require("../functions/mailer");
-const { generateRandomOTP } = require("../functions/common");
+const { generateRandomOTP, fileUploadFunc } = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
 
 const login = async (req, res) => {
@@ -66,6 +66,47 @@ const login = async (req, res) => {
   }
 };
 
+// const sendForgotPasswordOTP = async (req, res) => {
+//   try {
+//     const errors = validationResult(req);
+//     const checkValid = await checkValidations(errors);
+//     if (checkValid.type === "error") {
+//       return res.status(400).send({ message: checkValid.errors.msg });
+//     }
+//     const { email } = req.body;
+//     const user = await prisma.employee.findFirst({
+//       where: {
+//         email: email.toLowerCase().trim(),
+//         isDeleted: false,
+//       },
+//     });
+
+//     if (!user) {
+//       return res.status(400).send({ message: "Employee not found" });
+//     }
+
+//     const otp = generateRandomOTP();
+
+//     await sendMail("otp-verify", { "%otp%": otp }, user.email);
+
+//     await prisma.employee.update({
+//       where: { id: user.id },
+//       data: { otp },
+//     });
+
+//     return res.status(200).json({
+//       id: user.id,
+//       email: user.email,
+//       message: "OTP sent Successfully",
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Something went wrong",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const sendForgotPasswordOTP = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -73,6 +114,7 @@ const sendForgotPasswordOTP = async (req, res) => {
     if (checkValid.type === "error") {
       return res.status(400).send({ message: checkValid.errors.msg });
     }
+
     const { email } = req.body;
     const user = await prisma.employee.findFirst({
       where: {
@@ -82,22 +124,27 @@ const sendForgotPasswordOTP = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).send({ message: "Employee not found" });
+      return res.status(400).send({ message: "Admin not found" });
     }
 
     const otp = generateRandomOTP();
+
+    const otpExpiresAt = new Date(Date.now() + 30 * 1000);
 
     await sendMail("otp-verify", { "%otp%": otp }, user.email);
 
     await prisma.employee.update({
       where: { id: user.id },
-      data: { otp },
+      data: {
+        otp,
+        otpExpiresAt,
+      },
     });
 
     return res.status(200).json({
       id: user.id,
       email: user.email,
-      message: "OTP sent Successfully",
+      message: "OTP sent successfully. It will expire in 30 seconds.",
     });
   } catch (error) {
     return res.status(500).json({
@@ -116,9 +163,11 @@ const validOtp = async (req, res) => {
     }
 
     const { email, otp } = req.body;
+
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required" });
     }
+
     const user = await prisma.employee.findFirst({
       where: {
         email: email.toLowerCase().trim(),
@@ -130,6 +179,17 @@ const validOtp = async (req, res) => {
       return res.status(400).send({ message: "Invalid OTP" });
     }
 
+    if (new Date() > user.otpExpiresAt) {
+      console.log("3999999999");
+      await prisma.employee.update({
+        where: { id: user.id },
+        data: { otp: null, otpExpiresAt: null },
+      });
+      return res
+        .status(400)
+        .send({ message: "OTP has expired. Please request a new one." });
+    }
+
     const token = uuidv4();
 
     await prisma.employee.update({
@@ -137,6 +197,7 @@ const validOtp = async (req, res) => {
       data: {
         resetToken: token,
         otp: null,
+        otpExpiresAt: null,
       },
     });
 
@@ -420,6 +481,107 @@ const vacationReq = async (req, res) => {
   }
 };
 
+const profileDetail = async (req, res) => {
+  try {
+    const data = await prisma.employee.findFirst({
+      where: {
+        id: req.user.id,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        about: true,
+        address: true,
+        city: true,
+        country: true,
+        state: true,
+        zipCode: true,
+        phoneNumber: true,
+        employeeProfileImg: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Profile detail retrieved successfully!",
+      data: data,
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try agin later .",
+    });
+  }
+};
+
+const updateProfileApi = async (req, res) => {
+  try {
+    const fileData = await fileUploadFunc(req, res);
+    const getProfileImage = fileData?.data?.filter(
+      (file) => file?.fieldname === "employeeProfileImg"
+    );
+    const {
+      name,
+      email,
+      phoneNumber,
+      address,
+      country,
+      state,
+      city,
+      zipCode,
+      about,
+    } = req.body;
+    await prisma.employee.update({
+      where: {
+        id: req.user.id,
+      },
+      data: {
+        name: name,
+        email: email,
+        phoneNumber: phoneNumber,
+        address: address,
+        country: country,
+        state: state,
+        city: city,
+        zipCode: zipCode,
+        about: about,
+        employeeProfileImg: getProfileImage?.[0]?.filename,
+      },
+    });
+    return res.status(200).json({
+      message: "Profile update successfully !",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
+const deleteProfileImage = async (req, res) => {
+  try {
+    await prisma.employee.update({
+      where: {
+        id: req.user.id,
+      },
+      data: {
+        employeeProfileImg: "",
+      },
+    });
+    return res.status(200).json({
+      message: "Profile image deleted successfully !",
+    });
+  } catch (error) {
+    console.log("errorerror", error);
+    return res.status(500).send({
+      message: "Something went wrong . please try again later .",
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -431,4 +593,7 @@ module.exports = {
   getEmployeeStatus,
   getEmployeeTimeline,
   vacationReq,
+  profileDetail,
+  updateProfileApi,
+  deleteProfileImage,
 };

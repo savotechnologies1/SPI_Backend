@@ -11,6 +11,8 @@ const storage = multer.diskStorage({
       cb(null, "./public/uploads/workInstructionVideo");
     } else if (file.fieldname === "profileImg") {
       cb(null, "./public/uploads/profileImg");
+    } else if (file.fieldname === "employeeProfileImg") {
+      cb(null, "./public/uploads/employeeProfileImg");
     } else if (file.fieldname === "partImages") {
       cb(null, "./public/uploads/partImages");
     } else if (file.fieldname === "PartEnquiryImg") {

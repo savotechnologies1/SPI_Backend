@@ -1126,7 +1126,8 @@ const createEmployee = async (req, res) => {
       shift,
       startDate,
       pin,
-      shopFloorLogin,
+      role,
+      processLogin,
       termsAccepted,
       status,
     } = req.body;
@@ -1155,8 +1156,8 @@ const createEmployee = async (req, res) => {
         shift: shift,
         startDate: startDate,
         pin: pin,
-        shopFloorLogin: Boolean(shopFloorLogin),
-        role: shopFloorLogin === "true" ? "Shop_Floor" : "Frontline",
+        role: role,
+        processLogin: Boolean(processLogin),
         termsAccepted: termsAccepted,
         status: status,
         password: "",
@@ -1167,6 +1168,8 @@ const createEmployee = async (req, res) => {
       message: "Employee added successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -1218,39 +1221,42 @@ const createEmployee = async (req, res) => {
 
 const allEmployee = async (req, res) => {
   try {
-    const paginationData = await paginationQuery(req.query);
-    const { search = "", isShopFloor } = req.query;
+    const { search = "", processLogin } = req.query;
+    const paginationData = await paginationQuery(req.query); // page, pageSize, skip
 
     const whereCondition = {
       isDeleted: false,
       ...(search && {
         OR: [
-          { firstName: { contains: search } },
-          { lastName: { contains: search } },
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
         ],
       }),
-      ...(isShopFloor && {
-        shopFloorLogin: {
-          equals: isShopFloor,
-        },
-      }),
+      ...(processLogin === "true" || processLogin === "false"
+        ? { processLogin: processLogin === "true" }
+        : {}),
     };
+
     const [employeeData, totalCount] = await Promise.all([
       prisma.employee.findMany({
         where: whereCondition,
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: { createdAt: "desc" }, // optional
       }),
       prisma.employee.count({
         where: whereCondition,
       }),
     ]);
+
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,
       total: totalCount,
     };
+
     const getPagination = await pagination(paginationObj);
+
     return res.status(200).json({
       message: "Employee list retrieved successfully!",
       data: employeeData,
@@ -1259,7 +1265,7 @@ const allEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("Employee Fetch Error:", error);
-    return res.status(500).send({
+    return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
   }
@@ -1299,10 +1305,15 @@ const editEmployee = async (req, res) => {
       shift,
       startDate,
       pin,
-      shopFloorLogin,
+      role,
+      processLogin,
       status,
       termsAccepted,
     } = req.body;
+    console.log("processLoginprocessLogin", processLogin);
+
+    console.log("req.bodyreq.body111", Boolean(req.body.processLogin));
+
     await prisma.employee.update({
       where: {
         id: id,
@@ -1319,7 +1330,8 @@ const editEmployee = async (req, res) => {
         startDate: startDate,
         pin: pin,
         status: status,
-        shopFloorLogin: shopFloorLogin,
+        role: role,
+        processLogin: req.body.processLogin === "true" ? true : false,
         termsAccepted: termsAccepted,
       },
     });
@@ -3236,14 +3248,14 @@ const searchStockOrders = async (req, res) => {
     if (customerName) {
       whereClause.customer = {
         firstName: {
-          contains: customerName,
+          contains: customerName.trim(),
         },
       };
     }
     if (productNumber) {
       whereClause.part = {
         partNumber: {
-          contains: productNumber,
+          contains: productNumber.trim(),
         },
       };
     }
@@ -3989,7 +4001,7 @@ const searchCustomOrders = async (req, res) => {
     }
     const andConditions = [{ isDeleted: false }];
     if (customerName) {
-      andConditions.push({ customerName: { contains: customerName } });
+      andConditions.push({ customerName: { contains: customerName.trim() } });
     }
     if (shipDate) {
       const date = new Date(shipDate);
@@ -4003,8 +4015,8 @@ const searchCustomOrders = async (req, res) => {
     if (partNumber) {
       andConditions.push({
         OR: [
-          { part: { partNumber: { contains: partNumber } } },
-          { product: { partNumber: { contains: partNumber } } },
+          { part: { partNumber: { contains: partNumber.trim() } } },
+          { product: { partNumber: { contains: partNumber.trim() } } },
         ],
       });
     }
@@ -4703,6 +4715,7 @@ const profileDetail = async (req, res) => {
         country: true,
         city: true,
         state: true,
+        zipCode: true,
         profileImg: true,
         isDeleted: true,
       },
