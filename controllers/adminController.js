@@ -299,7 +299,7 @@ const createCustomer = async (req, res) => {
         email: email.trim(),
         address: address?.trim() || "",
         customerPhone: customerPhone?.trim(),
-        billingTerms: billingTerms?.trim() || "",
+        billingTerms: billingTerms.toString()?.trim() || "",
         createdBy: userId,
       },
     });
@@ -308,6 +308,8 @@ const createCustomer = async (req, res) => {
       message: "Customer added successfully!",
     });
   } catch (error) {
+    console.log("errorerror", error);
+
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
