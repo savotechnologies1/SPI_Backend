@@ -47,6 +47,7 @@ const login = async (req, res) => {
         expiresIn: "5d",
       }
     );
+    console.log("tokentoken", token);
 
     await prisma.admin.update({
       where: { id: user.id },
@@ -232,14 +233,16 @@ const checkToken = async (req, res) => {
         isDeleted: false,
       },
     });
+    console.log("req.user.idreq.user.id", req.user);
+
+    console.log("useruser", user);
+
     if (!user) {
       return res
         .status(404)
         .json({ message: "Token expired or invalid. Please re-login." });
     }
-
     let isConnectAccountEnabled = false;
-
     if (user.accountId) {
       const account = await getAccounts(user.accountId);
 
@@ -1694,7 +1697,7 @@ const createStockOrder = async (req, res) => {
       },
     });
 
-    if (existingOrder) {
+    if (existingOrder && existingOrder.status !== "completed") {
       return res.status(400).json({
         message:
           "This product is already added for the selected customer on this date.",
@@ -3273,6 +3276,7 @@ const searchStockOrders = async (req, res) => {
       },
       include: {
         customer: true,
+
         part: {
           include: {
             components: {
@@ -3990,6 +3994,117 @@ const searchStockOrders = async (req, res) => {
 //   }
 // };
 
+// const searchCustomOrders = async (req, res) => {
+//   try {
+//     const { customerName, shipDate, partNumber } = req.query;
+//     if (!customerName && !shipDate && !partNumber) {
+//       return res.status(400).json({
+//         message: "Please provide at least one search parameter.",
+//         data: null,
+//       });
+//     }
+//     const andConditions = [{ isDeleted: false }];
+//     if (customerName) {
+//       andConditions.push({ customerName: { contains: customerName.trim() } });
+//     }
+//     if (shipDate) {
+//       const date = new Date(shipDate);
+//       andConditions.push({
+//         shipDate: {
+//           gte: new Date(date.setHours(0, 0, 0, 0)),
+//           lt: new Date(new Date(shipDate).setDate(date.getDate() + 1)),
+//         },
+//       });
+//     }
+//     if (partNumber) {
+//       andConditions.push({
+//         OR: [
+//           { part: { partNumber: { contains: partNumber.trim() } } },
+//           { product: { partNumber: { contains: partNumber.trim() } } },
+//         ],
+//       });
+//     }
+
+//     const orders = await prisma.customOrder.findMany({
+//       where: { AND: andConditions },
+//       orderBy: { createdAt: "desc" },
+//       include: {
+//         customer: true,
+//         part: {
+//           include: {
+//             components: {
+//               where: { isDeleted: false },
+//               include: {
+//                 part: true,
+//               },
+//             },
+//           },
+//         },
+//         product: {
+//           include: {
+//             process: {
+//               select: {
+//                 id: true,
+//                 processName: true,
+//               },
+//             },
+//             components: {
+//               where: { isDeleted: false },
+//               include: {
+//                 part: true,
+//               },
+//             },
+//           },
+//         },
+//       },
+//     });
+//     if (orders.length === 0) {
+//       return res.status(200).json({
+//         message: "No custom orders found matching your criteria.",
+//         data: [],
+//       });
+//     }
+
+//     const formattedOrders = orders.map((order) => {
+//       const { part, product, ...restOfOrder } = order;
+//       const mainItem = product || part;
+//       const productFamily = [];
+//       if (mainItem) {
+//         productFamily.push({
+//           ...mainItem,
+//           isParent: true,
+//           quantityRequired: order.productQuantity || 1,
+//           components: undefined,
+//         });
+
+//         if (mainItem.components && mainItem.components.length > 0) {
+//           mainItem.components.forEach((componentEntry) => {
+//             if (componentEntry.part) {
+//               productFamily.push({
+//                 ...componentEntry.part,
+//                 isParent: false,
+//                 quantityRequired: componentEntry.partQuantity,
+//               });
+//             }
+//           });
+//         }
+//       }
+
+//       // Final object return karein
+//       return {
+//         ...restOfOrder,
+//         productFamily, // Product aur uske parts ki flat list
+//       };
+//     });
+
+//     return res.status(200).json({
+//       message: "Custom orders retrieved successfully!",
+//       data: formattedOrders,
+//     });
+//   } catch (error) {
+//     console.error("Error searching custom orders:", error);
+//   }
+// };
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber } = req.query;
@@ -4027,6 +4142,7 @@ const searchCustomOrders = async (req, res) => {
       include: {
         customer: true,
         part: {
+          // Assuming 'part' is the relation name for CustomOrder.partId -> PartNumber
           include: {
             components: {
               where: { isDeleted: false },
@@ -4054,6 +4170,7 @@ const searchCustomOrders = async (req, res) => {
         },
       },
     });
+
     if (orders.length === 0) {
       return res.status(200).json({
         message: "No custom orders found matching your criteria.",
@@ -4062,19 +4179,52 @@ const searchCustomOrders = async (req, res) => {
     }
 
     const formattedOrders = orders.map((order) => {
+      // Destructure 'part' and 'product' relations
       const { part, product, ...restOfOrder } = order;
-      const mainItem = product || part;
+
       const productFamily = [];
-      if (mainItem) {
+
+      // Add 'product' as a parent if it exists
+      if (product) {
         productFamily.push({
-          ...mainItem,
+          ...product,
           isParent: true,
-          quantityRequired: order.productQuantity || 1,
-          components: undefined,
+          quantityRequired: order.productQuantity || 1, // Assuming productQuantity refers to the main product
+          components: undefined, // Remove nested components from the parent item itself
         });
 
-        if (mainItem.components && mainItem.components.length > 0) {
-          mainItem.components.forEach((componentEntry) => {
+        // Add components of the product
+        if (product.components && product.components.length > 0) {
+          product.components.forEach((componentEntry) => {
+            if (componentEntry.part) {
+              productFamily.push({
+                ...componentEntry.part,
+                isParent: false,
+                quantityRequired: componentEntry.partQuantity,
+              });
+            }
+          });
+        }
+      }
+
+      // Add 'part' as a parent if it exists (and if it's not the same as the product if that's a concern)
+      // You might need a more sophisticated check if a single order can have a `product` and a `part`
+      // that are essentially the same entity but come from different relation fields.
+      if (part) {
+        // If product already added, and this part has the same part_id as the product,
+        // you might want to skip it to avoid duplication.
+        // For now, it adds it as a distinct parent.
+        productFamily.push({
+          ...part,
+          isParent: true, // Mark this as a parent too
+          // Decide how to set quantityRequired for a direct part on the CustomOrder
+          quantityRequired: 1, // Defaulting to 1, adjust as needed.
+          components: undefined, // Remove nested components from the parent item itself
+        });
+
+        // Add components of the part
+        if (part.components && part.components.length > 0) {
+          part.components.forEach((componentEntry) => {
             if (componentEntry.part) {
               productFamily.push({
                 ...componentEntry.part,
@@ -4099,6 +4249,10 @@ const searchCustomOrders = async (req, res) => {
     });
   } catch (error) {
     console.error("Error searching custom orders:", error);
+    return res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+      error: error.message,
+    });
   }
 };
 const stockOrderSchedule = async (req, res) => {
@@ -4593,6 +4747,12 @@ const scheduleStockOrdersList = async (req, res) => {
             select: {
               partNumber: true,
               process: true,
+            },
+          },
+          employee: {
+            select: {
+              firstName: true,
+              lastName: true,
             },
           },
         },
@@ -5663,6 +5823,7 @@ const timeClockList = async (req, res) => {
       const startTime = new Date(item.cycleTimeStart);
       const endTime = new Date(item.cycleTimeEnd);
       const submittedDate = new Date(item.submittedDateTime);
+      const createDate = new Date(item.cycleTimeStart);
 
       // Calculate hours difference (simple duration, adjust as needed for actual work hours)
       console.log("itemitem", item);
@@ -5696,6 +5857,7 @@ const timeClockList = async (req, res) => {
         process: item.process?.processName || "N/A",
         hours: readableDuration, // now human readable
         vacationDate: submittedDate.toISOString().split("T")[0],
+        createDate: createDate.toISOString().split("T")[0],
         vacationHours: readableDuration, // same here, or replace with hours only if needed
       };
     });

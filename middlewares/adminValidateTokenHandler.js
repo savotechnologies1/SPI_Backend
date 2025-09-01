@@ -26,6 +26,8 @@ const adminValidateToken = async (req, res, next) => {
       if (err) {
         return res.status(401).json({ message: "User is not authorized" });
       }
+      console.log("decoded.userdecoded.user", decoded);
+
       req.user = decoded.user || decoded;
       next();
     });

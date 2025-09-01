@@ -36,6 +36,9 @@ const {
   allScrapEntires,
   selectScheudleProductNumber,
   stationLogout,
+  stationSendNotification,
+  getStationNotifications,
+  changeStationNotification,
 } = require("../controllers/productionResponseController");
 const {
   selectSupplier,
@@ -98,4 +101,11 @@ router.post("/station-logout/:id", validateToken, stationLogout);
 router.get("/profile-detail", validateToken, profileDetail);
 router.put("/profile-update", validateToken, updateProfileApi);
 router.patch("/delete-profile-image", validateToken, deleteProfileImage);
+router.post("/send-notification", validateToken, stationSendNotification);
+router.get("/all-station-notification", validateToken, getStationNotifications);
+router.patch(
+  "/change-station-notification-status/:id",
+  validateToken,
+  changeStationNotification
+);
 module.exports = router;

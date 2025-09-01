@@ -428,29 +428,43 @@ const getEmployeeTimeline = async (req, res) => {
     });
   }
 };
+
 const createTimeLine = async (req, res) => {
   try {
     const employeeId = req.user.id;
-    const { eventType, timestamp, notes } = req.body;
+    const { eventType, timestamp, notes, timezone } = req.body;
     if (!eventType) {
       return res.status(400).json({ message: "eventType is required." });
     }
+    const utcTime = timestamp ? new Date(timestamp) : new Date();
     const newTimeClockEntry = await prisma.timeClock.create({
       data: {
         employeeId: employeeId,
         eventType: eventType,
-        timestamp: timestamp ? new Date(timestamp) : new Date(),
-        notes: notes,
-        createdBy: employeeId,
+        timestamp: new Date(),
+        timezone: timezone || "Asia/Kolkata", // save timezone here
+        notes: "SYSTEM Auto CLOCK_OUT for testing every minute",
+        createdBy: "SYSTEM",
       },
     });
+
+    // const newTimeClockEntry = await prisma.timeClock.create({
+    //   data: {
+    //     employeeId,
+    //     eventType,
+    //     timestamp: utcTime,
+    //     timezone, // Save punch timezone here
+    //     notes: notes || `User Local Time: ${timezone}`,
+    //     createdBy: employeeId,
+    //   },
+    // });
 
     return res.status(201).json({
       message: "Time clock event created successfully!",
       data: newTimeClockEntry,
     });
   } catch (error) {
-    console.log("errorerror", error);
+    console.error("createTimeLine error:", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });

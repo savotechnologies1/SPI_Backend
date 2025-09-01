@@ -90,6 +90,7 @@ model employee {
   scapEntries        scapEntries[]
   timeClocks         TimeClock[]
   VacationRequest    VacationRequest[]
+  StockOrderSchedule StockOrderSchedule[]
 }
 
 enum TimeClockEventType {
@@ -106,6 +107,7 @@ model TimeClock {
   employeeId String             @db.Char(36)
   eventType  TimeClockEventType
   timestamp  DateTime           @default(now())
+  timezone   String?            @db.VarChar(50) // Add this field
   notes      String?
 
   employee  employee  @relation(fields: [employeeId], references: [id])
@@ -560,6 +562,7 @@ model StockOrderSchedule {
   delivery_date     DateTime  @default(now())
   completed_date    DateTime?
   completed_by      String?
+  completed_EmpId   String?
   submitted_by      String?
   processOrder      Boolean   @default(false)
 
@@ -583,6 +586,7 @@ model StockOrderSchedule {
   stockOrderId      String?      @db.Char(36)
   CustomOrder       CustomOrder? @relation(fields: [customOrderId], references: [id])
   customOrderId     String?      @db.Char(36)
+  employee          employee?    @relation(fields: [completed_EmpId], references: [id])
 
   // This unique constraint is now correct and essential for your upsert to work properly!
   @@unique([order_id, part_id, order_type])
@@ -716,13 +720,16 @@ model scapEntries {
 }
 
 model stationNotification {
-  id         String   @id @default(uuid())
-  employeeId String?
-  comment    String?
-  enqueryImg String?
-  status     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  isDeleted  Boolean? @default(false)
+  id            String    @id @default(uuid())
+  employeeId    String?
+  comment       String?
+  enqueryImg    String?
+  status        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  createdBy     String?   @db.Char(36)
+  stationUserId String?   @db.Char(36)
+  updatedAt     DateTime? @updatedAt
+  isDeleted     Boolean?  @default(false)
 }
 
 enum admin_roles {
