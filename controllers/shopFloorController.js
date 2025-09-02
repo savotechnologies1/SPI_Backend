@@ -7,64 +7,64 @@ const { sendMail } = require("../functions/mailer");
 const { generateRandomOTP, fileUploadFunc } = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
 
-const login = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    const checkValid = await checkValidations(errors);
-    if (checkValid.type === "error") {
-      return res.status(400).send({
-        message: checkValid.errors.msg,
-      });
-    }
-    const { userName, password } = req.body;
-    const user = await prisma.employee.findUnique({
-      where: { email: userName, role: "Shop_Floor" },
-      select: {
-        id: true,
-        email: true,
-        status: true,
-        password: true,
-        role: true,
-        tokens: true,
-        isDeleted: true,
-      },
-    });
+// const login = async (req, res) => {
+//   try {
+//     const errors = validationResult(req);
+//     const checkValid = await checkValidations(errors);
+//     if (checkValid.type === "error") {
+//       return res.status(400).send({
+//         message: checkValid.errors.msg,
+//       });
+//     }
+//     const { userName, password } = req.body;
+//     const user = await prisma.employee.findUnique({
+//       where: { email: userName, role: "Shop_Floor" },
+//       select: {
+//         id: true,
+//         email: true,
+//         status: true,
+//         password: true,
+//         role: true,
+//         tokens: true,
+//         isDeleted: true,
+//       },
+//     });
 
-    if (!user || user.password !== md5(password) || user.isDeleted) {
-      return res.status(400).send({ message: "Invalid Username and Password" });
-    }
-    if (user.status !== "active") {
-      return res
-        .status(400)
-        .send({ message: "You don't have permission to login ." });
-    }
+//     if (!user || user.password !== md5(password) || user.isDeleted) {
+//       return res.status(400).send({ message: "Invalid Username and Password" });
+//     }
+//     if (user.status !== "active") {
+//       return res
+//         .status(400)
+//         .send({ message: "You don't have permission to login ." });
+//     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: "30d",
-      }
-    );
+//     const token = jwt.sign(
+//       { id: user.id, email: user.email, role: user.role },
+//       process.env.ACCESS_TOKEN_SECRET,
+//       {
+//         expiresIn: "30d",
+//       }
+//     );
 
-    await prisma.employee.update({
-      where: { id: user.id },
-      data: {
-        tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
-      },
-    });
+//     await prisma.employee.update({
+//       where: { id: user.id },
+//       data: {
+//         tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
+//       },
+//     });
 
-    return res.status(201).json({
-      message: "You have successfully login !",
-      token,
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    return res.status(500).json({
-      message: "Something went wrong.",
-    });
-  }
-};
+//     return res.status(201).json({
+//       message: "You have successfully login !",
+//       token,
+//     });
+//   } catch (error) {
+//     console.error("Login error:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong.",
+//     });
+//   }
+// };
 
 // const sendForgotPasswordOTP = async (req, res) => {
 //   try {
@@ -106,6 +106,80 @@ const login = async (req, res) => {
 //     });
 //   }
 // };
+
+const login = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    const checkValid = await checkValidations(errors);
+    if (checkValid.type === "error") {
+      return res.status(400).send({
+        message: checkValid.errors.msg,
+      });
+    }
+
+    const { userName, password } = req.body;
+
+    // Employee find karo
+    const user = await prisma.employee.findUnique({
+      where: { email: userName, role: "Shop_Floor" },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        password: true,
+        role: true,
+        tokens: true,
+        isDeleted: true,
+      },
+    });
+
+    // Invalid username/password or deleted user
+    if (!user || user.password !== md5(password) || user.isDeleted) {
+      return res.status(400).send({ message: "Invalid Username and Password" });
+    }
+
+    // Valid statuses list
+    const allowedStatuses = ["active", "pending", "banned", "rejected"];
+
+    // Agar user.status allowed list me hi nahi hai
+    if (!allowedStatuses.includes(user.status?.toLowerCase())) {
+      return res.status(400).send({
+        message: `Your account status '${user.status}' is not valid for login.`,
+      });
+    }
+
+    // Sirf active user ko login allow hoga
+    if (user.status.toLowerCase() !== "active") {
+      return res.status(403).send({
+        message: `Your account status is '${user.status}'. You cannot login.`,
+      });
+    }
+
+    // Token generate
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    await prisma.employee.update({
+      where: { id: user.id },
+      data: {
+        tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
+      },
+    });
+
+    return res.status(201).json({
+      message: "You have successfully logged in!",
+      token,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({
+      message: "Something went wrong.",
+    });
+  }
+};
 
 const sendForgotPasswordOTP = async (req, res) => {
   try {
