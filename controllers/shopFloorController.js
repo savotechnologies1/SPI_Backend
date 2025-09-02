@@ -18,7 +18,7 @@ const login = async (req, res) => {
     }
     const { userName, password } = req.body;
     const user = await prisma.employee.findUnique({
-      where: { email: userName },
+      where: { email: userName, role: "Shop_Floor" },
       select: {
         id: true,
         email: true,

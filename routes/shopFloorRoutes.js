@@ -108,4 +108,5 @@ router.patch(
   validateToken,
   changeStationNotification
 );
+
 module.exports = router;

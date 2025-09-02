@@ -14572,7 +14572,10 @@ const scrapEntry = async (req, res) => {
       dataForPrisma.createdByAdmin = {
         connect: { id: req.user.id },
       };
-    } else if (req.user && ["employee", "Shop_Floor"].includes(req.user.role)) {
+    } else if (
+      req.user &&
+      ["employee", "Shop_Floor", "Frontline_Manager"].includes(req.user.role)
+    ) {
       dataForPrisma.createdByEmployee = {
         connect: { id: req.user.id },
       };

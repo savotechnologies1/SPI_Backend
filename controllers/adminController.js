@@ -4255,6 +4255,145 @@ const searchCustomOrders = async (req, res) => {
     });
   }
 };
+// const stockOrderSchedule = async (req, res) => {
+//   const ordersToSchedule = req.body;
+//   try {
+//     const allPrismaPromises = [];
+//     const orderIdsToUpdate = new Set();
+
+//     for (const order of ordersToSchedule) {
+//       const { order_id, product_id, quantity, delivery_date, status, type } =
+//         order;
+
+//       if (!order_id || !product_id) {
+//         console.warn(
+//           "Skipping order due to missing order_id or product_id",
+//           order
+//         );
+//         continue;
+//       }
+
+//       orderIdsToUpdate.add(order_id);
+
+//       const productPart = await prisma.partNumber.findUnique({
+//         where: { part_id: product_id },
+//         include: { process: true },
+//       });
+
+//       if (productPart) {
+//         const productSchedule = prisma.stockOrderSchedule.upsert({
+//           where: {
+//             order_id_part_id_order_type: {
+//               order_id: order_id,
+//               part_id: product_id,
+//               order_type: "StockOrder", // You must provide the type now
+//             },
+//           },
+//           update: {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             type: type,
+//           },
+//           create: {
+//             // --- CHANGE #2: Set polymorphic fields directly ---
+//             order_id: order_id,
+//             order_type: "StockOrder",
+//             // --- END OF CHANGES ---
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             submittedBy: { connect: { id: req.user.id } },
+//             part: { connect: { part_id: product_id } },
+//             process: productPart.processId
+//               ? { connect: { id: productPart.processId } }
+//               : undefined,
+//             scheduleQuantity: quantity,
+//             remainingQty: quantity,
+//           },
+//         });
+//         allPrismaPromises.push(productSchedule);
+//       }
+
+//       const bomEntries = await prisma.productTree.findMany({
+//         where: { product_id: product_id },
+//         include: { part: { include: { process: true } } },
+//       });
+
+//       const componentSchedulePromises = bomEntries.map((entry) => {
+//         // Use a default value for minStock if it's null or undefined
+//         const scheduleQty = quantity * (entry?.part?.minStock || 1);
+//         return prisma.stockOrderSchedule.upsert({
+//           where: {
+//             // --- CHANGE #3: Use the new unique identifier here as well ---
+//             order_id_part_id_order_type: {
+//               order_id: order_id,
+//               part_id: entry?.part?.part_id,
+//               order_type: "StockOrder",
+//             },
+//           },
+//           update: {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//           },
+//           create: {
+//             // --- CHANGE #4: Set polymorphic fields directly here too ---
+//             order_id: order_id,
+//             order_type: "StockOrder",
+//             // --- END OF CHANGES ---
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             submittedBy: { connect: { id: req.user.id } },
+//             part: { connect: { part_id: entry?.part?.part_id } },
+//             process: entry?.part?.processId
+//               ? { connect: { id: entry?.part?.processId } }
+//               : undefined,
+//             type: type,
+//             scheduleQuantity: scheduleQty,
+//             remainingQty: scheduleQty,
+//           },
+//         });
+//       });
+
+//       allPrismaPromises.push(...componentSchedulePromises);
+//     }
+
+//     if (allPrismaPromises.length > 0) {
+//       const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+//       // Update all scheduled orders, not just the last one
+//       await prisma.stockOrder.updateMany({
+//         where: {
+//           id: { in: Array.from(orderIdsToUpdate) },
+//           isDeleted: false,
+//         },
+//         data: {
+//           status: "scheduled",
+//         },
+//       });
+
+//       return res.status(201).json({
+//         message: `Successfully scheduled or updated  items.`,
+//         data: newSchedules,
+//       });
+//     } else {
+//       return res.status(200).json({ message: "No new items to schedule." });
+//     }
+//   } catch (error) {
+//     console.error("Error during batch scheduling:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong during scheduling.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
@@ -4280,13 +4419,19 @@ const stockOrderSchedule = async (req, res) => {
         include: { process: true },
       });
 
+      // 🟢 Helper: decide whether user is admin or employee
+      const submittedBy =
+        req.user.role === "superAdmin"
+          ? { submittedByAdmin: { connect: { id: req.user.id } } }
+          : { submittedByEmployee: { connect: { id: req.user.id } } };
+
       if (productPart) {
         const productSchedule = prisma.stockOrderSchedule.upsert({
           where: {
             order_id_part_id_order_type: {
               order_id: order_id,
               part_id: product_id,
-              order_type: "StockOrder", // You must provide the type now
+              order_type: "StockOrder",
             },
           },
           update: {
@@ -4297,15 +4442,13 @@ const stockOrderSchedule = async (req, res) => {
             type: type,
           },
           create: {
-            // --- CHANGE #2: Set polymorphic fields directly ---
             order_id: order_id,
             order_type: "StockOrder",
-            // --- END OF CHANGES ---
             delivery_date: new Date(delivery_date),
             quantity: quantity,
             status: status,
             completed_date: null,
-            submittedBy: { connect: { id: req.user.id } },
+            ...submittedBy, // 🟢 dynamic relation
             part: { connect: { part_id: product_id } },
             process: productPart.processId
               ? { connect: { id: productPart.processId } }
@@ -4323,11 +4466,10 @@ const stockOrderSchedule = async (req, res) => {
       });
 
       const componentSchedulePromises = bomEntries.map((entry) => {
-        // Use a default value for minStock if it's null or undefined
         const scheduleQty = quantity * (entry?.part?.minStock || 1);
+
         return prisma.stockOrderSchedule.upsert({
           where: {
-            // --- CHANGE #3: Use the new unique identifier here as well ---
             order_id_part_id_order_type: {
               order_id: order_id,
               part_id: entry?.part?.part_id,
@@ -4341,15 +4483,13 @@ const stockOrderSchedule = async (req, res) => {
             completed_date: null,
           },
           create: {
-            // --- CHANGE #4: Set polymorphic fields directly here too ---
             order_id: order_id,
             order_type: "StockOrder",
-            // --- END OF CHANGES ---
             delivery_date: new Date(delivery_date),
             quantity: quantity,
             status: status,
             completed_date: null,
-            submittedBy: { connect: { id: req.user.id } },
+            ...submittedBy, // 🟢 dynamic relation
             part: { connect: { part_id: entry?.part?.part_id } },
             process: entry?.part?.processId
               ? { connect: { id: entry?.part?.processId } }
@@ -4367,19 +4507,16 @@ const stockOrderSchedule = async (req, res) => {
     if (allPrismaPromises.length > 0) {
       const newSchedules = await prisma.$transaction(allPrismaPromises);
 
-      // Update all scheduled orders, not just the last one
       await prisma.stockOrder.updateMany({
         where: {
           id: { in: Array.from(orderIdsToUpdate) },
           isDeleted: false,
         },
-        data: {
-          status: "scheduled",
-        },
+        data: { status: "scheduled" },
       });
 
       return res.status(201).json({
-        message: `Successfully scheduled or updated  items.`,
+        message: `Successfully scheduled or updated items.`,
         data: newSchedules,
       });
     } else {
@@ -4719,6 +4856,7 @@ const customOrderSchedule = async (req, res) => {
 // };
 // correct code end
 // controllers/scheduleController.js
+
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
@@ -4732,6 +4870,9 @@ const scheduleStockOrdersList = async (req, res) => {
 
     if (search) {
       whereClause.OR = [{ part: { partNumber: { contains: search } } }];
+    }
+    if (req.user?.role === "Frontline_Manager") {
+      whereClause.submittedByEmployeeId = req.user.id;
     }
 
     const [filteredSchedules, totalCount] = await Promise.all([
@@ -4749,7 +4890,7 @@ const scheduleStockOrdersList = async (req, res) => {
               process: true,
             },
           },
-          employee: {
+          completedByEmployee: {
             select: {
               firstName: true,
               lastName: true,

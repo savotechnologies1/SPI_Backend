@@ -28,8 +28,9 @@ model admin {
   state        String       @default("") @db.Char(50)
   zipCode      String       @default("") @db.Char(50)
 
-  submittedBy StockOrderSchedule[]
-  scapEntries scapEntries[]
+  submittedBy        StockOrderSchedule[]
+  scapEntries        scapEntries[]
+  StockOrderSchedule StockOrderSchedule[] @relation("AdminSchedules")
 }
 
 model customers {
@@ -90,7 +91,10 @@ model employee {
   scapEntries        scapEntries[]
   timeClocks         TimeClock[]
   VacationRequest    VacationRequest[]
-  StockOrderSchedule StockOrderSchedule[]
+
+  // 👇 relation names match upar ke StockOrderSchedule wale se
+  submittedSchedules StockOrderSchedule[] @relation("SubmittedByEmployee")
+  completedSchedules StockOrderSchedule[] @relation("CompletedByEmployee")
 }
 
 enum TimeClockEventType {
@@ -562,37 +566,37 @@ model StockOrderSchedule {
   delivery_date     DateTime  @default(now())
   completed_date    DateTime?
   completed_by      String?
-  completed_EmpId   String?
-  submitted_by      String?
   processOrder      Boolean   @default(false)
 
-  part        PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
-  submittedBy admin?      @relation(fields: [submitted_by], references: [id])
-  process     process?    @relation(fields: [processId], references: [id])
-  processId   String?     @db.VarChar(10)
+  // 👇 employee relations
+  completed_EmpId     String?
+  completedByEmployee employee? @relation("CompletedByEmployee", fields: [completed_EmpId], references: [id])
 
-  // REMOVE the direct relations to StockOrder and CustomOrder
-  // order       StockOrder? @relation(fields: [order_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // customOrder   CustomOrder? @relation(fields: [customOrderId], references: [id])
-  // REMOVE the redundant customOrderId field
-  // customOrderId String?
+  submittedByEmployeeId String?
+  submittedByEmployee   employee? @relation("SubmittedByEmployee", fields: [submittedByEmployeeId], references: [id])
 
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @default(now()) @updatedAt
-  isDeleted         Boolean      @default(false)
-  PartNumber        PartNumber?  @relation(fields: [partNumberPart_id], references: [part_id])
-  partNumberPart_id String?      @db.Char(36)
+  // Admin relation
+  submittedByAdminId String?
+  submittedByAdmin   admin?  @relation("AdminSchedules", fields: [submittedByAdminId], references: [id])
+
+  part      PartNumber? @relation(name: "PartRelation", fields: [part_id], references: [part_id])
+  process   process?    @relation(fields: [processId], references: [id])
+  processId String?     @db.VarChar(10)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  isDeleted Boolean  @default(false)
+
   StockOrder        StockOrder?  @relation(fields: [stockOrderId], references: [id])
   stockOrderId      String?      @db.Char(36)
   CustomOrder       CustomOrder? @relation(fields: [customOrderId], references: [id])
   customOrderId     String?      @db.Char(36)
-  employee          employee?    @relation(fields: [completed_EmpId], references: [id])
+  PartNumber        PartNumber?  @relation(fields: [partNumberPart_id], references: [part_id])
+  partNumberPart_id String?      @db.Char(36)
+  admin             admin?       @relation(fields: [adminId], references: [id])
+  adminId           String?      @db.Char(36)
 
-  // This unique constraint is now correct and essential for your upsert to work properly!
   @@unique([order_id, part_id, order_type])
-  @@index([order_id, order_type])
-  @@index([part_id])
-  @@index([submitted_by])
 }
 
 model ProductionResponse {
