@@ -11,7 +11,7 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
-
+const moment = require("moment"); // For date/time manipulation
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -2091,7 +2091,7 @@ const createPartNumber = async (req, res) => {
     const existingActivePart = await prisma.partNumber.findFirst({
       where: {
         partNumber: partNumber,
-        isDeleted: false, // Only consider active part numbers as existing
+        isDeleted: false,
       },
     });
 
@@ -2114,7 +2114,7 @@ const createPartNumber = async (req, res) => {
         companyName,
         minStock: parseInt(req?.body?.minStock),
         availStock: parseInt(req?.body?.availStock),
-        cycleTime: parseInt(req?.body?.cycleTime),
+        cycleTime: req?.body?.cycleTime,
         processOrderRequired: processOrderRequired === "true",
         processId,
         processDesc,
@@ -6090,6 +6090,660 @@ const sendVacationStatus = async (req, res) => {
   }
 };
 
+const getLiveProduction = async (req, res) => {
+  try {
+    // Fetch all production responses of current shift (example)
+    const responses = await prisma.productionResponse.findMany({
+      where: { isDeleted: false },
+    });
+
+    let totalCompleted = 0;
+    let totalScrap = 0;
+    let totalCycleTime = 0;
+    let totalParts = 0;
+
+    responses.forEach((item) => {
+      totalCompleted += item.completedQuantity || 0;
+      totalScrap += item.scrapQuantity || 0;
+
+      if (item.cycleTimeStart && item.cycleTimeEnd) {
+        const cycleTime =
+          new Date(item.cycleTimeEnd) - new Date(item.cycleTimeStart); // ms
+        totalCycleTime += cycleTime;
+        totalParts++;
+      }
+    });
+
+    const avgCycleTimeSec =
+      totalParts > 0 ? totalCycleTime / totalParts / 1000 : 0;
+
+    const target = avgCycleTimeSec > 0 ? Math.floor(3600 / avgCycleTimeSec) : 0;
+
+    return res.status(200).json({
+      shift: 1,
+      actual: totalCompleted,
+      scrap: totalScrap,
+      target,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching live production data" });
+  }
+};
+
+// Helper to calculate start/end of day
+const getDayRange = (dateString) => {
+  const startOfDay = moment(dateString).startOf("day").toDate();
+  const endOfDay = moment(dateString).endOf("day").toDate();
+  return { startOfDay, endOfDay };
+};
+const productionOverview = async (req, res) => {
+  try {
+    const { startOfDay, endOfDay } = getDayRange(
+      req.query.date || moment().format("YYYY-MM-DD")
+    );
+
+    const productionResponses = await prisma.productionResponse.findMany({
+      where: {
+        submittedDateTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        isDeleted: false,
+      },
+      select: {
+        completedQuantity: true,
+        scrapQuantity: true,
+      },
+    });
+    console.log("productionResponsesproductionResponses", productionResponses);
+
+    const totalActual = productionResponses.reduce(
+      (sum, res) => sum + (res.completedQuantity || 0),
+      0
+    );
+    const totalScrap = productionResponses.reduce(
+      (sum, res) => sum + (res.scrapQuantity || 0),
+      0
+    );
+
+    // Determine current shift (simplified)
+    const currentHour = moment().hour();
+    let shift = 1; // Default
+    if (currentHour >= 6 && currentHour < 14) shift = 1;
+    else if (currentHour >= 14 && currentHour < 22) shift = 2;
+    else shift = 3; // Night shift
+
+    const overview = {
+      hourByHour: [
+        { label: "Shift", value: shift, image: "green.png" },
+        { label: "Actual", value: totalActual, image: "yellow.png" },
+        { label: "Scrap", value: totalScrap, image: "orange.png" },
+      ],
+      pieChartData: [
+        { name: "Actual", value: totalActual, color: "#4CAF50" },
+        { name: "Scrap", value: totalScrap, color: "#FFC107" },
+      ],
+    };
+
+    res.json(overview);
+  } catch (error) {
+    console.error("Error fetching overview:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+function parseCycleTime(cycleTimeStr) {
+  if (!cycleTimeStr) return null;
+
+  const match = cycleTimeStr
+    .trim()
+    .toLowerCase()
+    .match(
+      /^(\d+(\.\d+)?)\s*(sec|second|seconds|min|minute|minutes|hr|hour|hours)$/
+    );
+  if (!match) return null;
+
+  const value = parseFloat(match[1]);
+  const unit = match[3];
+
+  let minutes;
+  switch (unit) {
+    case "sec":
+    case "second":
+    case "seconds":
+      minutes = value / 60; // convert sec → minutes
+      break;
+    case "min":
+    case "minute":
+    case "minutes":
+      minutes = value; // already minutes
+      break;
+    case "hr":
+    case "hour":
+    case "hours":
+      minutes = value * 60; // convert hr → minutes
+      break;
+    default:
+      minutes = value; // fallback assume minutes
+  }
+
+  return minutes;
+}
+
+const processHourly = async (req, res) => {
+  try {
+    const { startOfDay, endOfDay } = getDayRange(
+      req.query.date || moment().format("YYYY-MM-DD")
+    );
+
+    const activeProcesses = await prisma.process.findMany({
+      where: { isDeleted: false },
+      select: {
+        id: true,
+        processName: true,
+        cycleTime: true,
+        ratePerHour: true,
+      },
+    });
+
+    const allProcessData = [];
+
+    for (const process of activeProcesses) {
+      const productionResponses = await prisma.productionResponse.findMany({
+        where: {
+          processId: process.id,
+          submittedDateTime: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          isDeleted: false,
+        },
+        include: {
+          employeeInfo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeProfileImg: true,
+            },
+          },
+        },
+      });
+      console.log("processprocess", process);
+
+      const hourlyDataMap = new Map(); // Hour -> { actual, scrap, target }
+      let processTotalActual = 0;
+      let processTotalScrap = 0;
+      const employeesSet = new Map();
+
+      // initialize 24 hours
+      for (let h = 0; h < 24; h++) {
+        hourlyDataMap.set(moment().hour(h).format("HH:00"), {
+          actual: 0,
+          scrap: 0,
+          target: 0,
+        });
+      }
+
+      for (const response of productionResponses) {
+        const hour = moment(response.submittedDateTime).format("HH:00");
+        const currentHourData = hourlyDataMap.get(hour);
+
+        if (currentHourData) {
+          currentHourData.actual += response.completedQuantity || 0;
+          currentHourData.scrap += response.scrapQuantity || 0;
+
+          // parse cycleTime string here
+          if (process.cycleTime) {
+            const cycleTimeMinutes = parseCycleTime(process.cycleTime);
+
+            if (cycleTimeMinutes && cycleTimeMinutes > 0) {
+              currentHourData.target = Math.round(60 / cycleTimeMinutes);
+            }
+          }
+        }
+
+        processTotalActual += response.completedQuantity || 0;
+        processTotalScrap += response.scrapQuantity || 0;
+
+        if (response.employeeInfo) {
+          employeesSet.set(response.employeeInfo.id, {
+            name: `${response.employeeInfo.firstName} ${response.employeeInfo.lastName}`,
+            profileImage: response.employeeInfo.employeeProfileImg,
+          });
+        }
+      }
+
+      const hourlyData = Array.from(hourlyDataMap.entries()).map(
+        ([hour, data]) => ({
+          hour,
+          actual: data.actual,
+          scrap: data.scrap,
+          target: data.target,
+        })
+      );
+
+      allProcessData.push({
+        processName: process.processName,
+        hourlyData,
+        total: { actual: processTotalActual, scrap: processTotalScrap },
+        employees: Array.from(employeesSet.values()),
+      });
+    }
+
+    res.json(allProcessData);
+  } catch (error) {
+    console.error("Error fetching hourly process data:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const liveProductionGoalBoard = async (req, res) => {
+  try {
+    const { startOfDay, endOfDay } = getDayRange(
+      req.query.date || moment().format("YYYY-MM-DD")
+    );
+
+    const currentHour = moment().hour();
+    const { shiftNumber, shiftLabel } = getShiftInfo(currentHour);
+
+    // Fetch all active processes
+    const activeProcesses = await prisma.process.findMany({
+      where: { isDeleted: false },
+      select: {
+        id: true,
+        processName: true,
+        cycleTime: true,
+        ratePerHour: true,
+      },
+    });
+
+    let totalActualOverall = 0;
+    let totalScrapOverall = 0;
+
+    const processesHourlyData = [];
+
+    for (const process of activeProcesses) {
+      // Fetch production responses for the current process within the day
+      const productionResponses = await prisma.productionResponse.findMany({
+        where: {
+          processId: process.id,
+          submittedDateTime: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          isDeleted: false,
+        },
+        include: {
+          employeeInfo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeProfileImg: true,
+            },
+          },
+        },
+      });
+      console.log("processprocess", process);
+
+      const hourlyBreakdownMap = new Map(); // Hour (HH) -> { target, actual, scrap, employees: Set }
+
+      // Initialize hourly breakdown for all 24 hours
+      for (let h = 0; h < 24; h++) {
+        const hourKey = moment().hour(h).format("HH");
+        let targetValue = 0;
+        if (process.ratePerHour) {
+          targetValue = process.ratePerHour;
+        } else if (process.cycleTime) {
+          const cycleTimeMinutes = parseFloat(process.cycleTime);
+          if (!isNaN(cycleTimeMinutes) && cycleTimeMinutes > 0) {
+            targetValue = Math.round(60 / cycleTimeMinutes); // Units per hour
+          }
+        }
+        hourlyBreakdownMap.set(hourKey, {
+          hour: parseInt(hourKey),
+          target: targetValue,
+          actual: 0,
+          scrap: 0,
+          employees: new Map(), // Map to store unique employees for this hour
+        });
+      }
+
+      let processActual = 0;
+      let processScrap = 0;
+
+      for (const response of productionResponses) {
+        const responseHourKey = moment(response.submittedDateTime).format("HH");
+        const hourData = hourlyBreakdownMap.get(responseHourKey);
+
+        if (hourData) {
+          hourData.actual += response.completedQuantity || 0;
+          hourData.scrap += response.scrapQuantity || 0;
+          processActual += response.completedQuantity || 0;
+          processScrap += response.scrapQuantity || 0;
+
+          if (response.employeeInfo) {
+            hourData.employees.set(response.employeeInfo.id, {
+              id: response.employeeInfo.id,
+              name: `${response.employeeInfo.firstName} ${response.employeeInfo.lastName}`,
+              image: response.employeeInfo.employeeProfileImg,
+            });
+          }
+        }
+      }
+
+      totalActualOverall += processActual;
+      totalScrapOverall += processScrap;
+
+      // Convert hourlyBreakdownMap to a sorted array, and employees map to an array
+      const hourlyDataArray = Array.from(hourlyBreakdownMap.values())
+        .map((hourEntry) => ({
+          hour: hourEntry.hour,
+          target: hourEntry.target,
+          actual: hourEntry.actual,
+          scrap: hourEntry.scrap,
+          employees: Array.from(hourEntry.employees.values()),
+        }))
+        .sort((a, b) => a.hour - b.hour); // Sort by hour
+
+      processesHourlyData.push({
+        processId: process.id,
+        processName: process.processName,
+        hourlyBreakdown: hourlyDataArray,
+        totalActual: processActual,
+        totalScrap: processScrap,
+      });
+    }
+
+    // Prepare the final response structure
+    const responseData = {
+      summary: {
+        shift: shiftNumber,
+        shiftLabel: shiftLabel,
+        totalActual: totalActualOverall,
+        totalScrap: totalScrapOverall,
+      },
+      pieChartData: [
+        { name: "Actual", value: totalActualOverall, color: "#4CAF50" }, // Green
+        { name: "Scrap", value: totalScrapOverall, color: "#FFC107" }, // Amber/Yellow
+      ],
+      hourlyProductionByProcess: processesHourlyData,
+    };
+
+    res.json(responseData);
+  } catch (error) {
+    console.error("Error fetching live production goal board data:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false },
+//       include: {
+//         process: {
+//           select: {
+//             id: true,
+//             processName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const result = [];
+
+//     for (const order of stockOrders) {
+//       const process = order.process;
+
+//       // parse cycleTime into minutes
+//       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+//       const targetPerHour = cycleTimeMinutes
+//         ? Math.round(60 / cycleTimeMinutes)
+//         : process?.ratePerHour || 0;
+//       console.log("cycleTimeMinutes", cycleTimeMinutes);
+//       console.log("targetPerHourtargetPerHour", targetPerHour);
+
+//       // totals
+//       const actual = order.completedQuantity || 0;
+//       const scrap = order.scrapQuantity || 0;
+//       const scheduled = order.scheduleQuantity || 0;
+
+//       // efficiency/productivity
+//       const efficiency =
+//         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+//       const productivity =
+//         scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+
+//       result.push({
+//         processName: process?.processName,
+//         partId: order.part_id,
+//         scheduled,
+//         actual,
+//         scrap,
+//         remaining: order.remainingQty,
+//         targetPerHour,
+//         efficiency: efficiency + "%",
+//         productivity: productivity + "%",
+//         avgCycleTime: process?.cycleTime || null,
+//       });
+//     }
+
+//     res.json(result);
+//   } catch (error) {
+//     console.error("Error fetching current status overview:", error);
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
+
+const currentStatusOverview = async (req, res) => {
+  try {
+    const stockOrders = await prisma.stockOrderSchedule.findMany({
+      where: { isDeleted: false },
+      include: {
+        process: {
+          select: {
+            id: true,
+            processName: true,
+            cycleTime: true,
+            ratePerHour: true,
+          },
+        },
+      },
+    });
+
+    const result = [];
+
+    for (const order of stockOrders) {
+      const process = order.process;
+
+      // parse cycleTime into minutes
+      const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+      const targetPerHour = cycleTimeMinutes
+        ? Math.round(60 / cycleTimeMinutes)
+        : process?.ratePerHour || 0;
+
+      // totals
+      const actual = order.completedQuantity || 0;
+      const scrap = order.scrapQuantity || 0;
+      const scheduled = order.scheduleQuantity || 0;
+
+      // efficiency/productivity
+      const efficiency =
+        targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+      const productivity =
+        scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+
+      // 🔹 calculate date range
+      const startDate = order.startDateTime; // DB column
+      const now = new Date(); // current server time
+
+      result.push({
+        processName: process?.processName,
+        partId: order.part_id,
+        scheduled,
+        actual,
+        scrap,
+        remaining: order.remainingQty,
+        targetPerHour,
+        efficiency: efficiency + "%",
+        productivity: productivity + "%",
+        avgCycleTime: process?.cycleTime || null,
+        startDate: startDate,
+        currentDate: now,
+      });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error fetching current status overview:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+// const currentQualityStatusOverview = async (req, res) => {
+//   try {
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false },
+//       include: {
+//         process: {
+//           select: {
+//             id: true,
+//             processName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const now = new Date();
+//     const startOfWeek = new Date(now);
+//     startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+//     const lastWeek = new Date(startOfWeek);
+//     lastWeek.setDate(startOfWeek.getDate() - 7);
+
+//     // Group data
+//     let totalScheduled = 0;
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let lastWeekScrap = 0;
+//     let lastWeekActual = 0;
+
+//     for (const order of stockOrders) {
+//       totalScheduled += order.scheduleQuantity || 0;
+//       totalActual += order.completedQuantity || 0;
+//       totalScrap += order.scrapQuantity || 0;
+
+//       if (
+//         new Date(order.startDateTime) >= lastWeek &&
+//         new Date(order.startDateTime) < startOfWeek
+//       ) {
+//         lastWeekScrap += order.scrapQuantity || 0;
+//         lastWeekActual += order.completedQuantity || 0;
+//       }
+//     }
+
+//     // Scrap cost logic example
+//     const scrapCost = totalScrap * 10000; // suppose har scrap = $10k (custom logic)
+
+//     res.json({
+//       scheduled: totalScheduled,
+//       actual: totalActual,
+//       scrap: totalScrap,
+//       scrapCost,
+//       diffScrap: totalScrap - lastWeekScrap,
+//       diffActual: totalActual - lastWeekActual,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching current status overview:", error);
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
+
+const currentQualityStatusOverview = async (req, res) => {
+  try {
+    // Fetch all stock orders that are not deleted
+    const stockOrders = await prisma.StockOrderSchedule.findMany({
+      where: { isDeleted: false },
+      include: {
+        process: {
+          select: {
+            id: true,
+            processName: true,
+          },
+        },
+      },
+    });
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
+    const lastWeek = new Date(startOfWeek);
+    lastWeek.setDate(startOfWeek.getDate() - 7); // Start of last week
+
+    let totalActual = 0;
+    let totalScrap = 0;
+    let lastWeekActual = 0;
+    let lastWeekScrap = 0;
+
+    // For Scrap By Process chart
+    const scrapByProcessMap = {};
+
+    stockOrders.forEach((order) => {
+      const orderDate = new Date(order.order_date);
+
+      totalActual += order.completedQuantity || 0;
+      totalScrap += order.scrapQuantity || 0;
+
+      if (orderDate >= lastWeek && orderDate < startOfWeek) {
+        lastWeekActual += order.completedQuantity || 0;
+        lastWeekScrap += order.scrapQuantity || 0;
+      }
+
+      if (order.process && order.scrapQuantity > 0) {
+        const key = order.process.processName;
+        if (!scrapByProcessMap[key]) scrapByProcessMap[key] = 0;
+        scrapByProcessMap[key] += order.scrapQuantity;
+      }
+    });
+
+    // Convert scrap by process map to array for chart
+    const scrapByProcess = Object.entries(scrapByProcessMap).map(
+      ([process, scrap]) => ({
+        process,
+        scrap,
+      })
+    );
+
+    // Scrap cost logic
+    const scrapCost = totalScrap * 10000; // custom logic: $10k per scrap
+
+    res.json({
+      actual: totalActual,
+      scrap: totalScrap,
+      scrapCost,
+      diffActual: totalActual - lastWeekActual,
+      diffScrap: totalScrap - lastWeekScrap,
+      scrapByProcess,
+    });
+  } catch (error) {
+    console.error("Error fetching current quality overview:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -6174,4 +6828,10 @@ module.exports = {
   changeVacationRequestStatus,
   timeClockList,
   sendVacationStatus,
+  getLiveProduction,
+  productionOverview,
+  processHourly,
+  liveProductionGoalBoard,
+  currentStatusOverview,
+  currentQualityStatusOverview,
 };

@@ -81,6 +81,14 @@ const {
   timeClockList,
   sendVacationStatus,
   deleteProductPartsNumber,
+  getLiveProduction,
+  productionLive,
+  processData,
+  productionOverview,
+  processHourly,
+  liveProductionGoalBoard,
+  currentStatusOverview,
+  currentQualityStatusOverview,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -419,5 +427,9 @@ router.patch(
 router.get("/all-time-clock-list", adminValidateToken, timeClockList);
 router.post("/send-email-to-employee", adminValidateToken, sendMailToEmplyee);
 router.post("/send-vacation-status", adminValidateToken, sendVacationStatus);
-
+router.get("/live-production", getLiveProduction);
+router.get("/production/overview", productionOverview);
+router.get("/production/processes/hourly", processHourly);
+router.get("/current-status-overview", currentStatusOverview);
+router.get("/current-quality-status-overview", currentQualityStatusOverview);
 module.exports = router;

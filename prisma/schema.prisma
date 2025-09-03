@@ -348,7 +348,7 @@ model PartNumber {
   minStock             Int?     @default(0)
   availStock           Int?     @default(0)
   supplierOrderQty     Int?     @default(0)
-  cycleTime            Int?
+  cycleTime            String?  @db.VarChar(255)
   processId            String?  @db.VarChar(10)
   processDesc          String?  @db.VarChar(255)
   processOrderRequired Boolean  @default(false)
