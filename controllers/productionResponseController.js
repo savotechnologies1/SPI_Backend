@@ -14178,6 +14178,14 @@ const scrapScheduleOrder = async (req, res) => {
       data: { scrapQuantity: { increment: 1 }, remainingQty: newRemainingQty },
     });
 
+    await prisma.scapEntries.create({
+      data: {
+        partId: partId,
+        returnQuantity: 1,
+        scrapStatus: true,
+        customersId,
+      },
+    });
     // Check if the schedule is now complete after scrapping
     const updatedSchedule = await prisma.stockOrderSchedule.findUnique({
       where: { id: orderSchedule.id },
@@ -15099,6 +15107,395 @@ const changeStationNotification = async (req, res) => {
   }
 };
 
+// const supplierReturn = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const { filterScrap, search } = req.query;
+//     const user = req.user;
+//     console.log("user1111", user);
+
+//     const condition = {
+//       isDeleted: false,
+//     };
+
+//     if (filterScrap && filterScrap.toLowerCase() !== "all") {
+//       condition.type = filterScrap;
+//     }
+
+//     if (search) {
+//       condition.OR = [
+//         {
+//           supplier: {
+//             firstName: {
+//               contains: search,
+//             },
+//           },
+//         },
+//         {
+//           supplier: {
+//             lastName: {
+//               contains: search,
+//             },
+//           },
+//         },
+//         {
+//           PartNumber: {
+//             partNumber: {
+//               contains: search,
+//             },
+//           },
+//         },
+//       ];
+//     }
+
+//     const [allProcess, totalCount] = await Promise.all([
+//       prisma.scapEntries.findMany({
+//         where: condition,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         include: {
+//           PartNumber: {
+//             select: {
+//               part_id: true,
+//               partNumber: true,
+//             },
+//           },
+//           supplier: {
+//             select: {
+//               firstName: true,
+//               lastName: true,
+//             },
+//           },
+//           createdByAdmin: {
+//             select: {
+//               name: true,
+//             },
+//           },
+//           createdByEmployee: {
+//             select: {
+//               firstName: true,
+//               lastName: true,
+//             },
+//           },
+//         },
+//       }),
+//       prisma.scapEntries.count({
+//         where: condition,
+//       }),
+//     ]);
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Part number retrieved successfully!",
+//       data: allProcess,
+//       totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.log("errorerrorerror", error);
+
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
+const supplierReturn = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { filterScrap, search, startDate, endDate } = req.query; // Destructure new date parameters
+    const user = req.user;
+    console.log("user1111", user);
+
+    const condition = {
+      isDeleted: false,
+      // Ensure only entries related to suppliers are considered.
+      // Based on your schema, 'returnSupplierId' or 'supplierId' could indicate a supplier return.
+      // Let's assume 'supplierId' being present means it's a supplier-related scrap entry.
+      supplierId: {
+        not: null, // Only include entries that have a supplier associated
+      },
+    };
+
+    // Date filtering
+    let startDateTime;
+    let endDateTime;
+
+    if (startDate && endDate) {
+      // If both dates are provided, use them for filtering
+      startDateTime = new Date(startDate);
+      // To include the entire end day, set time to the very end of the day
+      endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999);
+    } else {
+      // Default to today's date
+      startDateTime = new Date();
+      startDateTime.setHours(0, 0, 0, 0); // Start of today
+
+      endDateTime = new Date();
+      endDateTime.setHours(23, 59, 59, 999); // End of today
+    }
+
+    condition.createdAt = {
+      gte: startDateTime, // Greater than or equal to start date
+      lte: endDateTime, // Less than or equal to end date
+    };
+
+    if (filterScrap && filterScrap.toLowerCase() !== "all") {
+      condition.type = filterScrap;
+    }
+
+    if (search) {
+      condition.OR = [
+        {
+          supplier: {
+            is: {
+              // Use 'is' for filtering on related model fields when the relation is nullable
+              firstName: {
+                contains: search,
+                mode: "insensitive", // Case-insensitive search
+              },
+            },
+          },
+        },
+        {
+          supplier: {
+            is: {
+              lastName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
+        {
+          PartNumber: {
+            is: {
+              partNumber: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
+      ];
+    }
+
+    const [allProcess, totalCount, totalReturnQty] = await Promise.all([
+      prisma.scapEntries.findMany({
+        where: condition,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc", // Order by creation date, newest first
+        },
+        include: {
+          PartNumber: {
+            select: {
+              part_id: true,
+              partNumber: true,
+              process: true,
+            },
+          },
+          supplier: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+          createdByAdmin: {
+            select: {
+              name: true,
+            },
+          },
+          createdByEmployee: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      prisma.scapEntries.count({
+        where: condition,
+      }),
+
+      prisma.scapEntries.aggregate({
+        where: condition,
+        _sum: {
+          returnQuantity: true,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Supplier returns retrieved successfully!",
+      data: allProcess,
+      totalCount,
+      pagination: getPagination,
+      totalReturnQuantity: totalReturnQty._sum.returnQuantity || 0,
+    });
+  } catch (error) {
+    console.log("Error in supplierReturn API:", error);
+
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+      error: error.message, // Include error message for debugging
+    });
+  }
+};
+
+// const supplierReturn = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const { filterScrap, search } = req.query;
+//     const user = req.user;
+//     console.log("Authenticated User:", user);
+
+//     const condition = {
+//       isDeleted: false,
+//     };
+
+//     // ✅ Scrap filter handling
+//     if (filterScrap && filterScrap.toLowerCase() !== "all") {
+//       condition.scrapStatus = filterScrap.toLowerCase() === "yes";
+//     }
+
+//     // ✅ Search filter
+//     if (search) {
+//       condition.OR = [
+//         {
+//           supplier: {
+//             firstName: {
+//               contains: search,
+//             },
+//           },
+//         },
+//         {
+//           supplier: {
+//             lastName: {
+//               contains: search,
+//             },
+//           },
+//         },
+//         {
+//           PartNumber: {
+//             partNumber: {
+//               contains: search,
+//             },
+//           },
+//         },
+//       ];
+//     }
+
+//     const [supplierReturns, totalCount] = await Promise.all([
+//       prisma.scapEntries.findMany({
+//         where: condition,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         select: {
+//           createdAt: true, // ✅ use createdAt instead of date
+//           supplier: {
+//             select: {
+//               firstName: true,
+//               lastName: true,
+//             },
+//           },
+//           PartNumber: {
+//             select: {
+//               partNumber: true,
+//               partDescription: true,
+//             },
+//           },
+//           scrapStatus: true,
+//           returnQuantity: true, // ✅ returnQuantity instead of qty
+//         },
+//         orderBy: {
+//           createdAt: "desc", // ✅ order by createdAt
+//         },
+//       }),
+//       prisma.scapEntries.count({
+//         where: condition,
+//       }),
+//     ]);
+
+//     const formattedData = supplierReturns.map((entry) => ({
+//       date: entry.createdAt
+//         ? new Date(entry.createdAt).toLocaleDateString("en-US")
+//         : "",
+//       supplierName: `${entry.supplier?.firstName || ""} ${
+//         entry.supplier?.lastName || ""
+//       }`.trim(),
+//       part: `${entry.PartNumber?.partNumber || ""} - ${
+//         entry.PartNumber?.description || ""
+//       }`.trim(),
+//       isScrap: entry.scrapStatus ? "Yes" : "No",
+//       defect: entry.scrapStatus,
+//       qty: entry.returnQuantity || 0,
+//     }));
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Supplier return data retrieved successfully!",
+//       data: formattedData,
+//       totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Error in supplierReturn API:", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// You'll need to define `paginationQuery` and `pagination` functions if they are custom utilities.
+// Example `paginationQuery` (if not already defined):
+/*
+const paginationQuery = async (query) => {
+  const page = parseInt(query.page) || 1;
+  const pageSize = parseInt(query.pageSize) || 10;
+  const skip = (page - 1) * pageSize;
+  return { page, pageSize, skip };
+};
+*/
+
+// Example `pagination` (if not already defined):
+/*
+const pagination = async ({ page, pageSize, total }) => {
+  const totalPages = Math.ceil(total / pageSize);
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
+  };
+};
+*/
+
+
+
+
+
 module.exports = {
   stationLogin,
   stationLogout,
@@ -15124,4 +15521,5 @@ module.exports = {
   stationSendNotification,
   getStationNotifications,
   changeStationNotification,
+  supplierReturn,
 };

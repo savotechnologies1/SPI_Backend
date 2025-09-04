@@ -2784,7 +2784,6 @@ const updatePartNumber = async (req, res) => {
       processId,
       processDesc,
     } = req.body;
-
     await prisma.partNumber.update({
       where: {
         part_id: id,
@@ -2852,7 +2851,6 @@ const updateProductNumber = async (req, res) => {
       processDesc,
       processOrderRequired,
       instructionRequired,
-      // -----------------------------------------------------------
       parts = [],
     } = req.body;
 
@@ -2870,11 +2868,9 @@ const updateProductNumber = async (req, res) => {
         minStock: parseInt(minStock),
         availStock: parseInt(availStock),
         processId: processId || null,
-        // --- FIX: Add the fields to the Prisma update data object ---
         processDesc: processDesc,
-        processOrderRequired: processOrderRequired === "true", // Convert form string to boolean
-        instructionRequired: instructionRequired === "true", // Convert form string to boolean
-        // ---------------------------------------------------------
+        processOrderRequired: processOrderRequired === "true",
+        instructionRequired: instructionRequired === "true",
       },
     });
 
