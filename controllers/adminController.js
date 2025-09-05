@@ -47,7 +47,6 @@ const login = async (req, res) => {
         expiresIn: "5d",
       }
     );
-    console.log("tokentoken", token);
 
     await prisma.admin.update({
       where: { id: user.id },
@@ -4527,117 +4526,117 @@ const stockOrderSchedule = async (req, res) => {
   }
 };
 
-const customOrderSchedule = async (req, res) => {
-  const partsToSchedule = req.body;
+// const customOrderSchedule = async (req, res) => {
+//   const partsToSchedule = req.body;
 
-  if (!Array.isArray(partsToSchedule) || partsToSchedule.length === 0) {
-    return res
-      .status(400)
-      .json({ message: "Request body must be a non-empty array." });
-  }
+//   if (!Array.isArray(partsToSchedule) || partsToSchedule.length === 0) {
+//     return res
+//       .status(400)
+//       .json({ message: "Request body must be a non-empty array." });
+//   }
 
-  try {
-    const allPrismaPromises = [];
-    const orderIdsToUpdate = new Set();
+//   try {
+//     const allPrismaPromises = [];
+//     const orderIdsToUpdate = new Set();
 
-    for (const item of partsToSchedule) {
-      const {
-        order_id: customOrderId, // ID from CustomOrder
-        part_id,
-        quantity,
-        delivery_date,
-        status,
-        type,
-      } = item;
+//     for (const item of partsToSchedule) {
+//       const {
+//         order_id: customOrderId, // ID from CustomOrder
+//         part_id,
+//         quantity,
+//         delivery_date,
+//         status,
+//         type,
+//       } = item;
 
-      if (!customOrderId || !part_id || !quantity) {
-        console.warn("Skipping an item due to missing data:", item);
-        continue;
-      }
+//       if (!customOrderId || !part_id || !quantity) {
+//         console.warn("Skipping an item due to missing data:", item);
+//         continue;
+//       }
 
-      orderIdsToUpdate.add(customOrderId);
+//       orderIdsToUpdate.add(customOrderId);
 
-      const partDetails = await prisma.partNumber.findUnique({
-        where: { part_id: part_id },
-      });
+//       const partDetails = await prisma.partNumber.findUnique({
+//         where: { part_id: part_id },
+//       });
 
-      if (!partDetails) {
-        console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
-        continue;
-      }
-      const scheduleQuantity =
-        quantity *
-        (partDetails.type === "product"
-          ? quantity || 1
-          : partDetails.minStock || 1);
+//       if (!partDetails) {
+//         console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
+//         continue;
+//       }
+//       const scheduleQuantity =
+//         quantity *
+//         (partDetails.type === "product"
+//           ? quantity || 1
+//           : partDetails.minStock || 1);
 
-      const schedulePromise = prisma.stockOrderSchedule.upsert({
-        // The unique constraint now correctly identifies the record
-        where: {
-          order_id_part_id_order_type: {
-            order_id: customOrderId,
-            part_id: part_id,
-            order_type: "CustomOrder", // Specify the type
-          },
-        },
-        update: {
-          delivery_date: new Date(delivery_date),
-          quantity: quantity,
-          status: status,
-          type: type,
-          scheduleQuantity: scheduleQuantity,
-          remainingQty: scheduleQuantity,
-          completed_date: null,
-        },
-        create: {
-          // --- THIS IS THE KEY CHANGE ---
-          // Manually set the polymorphic fields instead of using 'connect'
-          order_id: customOrderId,
-          order_type: "CustomOrder",
-          // --- END OF CHANGE ---
+//       const schedulePromise = prisma.stockOrderSchedule.upsert({
+//         // The unique constraint now correctly identifies the record
+//         where: {
+//           order_id_part_id_order_type: {
+//             order_id: customOrderId,
+//             part_id: part_id,
+//             order_type: "CustomOrder", // Specify the type
+//           },
+//         },
+//         update: {
+//           delivery_date: new Date(delivery_date),
+//           quantity: quantity,
+//           status: status,
+//           type: type,
+//           scheduleQuantity: scheduleQuantity,
+//           remainingQty: scheduleQuantity,
+//           completed_date: null,
+//         },
+//         create: {
+//           // --- THIS IS THE KEY CHANGE ---
+//           // Manually set the polymorphic fields instead of using 'connect'
+//           order_id: customOrderId,
+//           order_type: "CustomOrder",
+//           // --- END OF CHANGE ---
 
-          part: { connect: { part_id: part_id } },
-          delivery_date: new Date(delivery_date),
-          quantity: quantity,
-          status: status,
-          type: type,
-          scheduleQuantity: scheduleQuantity,
-          remainingQty: scheduleQuantity,
-          completed_date: null,
-          submittedBy: { connect: { id: req.user.id } },
-          process: partDetails.processId
-            ? { connect: { id: partDetails.processId } }
-            : undefined,
-        },
-      });
+//           part: { connect: { part_id: part_id } },
+//           delivery_date: new Date(delivery_date),
+//           quantity: quantity,
+//           status: status,
+//           type: type,
+//           scheduleQuantity: scheduleQuantity,
+//           remainingQty: scheduleQuantity,
+//           completed_date: null,
+//           submittedBy: { connect: { id: req.user.id } },
+//           process: partDetails.processId
+//             ? { connect: { id: partDetails.processId } }
+//             : undefined,
+//         },
+//       });
 
-      allPrismaPromises.push(schedulePromise);
-    }
+//       allPrismaPromises.push(schedulePromise);
+//     }
 
-    if (allPrismaPromises.length === 0) {
-      return res
-        .status(200)
-        .json({ message: "No valid items were provided to schedule." });
-    }
+//     if (allPrismaPromises.length === 0) {
+//       return res
+//         .status(200)
+//         .json({ message: "No valid items were provided to schedule." });
+//     }
 
-    const newSchedules = await prisma.$transaction(allPrismaPromises);
+//     const newSchedules = await prisma.$transaction(allPrismaPromises);
 
-    await prisma.customOrder.updateMany({
-      where: { id: { in: Array.from(orderIdsToUpdate) } },
-      data: { status: "scheduled" },
-    });
+//     await prisma.customOrder.updateMany({
+//       where: { id: { in: Array.from(orderIdsToUpdate) } },
+//       data: { status: "scheduled" },
+//     });
 
-    return res.status(201).json({
-      message: `Successfully scheduled or updated ${newSchedules.length} items.`,
-      data: newSchedules,
-    });
-  } catch (error) {
-    console.error("Error during custom order batch scheduling:", error);
-    return res
-      .status(500)
-      .json({ message: "Something went wrong.", error: error.message });
-  }
-};
+//     return res.status(201).json({
+//       message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+//       data: newSchedules,
+//     });
+//   } catch (error) {
+//     console.error("Error during custom order batch scheduling:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Something went wrong.", error: error.message });
+//   }
+// };
 
 // const scheduleStockOrdersList = async (req, res) => {
 //   try {
@@ -4852,6 +4851,126 @@ const customOrderSchedule = async (req, res) => {
 // };
 // correct code end
 // controllers/scheduleController.js
+
+const customOrderSchedule = async (req, res) => {
+  const partsToSchedule = req.body;
+
+  if (!Array.isArray(partsToSchedule) || partsToSchedule.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Request body must be a non-empty array." });
+  }
+
+  try {
+    const allPrismaPromises = [];
+    const orderIdsToUpdate = new Set();
+
+    for (const item of partsToSchedule) {
+      const {
+        order_id: customOrderId, // CustomOrder ka ID
+        part_id,
+        quantity,
+        delivery_date,
+        status,
+        type,
+      } = item;
+
+      if (!customOrderId || !part_id || !quantity) {
+        console.warn("Skipping an item due to missing data:", item);
+        continue;
+      }
+
+      orderIdsToUpdate.add(customOrderId);
+
+      // Part details fetch
+      const partDetails = await prisma.partNumber.findUnique({
+        where: { part_id: part_id },
+        include: { process: true },
+      });
+
+      if (!partDetails) {
+        console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
+        continue;
+      }
+
+      // 🟢 Helper: decide whether user is admin or employee
+      const submittedBy =
+        req.user.role === "superAdmin"
+          ? { submittedByAdmin: { connect: { id: req.user.id } } }
+          : { submittedByEmployee: { connect: { id: req.user.id } } };
+
+      // Schedule Qty (product vs part logic)
+      const scheduleQuantity =
+        partDetails.type === "product"
+          ? quantity
+          : quantity * (partDetails.minStock || 1);
+
+      // Upsert for CustomOrder
+      const schedulePromise = prisma.stockOrderSchedule.upsert({
+        where: {
+          order_id_part_id_order_type: {
+            order_id: customOrderId,
+            part_id: part_id,
+            order_type: "CustomOrder",
+          },
+        },
+        update: {
+          delivery_date: new Date(delivery_date),
+          quantity,
+          status,
+          type,
+          scheduleQuantity,
+          remainingQty: scheduleQuantity,
+          completed_date: null,
+        },
+        create: {
+          order_id: customOrderId,
+          order_type: "CustomOrder",
+          delivery_date: new Date(delivery_date),
+          quantity,
+          status,
+          type,
+          scheduleQuantity,
+          remainingQty: scheduleQuantity,
+          completed_date: null,
+          ...submittedBy, // ✅ Submitted by (Admin/Employee)
+          part: { connect: { part_id } },
+          process: partDetails.processId
+            ? { connect: { id: partDetails.processId } }
+            : undefined,
+        },
+      });
+
+      allPrismaPromises.push(schedulePromise);
+    }
+
+    if (allPrismaPromises.length === 0) {
+      return res
+        .status(200)
+        .json({ message: "No valid items were provided to schedule." });
+    }
+
+    // Run all promises in a transaction
+    const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+    // Update customOrder status
+    await prisma.customOrder.updateMany({
+      where: { id: { in: Array.from(orderIdsToUpdate) } },
+      data: { status: "scheduled" },
+    });
+
+    return res.status(201).json({
+      message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+      data: newSchedules,
+    });
+  } catch (error) {
+    console.error("Error during custom order batch scheduling:", error);
+    return res.status(500).json({
+      message: "Something went wrong during custom order scheduling.",
+      error: error.message,
+    });
+  }
+};
 
 const scheduleStockOrdersList = async (req, res) => {
   try {
@@ -6559,26 +6678,21 @@ const currentStatusOverview = async (req, res) => {
     for (const order of stockOrders) {
       const process = order.process;
 
-      // parse cycleTime into minutes
       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
       const targetPerHour = cycleTimeMinutes
         ? Math.round(60 / cycleTimeMinutes)
         : process?.ratePerHour || 0;
 
-      // totals
       const actual = order.completedQuantity || 0;
       const scrap = order.scrapQuantity || 0;
       const scheduled = order.scheduleQuantity || 0;
 
-      // efficiency/productivity
       const efficiency =
         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
       const productivity =
         scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
-
-      // 🔹 calculate date range
-      const startDate = order.startDateTime; // DB column
-      const now = new Date(); // current server time
+      const startDate = order.startDateTime;
+      const now = new Date();
 
       result.push({
         processName: process?.processName,
@@ -6740,6 +6854,296 @@ const currentQualityStatusOverview = async (req, res) => {
   }
 };
 
+const monitorChartsData = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    console.log("startDate, endDatestartDate, endDate", startDate, endDate);
+
+    const data = await prisma.stockOrderSchedule.findMany({
+      include: {
+        part: {
+          select: { partNumber: true },
+        },
+        process: {
+          select: {
+            processName: true,
+            processDesc: true,
+          },
+        },
+      },
+    });
+
+    console.log("datadatadata", data);
+
+    const manualGrouped = {};
+    data.forEach((item) => {
+      const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
+
+      if (!manualGrouped[key]) {
+        manualGrouped[key] = {
+          processId: item.processId,
+          process: item.processId,
+          processName: item.process.processName,
+          processDesc: item.part.partNumber,
+          part: item.part?.partNumber || "N/A",
+          totalQuantity: 0,
+          totalCompleted: 0,
+          totalScrap: 0,
+        };
+      }
+      manualGrouped[key].totalQuantity += item.quantity || 0;
+      manualGrouped[key].totalCompleted += item.completedQuantity || 0;
+      manualGrouped[key].totalScrap += item.scrapQuantity || 0;
+    });
+    const manualTable = Object.values(manualGrouped);
+
+    // Monitor Table (production responses)
+    const partToMonitor = await prisma.productionResponse.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+      include: {
+        PartNumber: { select: { partNumber: true } },
+        process: { select: { processName: true, processDesc: true } },
+      },
+    });
+
+    // Grouping monitor table by part
+    const monitorGrouped = {};
+    partToMonitor.forEach((item) => {
+      const key = item.PartNumber?.partNumber || "N/A";
+      if (!monitorGrouped[key]) {
+        monitorGrouped[key] = {
+          part: key,
+          processName: item.process?.processName || "N/A",
+          processDesc: item.process?.processDesc || "",
+          totalCycleTime: 0,
+          count: 0,
+        };
+      }
+
+      if (item.cycleTimeStart && item.cycleTimeEnd) {
+        const start = new Date(item.cycleTimeStart).getTime();
+        const end = new Date(item.cycleTimeEnd).getTime();
+        const diffSec = Math.max(0, (end - start) / 1000); // seconds
+        const diffMin = diffSec / 60; // ✅ convert to minutes
+        monitorGrouped[key].totalCycleTime += diffMin;
+        monitorGrouped[key].count += 1;
+      }
+    });
+
+    const monitorTable = Object.values(monitorGrouped).map((row) => ({
+      processName: row.processName,
+      processDesc: row.processDesc,
+      part: row.part,
+      cycleTime:
+        row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+    }));
+
+    // Totals
+    const totalCompletedQty = data.reduce(
+      (sum, item) => sum + (item.completedQuantity || 0),
+      0
+    );
+    const totalScrapQty = data.reduce(
+      (sum, item) => sum + (item.scrapQuantity || 0),
+      0
+    );
+
+    return res.status(200).json({
+      message: "All chart data retrieved successfully!",
+      manualTable,
+      monitorTable,
+      totals: { totalCompletedQty, totalScrapQty },
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
+  }
+};
+
+const getDiveApi = async (req, res) => {
+  try {
+    const { processId } = req.query;
+    const filterCondition = {
+      isDeleted: false,
+      ...(processId && { processId }),
+    };
+    const schedules = await prisma.stockOrderSchedule.findMany({
+      where: filterCondition,
+      include: {
+        process: {
+          select: {
+            id: true,
+            processName: true,
+            cycleTime: true,
+            ratePerHour: true,
+          },
+        },
+        part: { select: { part_id: true, partNumber: true } },
+        completedByEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    const result = schedules.map((order) => {
+      const process = order.process;
+
+      const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+
+      const targetPerHour = cycleTimeMinutes
+        ? Math.round(60 / cycleTimeMinutes)
+        : process?.ratePerHour || 0;
+
+      const actual = order.completedQuantity || 0;
+      const scrap = order.scrapQuantity || 0;
+      const scheduled = order.scheduleQuantity || 0;
+
+      const efficiency =
+        targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+      const productivity =
+        scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+
+      return {
+        orderType: order.order_type,
+        processId: process?.id || null,
+        processName: process?.processName || null,
+        partId: order.part_id,
+        partNumber: order.part?.partNumber || null,
+        scheduled,
+        actual,
+        scrap,
+        remaining: order.remainingQty,
+        targetPerHour,
+        efficiency: efficiency + "%",
+        productivity: productivity + "%",
+        avgCycleTime: process?.cycleTime || null,
+        startDate: order.order_date,
+        deliveryDate: order.delivery_date,
+        currentDate: new Date(),
+        employeeInfo: order.completedByEmployee
+          ? {
+              id: order.completedByEmployee.id,
+              firstName: order.completedByEmployee.firstName,
+              lastName: order.completedByEmployee.lastName,
+            }
+          : null,
+      };
+    });
+
+    res.json({
+      message: "Current status overview fetched successfully",
+      processId: processId || "All",
+      totalRecords: result.length,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching current status overview:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
+  }
+};
+
+const cycleTimeComparisionData = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ error: "startDate and endDate are required" });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid date format. Use YYYY-MM-DD or ISO string" });
+    }
+
+    // 1. Get Manual Cycle Times (from ProductionResponse)
+    const productionResponses = await prisma.productionResponse.findMany({
+      where: {
+        isDeleted: false,
+        cycleTimeStart: { gte: start },
+        cycleTimeEnd: { lte: end },
+      },
+      include: {
+        process: true,
+        PartNumber: true,
+      },
+    });
+
+    // Map manual cycle times (in minutes)
+    const manualData = productionResponses.map((resp) => {
+      let manualCT = null;
+
+      if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+        manualCT =
+          (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+          1000 /
+          60; // convert to minutes
+      }
+
+      return {
+        processId: resp.processId,
+        processName: resp.process?.processName || "Unknown",
+        manualCT,
+        idealCT: resp.PartNumber?.cycleTime
+          ? parseFloat(resp.PartNumber.cycleTime) / 60 // convert idealCT to minutes
+          : null,
+      };
+    });
+
+    // Group by process (average manual cycle time)
+    const grouped = {};
+    manualData.forEach((item) => {
+      if (!grouped[item.processId]) {
+        grouped[item.processId] = {
+          processName: item.processName,
+          manualCTs: [],
+          idealCT: item.idealCT,
+        };
+      }
+      if (item.manualCT !== null)
+        grouped[item.processId].manualCTs.push(item.manualCT);
+    });
+
+    const result = Object.values(grouped).map((proc) => ({
+      processName: proc.processName,
+      manualCT:
+        proc.manualCTs.length > 0
+          ? proc.manualCTs.reduce((a, b) => a + b, 0) / proc.manualCTs.length
+          : 0,
+      idealCT: proc.idealCT || 0,
+    }));
+
+    res.json({
+      message: "Cycle Time Comparison retrieved successfully!",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching cycle time comparison:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -6830,4 +7234,7 @@ module.exports = {
   liveProductionGoalBoard,
   currentStatusOverview,
   currentQualityStatusOverview,
+  monitorChartsData,
+  getDiveApi,
+  cycleTimeComparisionData,
 };

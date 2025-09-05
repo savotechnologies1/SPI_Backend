@@ -89,6 +89,10 @@ const {
   liveProductionGoalBoard,
   currentStatusOverview,
   currentQualityStatusOverview,
+  monitorChartsData,
+  getProductionSummary,
+  getDiveApi,
+  cycleTimeComparisionData,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -434,4 +438,7 @@ router.get("/production/processes/hourly", processHourly);
 router.get("/current-status-overview", currentStatusOverview);
 router.get("/current-quality-status-overview", currentQualityStatusOverview);
 router.get("/supplier-return", supplierReturn);
+router.get("/monitor-chart-data", monitorChartsData);
+router.get("/dive-chart-data", getDiveApi);
+router.get("/cycle-time-comparision-data", cycleTimeComparisionData);
 module.exports = router;
