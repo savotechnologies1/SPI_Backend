@@ -232,9 +232,6 @@ const checkToken = async (req, res) => {
         isDeleted: false,
       },
     });
-    console.log("req.user.idreq.user.id", req.user);
-
-    console.log("useruser", user);
 
     if (!user) {
       return res
@@ -6998,9 +6995,7 @@ const getDiveApi = async (req, res) => {
 
     const result = schedules.map((order) => {
       const process = order.process;
-
       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
-
       const targetPerHour = cycleTimeMinutes
         ? Math.round(60 / cycleTimeMinutes)
         : process?.ratePerHour || 0;
@@ -7074,7 +7069,6 @@ const cycleTimeComparisionData = async (req, res) => {
         .json({ error: "Invalid date format. Use YYYY-MM-DD or ISO string" });
     }
 
-    // 1. Get Manual Cycle Times (from ProductionResponse)
     const productionResponses = await prisma.productionResponse.findMany({
       where: {
         isDeleted: false,
@@ -7087,7 +7081,6 @@ const cycleTimeComparisionData = async (req, res) => {
       },
     });
 
-    // Map manual cycle times (in minutes)
     const manualData = productionResponses.map((resp) => {
       let manualCT = null;
 
@@ -7095,7 +7088,7 @@ const cycleTimeComparisionData = async (req, res) => {
         manualCT =
           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
           1000 /
-          60; // convert to minutes
+          60;
       }
 
       return {
@@ -7103,12 +7096,11 @@ const cycleTimeComparisionData = async (req, res) => {
         processName: resp.process?.processName || "Unknown",
         manualCT,
         idealCT: resp.PartNumber?.cycleTime
-          ? parseFloat(resp.PartNumber.cycleTime) / 60 // convert idealCT to minutes
+          ? parseFloat(resp.PartNumber.cycleTime) / 60
           : null,
       };
     });
 
-    // Group by process (average manual cycle time)
     const grouped = {};
     manualData.forEach((item) => {
       if (!grouped[item.processId]) {

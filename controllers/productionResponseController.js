@@ -15491,10 +15491,431 @@ const pagination = async ({ page, pageSize, total }) => {
   };
 };
 */
+// Helper: convert cycleTime string "1 hr", "30 min" to hours
+// helper: convert "5 min", "30 sec", "1 hr" → hours
+const parseCycleTime = (cycleTime) => {
+  if (!cycleTime) return 0;
 
+  const lower = cycleTime.toLowerCase().trim();
 
+  if (lower.includes("hr")) {
+    const val = parseFloat(lower);
+    return isNaN(val) ? 0 : val; // hours directly
+  }
 
+  if (lower.includes("min")) {
+    const val = parseFloat(lower);
+    return isNaN(val) ? 0 : val / 60; // minutes → hours
+  }
 
+  if (lower.includes("sec")) {
+    const val = parseFloat(lower);
+    return isNaN(val) ? 0 : val / 3600; // seconds → hours
+  }
+
+  // agar sirf number aaya without unit
+  const val = parseFloat(lower);
+  return isNaN(val) ? 0 : val;
+};
+
+// const costingApi = async (req, res) => {
+//   try {
+//     const completedStock = await prisma.stockOrderSchedule.findMany({
+//       where: { status: "completed", isDeleted: false },
+//       include: {
+//         part: {
+//           select: {
+//             partNumber: true,
+//             cost: true,
+//             cycleTime: true,
+//             process: { select: { ratePerHour: true } },
+//           },
+//         },
+//       },
+//     });
+
+//     const cogsData = {};
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+
+//     completedStock.forEach((order) => {
+//       const date = new Date(order.completed_date || order.delivery_date);
+//       const monthKey =
+//         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
+//       const partCost = order.part.cost || 0;
+//       const cycleTimeHours = parseCycleTime(order.part.cycleTime);
+//       const ratePerHour = order.part.process?.ratePerHour || 0;
+
+//       const totalCOGS = partCost + cycleTimeHours * ratePerHour;
+
+//       if (!cogsData[monthKey]) cogsData[monthKey] = 0;
+//       cogsData[monthKey] += totalCOGS * (order.completedQuantity || 1);
+
+//       // Optional: sample calculation for cards
+//       scrapCost += order.scrapQuantity
+//         ? order.part.cost * order.scrapQuantity
+//         : 0;
+//       supplierReturn += order.supplierReturnQuantity
+//         ? order.part.cost * order.supplierReturnQuantity
+//         : 0;
+//     });
+
+//     res.json({
+//       monthlyCOGS: cogsData, // numbers only, frontend adds $
+//       scrapCost,
+//       supplierReturn,
+//       scrapIncrease: 0, // example, backend me calculate if needed
+//       supplierReturnIncrease: 0, // example
+//       part1Cost: 0, // optional, for vertical bar chart
+//       part2Cost: 0,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+const costingApi = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year);
+
+    const completedStock = await prisma.stockOrderSchedule.findMany({
+      where: { status: "completed", isDeleted: false },
+      include: {
+        part: {
+          select: {
+            partNumber: true,
+            cost: true,
+            cycleTime: true,
+            process: { select: { ratePerHour: true } },
+          },
+        },
+      },
+    });
+
+    const cogsData = {};
+    let scrapCost = 0;
+    let supplierReturn = 0;
+    let totalYearCost = 0;
+    completedStock.forEach((order) => {
+      const date = new Date(order.completed_date || order.delivery_date);
+      if (year && date.getFullYear() !== year) return;
+      const monthKey =
+        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+      const partCost = order.part.cost || 0;
+      const cycleTimeHours = parseCycleTime(order.part.cycleTime);
+      const ratePerHour = order.part.process?.ratePerHour || 0;
+      const totalCOGS =
+        (partCost + cycleTimeHours * ratePerHour) *
+        (order.completedQuantity || 1);
+      if (!cogsData[monthKey]) cogsData[monthKey] = 0;
+      cogsData[monthKey] += totalCOGS;
+
+      totalYearCost += totalCOGS;
+
+      scrapCost += order.scrapQuantity
+        ? order.part.cost * order.scrapQuantity
+        : 0;
+      supplierReturn += order.supplierReturnQuantity
+        ? order.part.cost * order.supplierReturnQuantity
+        : 0;
+    });
+
+    res.json({
+      monthlyCOGS: cogsData,
+      totalYearCost,
+      scrapCost,
+      supplierReturn,
+      scrapIncrease: 0,
+      supplierReturnIncrease: 0,
+      part1Cost: 0,
+      part2Cost: 0,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+      error: error.message,
+    });
+  }
+};
+const fixedCost = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year);
+
+    // Fetch all completed stock orders with part and process info
+    const completedStock = await prisma.stockOrderSchedule.findMany({
+      where: { status: "completed", isDeleted: false },
+      include: {
+        part: {
+          select: {
+            partNumber: true,
+            cost: true,
+            cycleTime: true,
+            process: { select: { ratePerHour: true } },
+          },
+        },
+      },
+    });
+
+    const monthlyScrap = {}; // Scrap cost per month
+    const monthlyCompleted = {}; // Completed cost per month
+    let totalScrapCost = 0;
+    let totalCompletedCost = 0;
+
+    completedStock.forEach((order) => {
+      const date = new Date(order.completed_date || order.delivery_date);
+
+      // Filter by year
+      if (year && date.getFullYear() !== year) return;
+
+      const monthKey =
+        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
+      const partCost = order.part?.cost || 0;
+      const cycleTimeHours = parseCycleTime(order.part?.cycleTime || 0); // Ensure numeric
+      const ratePerHour = order.part?.process?.ratePerHour || 0;
+
+      // Total cost for completed quantity
+      const completedCost =
+        (partCost + cycleTimeHours * ratePerHour) *
+        (order.completedQuantity || 1);
+
+      // Scrap cost for this order
+      const scrapCost = (order.scrapQuantity || 0) * partCost;
+
+      // Monthly aggregation
+      monthlyCompleted[monthKey] =
+        (monthlyCompleted[monthKey] || 0) + completedCost;
+      monthlyScrap[monthKey] = (monthlyScrap[monthKey] || 0) + scrapCost;
+
+      // Yearly totals
+      totalCompletedCost += completedCost;
+      totalScrapCost += scrapCost;
+    });
+
+    res.json({
+      monthlyCompleted,
+      monthlyScrap,
+      totalYearCompleted: totalCompletedCost,
+      totalYearScrap: totalScrapCost,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Something went wrong. Please try again later.",
+      error: error.message,
+    });
+  }
+};
+// const getInventory = async (req, res) => {
+//   try {
+//     const { period, year, month } = req.query;
+
+//     const parts = await prisma.partNumber.findMany({
+//       where: { isDeleted: false },
+//       include: {
+//         process: { select: { ratePerHour: true } },
+//         StockOrder_StockOrder_productNumberToPartNumber: {
+//           select: { productQuantity: true, status: true, createdAt: true },
+//         },
+//       },
+//     });
+
+//     const inventoryData = {};
+//     let totalInventoryCost = 0;
+
+//     parts.forEach((part) => {
+//       const partCost = part.cost || 0;
+//       const cycleTimeHours = parseCycleTime(part.cycleTime || "0");
+//       console.log("cycleTimeHourscycleTimeHours", cycleTimeHours);
+
+//       const ratePerHour = part.process?.ratePerHour || 0;
+//       console.log("ratePerHourratePerHour", ratePerHour);
+//       console.log(
+//         "partCostpartCostpartCost",
+//         partCost,
+//         cycleTimeHours,
+//         ratePerHour
+//       );
+
+//       const costPerPart = partCost + cycleTimeHours * ratePerHour;
+
+//       part.StockOrder_StockOrder_productNumberToPartNumber.forEach((order) => {
+//         const orderDate = new Date(order.createdAt);
+
+//         // 🔹 filter by year / month (agar diya ho)
+//         if (year && orderDate.getFullYear() !== parseInt(year)) return;
+//         if (month && orderDate.getMonth() + 1 !== parseInt(month)) return;
+
+//         let key = "";
+
+//         if (period === "day") {
+//           // format: YYYY-MM-DD
+//           key = orderDate.toISOString().split("T")[0];
+//         } else if (period === "week") {
+//           // weekday name: Monday, Tuesday ...
+//           key = orderDate.toLocaleDateString("en-US", { weekday: "long" });
+//         } else if (period === "month") {
+//           // Month name: Jan, Feb ...
+//           key = orderDate.toLocaleDateString("en-US", { month: "short" });
+//         } else if (period === "year") {
+//           // Year number
+//           key = `${orderDate.getFullYear()}`;
+//         } else {
+//           key = orderDate.toISOString().split("T")[0];
+//         }
+
+//         if (!inventoryData[key]) inventoryData[key] = [];
+//         console.log("partpart", part);
+
+//         const availableStock = part.availStock || 0;
+
+//         const inventoryLevel = availableStock - (part.minStock || 0);
+//         const inventoryCost = inventoryLevel * costPerPart;
+
+//         totalInventoryCost += inventoryCost;
+
+//         inventoryData[key].push({
+//           partNumber: part.partNumber,
+//           availableStock,
+//           minStock: part.minStock || 0,
+//           inventoryLevel,
+//           costPerPart,
+//           inventoryCost,
+//         });
+//       });
+//     });
+
+//     res.json({ inventoryData, totalInventoryCost });
+//   } catch (error) {
+//     console.error(error);
+//     res
+//       .status(500)
+//       .json({ message: "Error calculating inventory", error: error.message });
+//   }
+// };
+const getInventory = async (req, res) => {
+  try {
+    const { period, year, month } = req.query;
+
+    const parts = await prisma.partNumber.findMany({
+      where: { isDeleted: false },
+      include: {
+        process: { select: { ratePerHour: true } },
+        StockOrder_StockOrder_productNumberToPartNumber: {
+          select: { productQuantity: true, status: true, createdAt: true },
+        },
+      },
+    });
+
+    const inventoryData = {};
+    let totalInventoryCost = 0;
+
+    parts.forEach((part) => {
+      const partCost = part.cost || 0;
+      const cycleTimeHours = parseCycleTime(part.cycleTime || "0");
+      const ratePerHour = part.process?.ratePerHour || 0;
+
+      const costPerPart = partCost + cycleTimeHours * ratePerHour;
+
+      part.StockOrder_StockOrder_productNumberToPartNumber.forEach((order) => {
+        const orderDate = new Date(order.createdAt);
+
+        // 🔹 filter by year / month
+        if (year && orderDate.getFullYear() !== parseInt(year)) return;
+        if (month && orderDate.getMonth() + 1 !== parseInt(month)) return;
+
+        let key = "";
+        if (period === "day") {
+          key = orderDate.toISOString().split("T")[0];
+        } else if (period === "week") {
+          key = orderDate.toLocaleDateString("en-US", { weekday: "long" });
+        } else if (period === "month") {
+          key = orderDate.toLocaleDateString("en-US", { day: "numeric" }); // 🔹 date number
+        } else if (period === "year") {
+          key = orderDate.toLocaleDateString("en-US", { month: "short" }); // 🔹 month name
+        } else {
+          key = orderDate.toISOString().split("T")[0];
+        }
+
+        if (!inventoryData[key]) inventoryData[key] = [];
+
+        const availableStock = part.availStock || 0;
+        const inventoryLevel = availableStock - (part.minStock || 0);
+        const inventoryCost = inventoryLevel * costPerPart;
+
+        totalInventoryCost += inventoryCost;
+
+        inventoryData[key].push({
+          partNumber: part.partNumber,
+          availableStock,
+          minStock: part.minStock || 0,
+          inventoryLevel,
+          costPerPart,
+          inventoryCost,
+        });
+      });
+    });
+
+    // 🔹 Normalize data for year & month
+    if (period === "year") {
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      months.forEach((m) => {
+        if (!inventoryData[m]) inventoryData[m] = [];
+      });
+    }
+
+    if (period === "month") {
+      const y = year ? parseInt(year) : new Date().getFullYear();
+      const m = month ? parseInt(month) : new Date().getMonth() + 1;
+      const daysInMonth = new Date(y, m, 0).getDate();
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = d.toString();
+        if (!inventoryData[key]) inventoryData[key] = [];
+      }
+    }
+
+    res.json({ inventoryData, totalInventoryCost });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error calculating inventory", error: error.message });
+  }
+};
+
+// function parseCycleTime(cycleTime) {
+//   if (!cycleTime) return 0;
+//   let time = 0;
+//   const minMatch = cycleTime.match(/(\d+)\s*min/);
+//   const hrMatch = cycleTime.match(/(\d+)\s*hr/);
+//   const secMatch = cycleTime.match(/(\d+)\s*sec/);
+
+//   if (hrMatch) time += parseFloat(hrMatch[1]);
+//   if (minMatch) time += parseFloat(minMatch[1]) / 60;
+//   if (secMatch) time += parseFloat(secMatch[1]) / 3600;
+
+//   return time;
+// }
 
 module.exports = {
   stationLogin,
@@ -15522,4 +15943,7 @@ module.exports = {
   getStationNotifications,
   changeStationNotification,
   supplierReturn,
+  costingApi,
+  fixedCost,
+  getInventory,
 };
