@@ -490,7 +490,6 @@ const validOtp = async (req, res) => {
     }
 
     if (new Date() > user.otpExpiresAt) {
-      console.log("3999999999");
       await prisma.employee.update({
         where: { id: user.id },
         data: { otp: null, otpExpiresAt: null },
@@ -833,7 +832,6 @@ const profileDetail = async (req, res) => {
       data: data,
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try agin later .",
     });
@@ -878,7 +876,6 @@ const updateProfileApi = async (req, res) => {
       message: "Profile update successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -899,7 +896,6 @@ const deleteProfileImage = async (req, res) => {
       message: "Profile image deleted successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });

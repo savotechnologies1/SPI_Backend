@@ -93,6 +93,10 @@ const {
   getProductionSummary,
   getDiveApi,
   cycleTimeComparisionData,
+  dashBoardData,
+  dailySchedule,
+  capacityStatus,
+  productionEfficieny,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -149,6 +153,7 @@ const {
   costingApi,
   fixedCost,
   getInventory,
+  customerRelation,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -447,4 +452,9 @@ router.get("/cycle-time-comparision-data", cycleTimeComparisionData);
 router.get("/costing-data", costingApi);
 router.get("/fixed-cost-data", fixedCost);
 router.get("/inventory-data", getInventory);
+router.get("/customer-relation-data", customerRelation);
+router.get("/dashboard-data", dashBoardData);
+router.get("/daily-schedule-data", dailySchedule);
+router.get("/capacity-status-data", capacityStatus);
+router.get("/production-efficiency", productionEfficieny);
 module.exports = router;

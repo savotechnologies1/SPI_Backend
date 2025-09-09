@@ -12242,7 +12242,6 @@ const getNextJobDetails = async (req, res) => {
       },
     });
     // =======================================================================
-    console.log("nextJobnextJob", nextJob);
 
     if (!nextJob) {
       return res.status(404).json({
@@ -14572,7 +14571,6 @@ const scrapEntry = async (req, res) => {
       // Assuming you have a 'Product' relation in your schema
       // dataForPrisma.Product = { connect: { id: productId } };
     }
-    console.log(";req.userreq.user", req.user);
 
     // SOLUTION 2 & 3: User ke role ke basis par creator ko connect karein
     // Yeh maante hue ki aapke auth middleware se req.user.role set hota hai
@@ -14734,7 +14732,6 @@ const allScrapEntires = async (req, res) => {
     const paginationData = await paginationQuery(req.query);
     const { filterScrap, search } = req.query;
     const user = req.user;
-    console.log("user1111", user);
 
     const condition = {
       isDeleted: false,
@@ -14821,8 +14818,6 @@ const allScrapEntires = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log("errorerrorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -15210,7 +15205,6 @@ const supplierReturn = async (req, res) => {
     const paginationData = await paginationQuery(req.query);
     const { filterScrap, search, startDate, endDate } = req.query; // Destructure new date parameters
     const user = req.user;
-    console.log("user1111", user);
 
     const condition = {
       isDeleted: false,
@@ -15347,8 +15341,6 @@ const supplierReturn = async (req, res) => {
       totalReturnQuantity: totalReturnQty._sum.returnQuantity || 0,
     });
   } catch (error) {
-    console.log("Error in supplierReturn API:", error);
-
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
       error: error.message, // Include error message for debugging
@@ -15916,6 +15908,138 @@ const getInventory = async (req, res) => {
 
 //   return time;
 // }
+const customerRelation = async (req, res) => {
+  try {
+    let { startDate, endDate } = req.query;
+    const today = new Date().toISOString().split("T")[0];
+    if (!startDate) startDate = today;
+    if (!endDate) endDate = today;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        error: "Invalid date format. Use YYYY-MM-DD or ISO string",
+      });
+    }
+
+    // 1. Raw DB fetch with filter
+    const stockOrderData = await prisma.stockOrder.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+
+    const scheduleStockOrder = await prisma.stockOrderSchedule.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+
+    const scapEntries = await prisma.scapEntries.findMany({
+      where: {
+        scrapStatus: true,
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      select: {
+        PartNumber: { select: { partNumber: true } },
+        process: { select: { processName: true } },
+        returnQuantity: true,
+        type: true,
+        supplier: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    // Supplier full name format
+    const formattedEntries = scapEntries.map((entry) => ({
+      "Part Number": entry.PartNumber?.partNumber || null,
+      "Process Name": entry.process?.processName || null,
+      "Return Quantity": entry.returnQuantity,
+      Type: entry.type,
+      "Supplier Name": `${entry.supplier?.firstName ?? ""} ${
+        entry.supplier?.lastName ?? ""
+      }`.trim(),
+    }));
+
+    const getName = (fullName) => {
+      if (!fullName) return { first: "", last: "" };
+      const parts = fullName.split(" ");
+      return { first: parts[0], last: parts[1] || "" };
+    };
+
+    const openOrders = scheduleStockOrder
+      .filter((o) => o.status === "new" || o.status === "scheduled")
+      .map((o) => {
+        const order = stockOrderData.find((s) => s.id === o.order_id);
+        const { first, last } = getName(order?.customerName);
+        return {
+          Date: order?.orderDate,
+          "Order Number": order?.orderNumber,
+          "First Name": first,
+          "Last Name": last,
+          "Product Quantity": o.scheduleQuantity || order?.productQuantity || 0,
+          "Order Quantity": o.quantity,
+          Status: o.status,
+        };
+      });
+
+    const fulfilledOrders = scheduleStockOrder
+      .filter((o) => o.status === "completed")
+      .map((o) => {
+        const order = stockOrderData.find((s) => s.id === o.order_id);
+        const { first, last } = getName(order?.customerName);
+        return {
+          Date: order?.orderDate,
+          "Order Number": order?.orderNumber,
+          "First Name": first,
+          "Last Name": last,
+          "Completed Quantity": o.completedQuantity || 0,
+          "Order Quantity": o.quantity,
+          Status: o.status,
+        };
+      });
+
+    const performance = scheduleStockOrder.map((o) => {
+      const order = stockOrderData.find((s) => s.id === o.order_id);
+      const { first, last } = getName(order?.customerName);
+      return {
+        Date: order?.orderDate,
+        "Order Number": order?.orderNumber,
+        "First Name": first,
+        "Last Name": last,
+        "Completed Qty": o.completedQuantity,
+        "Scrap Qty": o.scrapQuantity,
+        Efficiency:
+          o.completedQuantity && o.scheduleQuantity
+            ? ((o.completedQuantity / o.scheduleQuantity) * 100).toFixed(2) +
+              "%"
+            : "0%",
+      };
+    });
+
+    return res.status(200).json({
+      message: "Customer relation tables fetched successfully",
+      data: {
+        openOrders,
+        fulfilledOrders,
+        performance,
+        scapEntries: formattedEntries,
+      },
+    });
+  } catch (error) {
+    console.error("Error in customerRelation:", error);
+    res.status(500).json({ message: "Error calculating customer relation" });
+  }
+};
 
 module.exports = {
   stationLogin,
@@ -15946,4 +16070,5 @@ module.exports = {
   costingApi,
   fixedCost,
   getInventory,
+  customerRelation,
 };
