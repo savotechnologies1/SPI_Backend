@@ -154,6 +154,7 @@ const {
   fixedCost,
   getInventory,
   customerRelation,
+  qualityPerformance,
 } = require("../controllers/productionResponseController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -445,7 +446,7 @@ router.get("/production/overview", productionOverview);
 router.get("/production/processes/hourly", processHourly);
 router.get("/current-status-overview", currentStatusOverview);
 router.get("/current-quality-status-overview", currentQualityStatusOverview);
-router.get("/supplier-return", supplierReturn);
+router.get("/quality-performance-data", qualityPerformance);
 router.get("/monitor-chart-data", monitorChartsData);
 router.get("/dive-chart-data", getDiveApi);
 router.get("/cycle-time-comparision-data", cycleTimeComparisionData);
