@@ -6923,13 +6923,169 @@ const monitorChartsData = async (req, res) => {
   }
 };
 
+// const getDiveApi = async (req, res) => {
+//   try {
+//     const { processId } = req.query;
+//     const filterCondition = {
+//       isDeleted: false,
+//       ...(processId && { processId }),
+//     };
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: filterCondition,
+//       include: {
+//         process: {
+//           select: {
+//             id: true,
+//             processName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//         part: { select: { part_id: true, partNumber: true } },
+//         completedByEmployee: {
+//           select: {
+//             id: true,
+//             firstName: true,
+//             lastName: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const result = schedules.map((order) => {
+//       const process = order.process;
+//       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+//       console.log("cycleTimeMinutescycleTimeMinutes", cycleTimeMinutes);
+
+//       const targetPerHour = process?.ratePerHour;
+//       console.log("targetPerHourtargetPerHour", targetPerHour);
+
+//       console.log("orderorder", order);
+
+//       const actual = order.completedQuantity || 0;
+//       const scrap = order.scrapQuantity || 0;
+//       const scheduled = order.scheduleQuantity || 0;
+
+//       const efficiency =
+//         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+//       console.log("scheduledscheduled", scheduled);
+
+//       const productivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+//       console.log("productivityproductivity", productivity);
+
+//       return {
+//         orderType: order.order_type,
+//         processId: process?.id || null,
+//         processName: process?.processName || null,
+//         partId: order.part_id,
+//         partNumber: order.part?.partNumber || null,
+//         scheduled,
+//         actual,
+//         scrap,
+//         remaining: order.remainingQty,
+//         targetPerHour,
+//         efficiency: efficiency + "%",
+//         productivity: productivity + "%",
+//         avgCycleTime: process?.cycleTime || null,
+//         startDate: order.order_date,
+//         deliveryDate: order.delivery_date,
+//         currentDate: new Date(),
+//         employeeInfo: order.completedByEmployee
+//           ? {
+//               id: order.completedByEmployee.id,
+//               firstName: order.completedByEmployee.firstName,
+//               lastName: order.completedByEmployee.lastName,
+//             }
+//           : null,
+//       };
+//     });
+
+//     const responses = await prisma.productionResponse.findMany({
+//       where: filterCondition,
+//       include: {
+//         process: {
+//           select: {
+//             id: true,
+//             processName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//         PartNumber: { select: { part_id: true, partNumber: true } },
+//         employeeInfo: { select: { id: true, firstName: true, lastName: true } },
+//       },
+//     });
+
+//     const result1 = responses.map((resp) => {
+//       const process = resp.process;
+//       const employee = resp.employeeInfo;
+
+//       // Find matching schedule entry from result (processId + partId match)
+//       const matchingSchedule = result.find(
+//         (r) => r.processId === process?.id && r.partId === resp.partId
+//       );
+//       console.log("matchingSchedulematchingSchedule", matchingSchedule);
+
+//       // Use schedule from stockOrderSchedule (result), fallback to resp.scheduleQuantity
+//       const scheduled =
+//         Number(matchingSchedule?.scheduled) ||
+//         Number(resp.scheduleQuantity) ||
+//         0;
+
+//       const actualQty = Number(matchingSchedule?.actual) || 0;
+//       const scrapQty = Number(matchingSchedule?.scrap) || 0;
+
+//       const targetPerHour = process?.ratePerHour;
+
+//       const efficiency =
+//         targetPerHour > 0 ? ((actualQty / targetPerHour) * 100).toFixed(1) : 0;
+
+//       const productivity = scheduled > 0 ? (actualQty / scheduled) * 100 : 0;
+
+//       return {
+//         processName: process?.processName || null,
+//         employeeName: employee
+//           ? `${employee.firstName} ${employee.lastName}`
+//           : null,
+//         CT: (parseFloat(process?.cycleTime) || 0).toFixed(2),
+//         Qty: actualQty,
+//         Scrap: scrapQty,
+//         Eff: efficiency + "%",
+//         Prod: productivity.toFixed(1) + "%", // keeping consistent decimal
+//       };
+//     });
+
+//     res.json({
+//       message: "Current status overview fetched successfully",
+//       processId: processId || "All",
+//       totalRecords: result.length,
+//       data: result,
+//       productivity: result1,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching current status overview:", error);
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
+
 const getDiveApi = async (req, res) => {
   try {
-    const { processId } = req.query;
+    const { processId, startDate, endDate } = req.query;
+
     const filterCondition = {
       isDeleted: false,
       ...(processId && { processId }),
+      ...(startDate &&
+        endDate && {
+          createdAt: {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+          },
+        }),
     };
+
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
@@ -6955,18 +7111,16 @@ const getDiveApi = async (req, res) => {
     const result = schedules.map((order) => {
       const process = order.process;
       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
-      const targetPerHour = cycleTimeMinutes
-        ? Math.round(60 / cycleTimeMinutes)
-        : process?.ratePerHour || 0;
 
+      const targetPerHour = process?.ratePerHour;
       const actual = order.completedQuantity || 0;
       const scrap = order.scrapQuantity || 0;
       const scheduled = order.scheduleQuantity || 0;
 
       const efficiency =
         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
-      const productivity =
-        scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+
+      const productivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
 
       return {
         orderType: order.order_type,
@@ -6995,11 +7149,73 @@ const getDiveApi = async (req, res) => {
       };
     });
 
+    const responses = await prisma.productionResponse.findMany({
+      where: {
+        isDeleted: false,
+        ...(processId && { processId }),
+        ...(startDate &&
+          endDate && {
+            createdAt: {
+              gte: new Date(startDate),
+              lte: new Date(endDate),
+            },
+          }),
+      },
+      include: {
+        process: {
+          select: {
+            id: true,
+            processName: true,
+            cycleTime: true,
+            ratePerHour: true,
+          },
+        },
+        PartNumber: { select: { part_id: true, partNumber: true } },
+        employeeInfo: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    const result1 = responses.map((resp) => {
+      const process = resp.process;
+      const employee = resp.employeeInfo;
+
+      const matchingSchedule = result.find(
+        (r) => r.processId === process?.id && r.partId === resp.partId
+      );
+
+      const scheduled =
+        Number(matchingSchedule?.scheduled) ||
+        Number(resp.scheduleQuantity) ||
+        0;
+
+      const actualQty = Number(matchingSchedule?.actual) || 0;
+      const scrapQty = Number(matchingSchedule?.scrap) || 0;
+
+      const targetPerHour = process?.ratePerHour;
+      const efficiency =
+        targetPerHour > 0 ? ((actualQty / targetPerHour) * 100).toFixed(1) : 0;
+
+      const productivity = scheduled > 0 ? (actualQty / scheduled) * 100 : 0;
+
+      return {
+        processName: process?.processName || null,
+        employeeName: employee
+          ? `${employee.firstName} ${employee.lastName}`
+          : null,
+        CT: (parseFloat(process?.cycleTime) || 0).toFixed(2),
+        Qty: actualQty,
+        Scrap: scrapQty,
+        Eff: efficiency + "%",
+        Prod: productivity.toFixed(1) + "%",
+      };
+    });
+
     res.json({
       message: "Current status overview fetched successfully",
       processId: processId || "All",
       totalRecords: result.length,
       data: result,
+      productivity: result1,
     });
   } catch (error) {
     console.error("Error fetching current status overview:", error);
@@ -7214,7 +7430,6 @@ const dashBoardData = async (req, res) => {
       return ((current - previous) / previous) * 100;
     };
 
-    // Current period
     const currentOrders = await prisma.stockOrderSchedule.count({
       where: whereClause,
     });
@@ -7233,8 +7448,6 @@ const dashBoardData = async (req, res) => {
     const currentScrapOrders = await prisma.stockOrderSchedule.count({
       where: { ...whereClause, scrapQuantity: { gt: 0 } },
     });
-
-    // Previous month
     let previousWhereClause = { isDeleted: false };
     if (month) {
       const monthNum = parseInt(month);
@@ -7795,21 +8008,17 @@ const capacityStatus = async (req, res) => {
       })
     );
 
-    // 🔹 Aggregate data for BarChart
     const barChartData = {};
-    // 🔹 Process completion percentage calculation
     const processCompletion = {};
 
     scheduleDataWithLoad.forEach((item) => {
       const processName = item.process?.processName || "Unknown";
 
-      // Bar chart load time aggregation
       if (!barChartData[processName]) {
         barChartData[processName] = 0;
       }
       barChartData[processName] += item.loadTime;
 
-      // Completion percentage aggregation
       if (!processCompletion[processName]) {
         processCompletion[processName] = { completed: 0, total: 0 };
       }
@@ -7827,7 +8036,6 @@ const capacityStatus = async (req, res) => {
       ],
     };
 
-    // 🔹 Format process completion into percentages
     const processCompletionPercentage = Object.entries(processCompletion).map(
       ([processName, values]) => ({
         processName,
@@ -7854,7 +8062,6 @@ const capacityStatus = async (req, res) => {
 };
 const productionEfficieny = async (req, res) => {
   try {
-    // Fetch schedules along with part cost
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: { isDeleted: false },
       select: {

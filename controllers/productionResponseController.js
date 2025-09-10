@@ -11702,6 +11702,7 @@ const stationLogin = async (req, res) => {
         },
       });
     };
+    console.log("findNextJobfindNextJob", findNextJob);
 
     // Find a job in 'progress' first, then look for 'new'
     let nextJob = await findNextJob("progress");
@@ -11726,6 +11727,7 @@ const stationLogin = async (req, res) => {
       cycleTimeStart: new Date(),
       cycleTimeEnd: null,
       createdBy: stationUserId,
+      scheduleQuantity: nextJob.scheduleQuantity,
     };
 
     // Conditionally connect to the correct order table based on the job's type
@@ -13391,6 +13393,7 @@ const getScheduleProcessInformation = async (req, res) => {
 
     // <<< HERE WE EXTRACT THE CALCULATED VALUE
     const userCompletedQty = userProductionStats._sum.completedQuantity || 0;
+    console.log("nextJobnextJob", nextJob);
 
     const responseData = {
       ...nextJob,
@@ -14058,6 +14061,7 @@ const completeScheduleOrder = async (req, res) => {
           });
         }
       }
+      console.log("totalScheduleQtytotalScheduleQty", totalScheduleQty);
 
       await tx.productionResponse.update({
         where: { id },
@@ -14065,6 +14069,7 @@ const completeScheduleOrder = async (req, res) => {
           cycleTimeEnd: new Date(),
           completedQuantity: { increment: 1 },
           remainingQty: newRemainingQty,
+          scheduleQuantity: totalScheduleQty,
         },
       });
 
