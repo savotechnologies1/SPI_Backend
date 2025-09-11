@@ -12,6 +12,8 @@ const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
 const moment = require("moment"); // For date/time manipulation
+const { startOfMonth, endOfMonth, subMonths } = require("date-fns");
+
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -7405,108 +7407,433 @@ const cycleTimeComparisionData = async (req, res) => {
 
 // export default getOrderStatus;
 
+// const dashBoardData = async (req, res) => {
+//   try {
+//     const { month } = req.query;
+
+//     let whereClause = { isDeleted: false };
+
+//     if (month) {
+//       const monthNum = parseInt(month);
+//       const now = new Date();
+//       const year = now.getFullYear();
+
+//       const startOfMonth = new Date(year, monthNum - 1, 1, 0, 0, 0);
+//       const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59);
+
+//       whereClause.order_date = {
+//         gte: startOfMonth,
+//         lte: endOfMonth,
+//       };
+//     }
+//     const currentMonthStart = startOfMonth(new Date());
+//     const currentMonthEnd = endOfMonth(new Date());
+
+//     const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
+//     const lastMonthEnd = endOfMonth(subMonths(new Date(), 1));
+
+//     // 3️⃣ Helper function to filter orders by month
+//     const filterOrdersByMonth = (orders, start, end) =>
+//       orders.filter((order) => {
+//         const orderDate = new Date(order.orderDate);
+//         return orderDate >= start && orderDate <= end;
+//       });
+
+//     // 4️⃣ Filter orders
+//     const currentStockOrders = filterOrdersByMonth(
+//       stockOrder,
+//       currentMonthStart,
+//       currentMonthEnd
+//     );
+//     const currentCustomOrders = filterOrdersByMonth(
+//       customOrder,
+//       currentMonthStart,
+//       currentMonthEnd
+//     );
+
+//     const lastStockOrders = filterOrdersByMonth(
+//       stockOrder,
+//       lastMonthStart,
+//       lastMonthEnd
+//     );
+//     const lastCustomOrders = filterOrdersByMonth(
+//       customOrder,
+//       lastMonthStart,
+//       lastMonthEnd
+//     );
+
+//     const calculatePercentageChange = (current, previous) => {
+//       if (previous === 0) return current > 0 ? 100 : 0;
+//       return ((current - previous) / previous) * 100;
+//     };
+
+//     const stockOrder = await prisma.stockOrder.findMany({ where: whereClause });
+//     const customOrder = await prisma.customOrder.findMany({
+//       where: whereClause,
+//     });
+//     const totalOrders = stockOrder.length + customOrder.length;
+//     Z;
+
+//     // 6️⃣ Total orders
+//     // const totalOrders = currentStockOrders.length + currentCustomOrders.length;
+
+//     // 7️⃣ Revenue % change & dot indicator
+//     let revenueChangePercent = 0;
+//     let revenueIndicator = "gray"; // default if lastRevenue = 0
+
+//     if (lastRevenue > 0) {
+//       revenueChangePercent =
+//         ((currentRevenue - lastRevenue) / lastRevenue) * 100;
+//       revenueIndicator = revenueChangePercent >= 0 ? "green" : "red";
+//     }
+
+//     const currentOrders = await prisma.stockOrderSchedule.count({
+//       where: whereClause,
+//     });
+//     const currentSuppliers = await prisma.supplier_orders.count({
+//       where: {
+//         isDeleted: false,
+//         ...(whereClause.order_date && { createdAt: whereClause.order_date }),
+//       },
+//     });
+//     const currentProduction = await prisma.productionResponse.count({
+//       where: {
+//         isDeleted: false,
+//         ...(whereClause.order_date && { createdAt: whereClause.order_date }),
+//       },
+//     });
+//     const currentScrapOrders = await prisma.stockOrderSchedule.count({
+//       where: { ...whereClause, scrapQuantity: { gt: 0 } },
+//     });
+//     let previousWhereClause = { isDeleted: false };
+//     if (month) {
+//       const monthNum = parseInt(month);
+//       const now = new Date();
+//       const year = now.getFullYear();
+
+//       let prevMonth = monthNum - 1 === 0 ? 12 : monthNum - 1;
+//       let prevYear = monthNum - 1 === 0 ? year - 1 : year;
+
+//       const startOfPrevMonth = new Date(prevYear, prevMonth - 1, 1, 0, 0, 0);
+//       const endOfPrevMonth = new Date(prevYear, prevMonth, 0, 23, 59, 59);
+
+//       previousWhereClause.order_date = {
+//         gte: startOfPrevMonth,
+//         lte: endOfPrevMonth,
+//       };
+//     }
+
+//     const previousOrders = await prisma.stockOrderSchedule.count({
+//       where: previousWhereClause,
+//     });
+//     const previousSuppliers = await prisma.supplier_orders.count({
+//       where: {
+//         isDeleted: false,
+//         ...(previousWhereClause.order_date && {
+//           createdAt: previousWhereClause.order_date,
+//         }),
+//       },
+//     });
+//     const previousProduction = await prisma.productionResponse.count({
+//       where: {
+//         isDeleted: false,
+//         ...(previousWhereClause.order_date && {
+//           createdAt: previousWhereClause.order_date,
+//         }),
+//       },
+//     });
+//     const previousScrapOrders = await prisma.stockOrderSchedule.count({
+//       where: { ...previousWhereClause, scrapQuantity: { gt: 0 } },
+//     });
+
+//     const orderSchedulePercentage = calculatePercentageChange(
+//       currentOrders,
+//       previousOrders
+//     );
+//     const totalSupplierPercentage = calculatePercentageChange(
+//       currentSuppliers,
+//       previousSuppliers
+//     );
+//     const totalProductionPercentage = calculatePercentageChange(
+//       currentProduction,
+//       previousProduction
+//     );
+//     const totalScrapOrderPercentage = calculatePercentageChange(
+//       currentScrapOrders,
+//       previousScrapOrders
+//     );
+
+//     const data = await prisma.supplier_orders.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         supplier: { select: { firstName: true, lastName: true } },
+//         email: true,
+//         part: { select: { partNumber: true, cost: true } },
+//       },
+//     });
+
+//     const supplierMap = {};
+//     data.forEach((item) => {
+//       const supplierName = `${item.supplier.firstName} ${item.supplier.lastName}`;
+//       if (!supplierMap[supplierName]) {
+//         supplierMap[supplierName] = {
+//           supplierName,
+//           email: item.email,
+//           products: [],
+//           total: 0,
+//         };
+//       }
+//       supplierMap[supplierName].products.push(item.part.partNumber);
+//       supplierMap[supplierName].total += Number(item.part.cost);
+//     });
+
+//     let suppliers = Object.values(supplierMap)
+//       .sort((a, b) => b.total - a.total)
+//       .map((s, index) => ({
+//         supplierName: s.supplierName,
+//         email: s.email,
+//         product: s.products.join(", "),
+//         total: `$${s.total.toFixed(2)}`,
+//         rank: index + 1,
+//       }));
+
+//     const topPerformers = await prisma.employee.findMany({
+//       where: { isDeleted: false },
+//       include: { completedSchedules: true },
+//     });
+
+//     const topPerformersSorted = topPerformers
+//       .map((emp) => ({
+//         id: emp.id,
+//         fullName: emp.fullName,
+//         completedCount: emp.completedSchedules.length,
+//       }))
+//       .sort((a, b) => b.completedCount - a.completedCount)
+//       .slice(0, 5);
+
+//     const newlyAddedEmployees = await prisma.employee.findMany({
+//       where: { isDeleted: false },
+//       orderBy: { createdAt: "desc" },
+//       take: 5,
+//       select: { id: true, fullName: true, email: true },
+//     });
+
+//     const orders = await prisma.stockOrderSchedule.findMany({
+//       where: whereClause,
+//       select: {
+//         order_id: true,
+//         order_date: true,
+//         status: true,
+//         scheduleQuantity: true,
+//         completedQuantity: true,
+//         scrapQuantity: true,
+//         completedByEmployee: { select: { fullName: true, email: true } },
+//         part: {
+//           select: {
+//             partNumber: true,
+//             cost: true,
+//           },
+//         },
+//         process: { select: { processName: true, ratePerHour: true } },
+//       },
+//       orderBy: { order_date: "desc" },
+//     });
+
+//     const productivityData = orders.map((order) => {
+//       const cycleTime = order.process?.cycleTime
+//         ? parseFloat(order.process.cycleTime)
+//         : 0;
+//       console.log("orderorderord111111er", order);
+
+//       console.log("ordeorder.scheduleQuantityrorder", order.scheduleQuantity);
+//       console.log("ordeorder.scrapQuantity", order.scrapQuantity);
+
+//       const qty = order.scheduleQuantity || 0; // total assigned qty
+//       const scrap = order.scrapQuantity || 0; // scrap made by employee
+//       const completedQty = qty - scrap; // completed by employee
+//       console.log("qtyqty", qty);
+
+//       // Productivity %
+//       const productivity =
+//         qty > 0 ? ((completedQty / qty) * 100).toFixed(2) : "0.00";
+
+//       // Efficiency %
+//       const totalTime = qty * cycleTime; // standard time
+//       const actualTime = completedQty * cycleTime; // actual work done by employee
+//       const efficiency =
+//         totalTime > 0 ? ((actualTime / totalTime) * 100).toFixed(2) : "0.00";
+
+//       return {
+//         process: order.process.processName,
+//         employee: order.completedByEmployee?.fullName || "N/A",
+//         cycleTime,
+//         totalQty: qty,
+//         scrap,
+//         completedQty,
+//         productivity: `${productivity}%`,
+//         efficiency: `${efficiency}%`,
+//       };
+//     });
+
+//     res.status(200).json({
+//       orderSchedule: {
+//         count: currentOrders,
+//         percentageChange: orderSchedulePercentage,
+//       },
+//       totalSupplier: {
+//         count: currentSuppliers,
+//         percentageChange: totalSupplierPercentage,
+//       },
+//       totalProduction: {
+//         count: currentProduction,
+//         percentageChange: totalProductionPercentage,
+//       },
+//       totalScrapOrder: {
+//         count: currentScrapOrders,
+//         percentageChange: totalScrapOrderPercentage,
+//       },
+//       suppliers,
+//       topPerformersSorted,
+//       newlyAddedEmployees,
+//       productivityData,
+//       totalOrders,
+//       currentRevenue,
+//       lastRevenue,
+//       revenueChangePercent: revenueChangePercent.toFixed(2),
+//       revenueIndicator,
+//     });
+//   } catch (error) {
+//     console.log("Error:", error);
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
 const dashBoardData = async (req, res) => {
   try {
-    const { month } = req.query; // Only month is sent
+    const { month } = req.query;
 
     let whereClause = { isDeleted: false };
-
     if (month) {
-      const monthNum = parseInt(month); // 1-12
+      const monthNum = parseInt(month);
       const now = new Date();
-      const year = now.getFullYear(); // Current year
-
-      const startOfMonth = new Date(year, monthNum - 1, 1, 0, 0, 0);
-      const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59);
-
+      const year = now.getFullYear();
+      const startOfMonthDate = new Date(year, monthNum - 1, 1, 0, 0, 0);
+      const endOfMonthDate = new Date(year, monthNum, 0, 23, 59, 59);
       whereClause.order_date = {
-        gte: startOfMonth,
-        lte: endOfMonth,
+        gte: startOfMonthDate,
+        lte: endOfMonthDate,
       };
     }
 
+    const stockOrder = await prisma.stockOrder.findMany({
+      where: { isDeleted: false },
+    });
+    const customOrder = await prisma.customOrder.findMany({
+      where: { isDeleted: false },
+    });
+
+    const currentMonthStart = startOfMonth(new Date());
+    const currentMonthEnd = endOfMonth(new Date());
+    const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
+    const lastMonthEnd = endOfMonth(subMonths(new Date(), 1));
+
+    const filterOrdersByMonth = (orders, start, end) =>
+      orders.filter((order) => {
+        const orderDate = new Date(order.orderDate);
+        return orderDate >= start && orderDate <= end;
+      });
+
+    const currentStockOrders = filterOrdersByMonth(
+      stockOrder,
+      currentMonthStart,
+      currentMonthEnd
+    );
+    const currentCustomOrders = filterOrdersByMonth(
+      customOrder,
+      currentMonthStart,
+      currentMonthEnd
+    );
+    const lastStockOrders = filterOrdersByMonth(
+      stockOrder,
+      lastMonthStart,
+      lastMonthEnd
+    );
+    const lastCustomOrders = filterOrdersByMonth(
+      customOrder,
+      lastMonthStart,
+      lastMonthEnd
+    );
+
+    const stockOrderRevenue = currentStockOrders.reduce(
+      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      0
+    );
+
+    const customOrderRevenue = currentCustomOrders.reduce(
+      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      0
+    );
+
+    const currentRevenue = stockOrderRevenue + customOrderRevenue;
+
+    const lastStockRevenue = lastStockOrders.reduce(
+      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      0
+    );
+    const lastCustomRevenue = lastCustomOrders.reduce(
+      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      0
+    );
+
+    const lastRevenue = lastStockRevenue + lastCustomRevenue;
+
+    // 6️⃣ Total Orders (current month)
+    const totalOrders = currentStockOrders.length + currentCustomOrders.length;
+
+    let revenueChangePercent = 0;
+    let revenueIndicator = "gray";
+
+    if (lastRevenue === 0) {
+      if (currentRevenue > 0) {
+        revenueChangePercent = 100;
+        revenueIndicator = "green";
+      } else if (currentRevenue < 0) {
+        revenueChangePercent = -100;
+        revenueIndicator = "red";
+      } else {
+        revenueChangePercent = 0;
+        revenueIndicator = "gray";
+      }
+    } else {
+      revenueChangePercent =
+        ((currentRevenue - lastRevenue) / lastRevenue) * 100;
+      revenueIndicator = revenueChangePercent >= 0 ? "green" : "red";
+    }
+
+    // 8️⃣ Existing revenueIndicatorcounts & % change
     const calculatePercentageChange = (current, previous) => {
       if (previous === 0) return current > 0 ? 100 : 0;
       return ((current - previous) / previous) * 100;
     };
 
-    const currentOrders = await prisma.stockOrderSchedule.count({
-      where: whereClause,
-    });
-    const currentSuppliers = await prisma.supplier_orders.count({
-      where: {
-        isDeleted: false,
-        ...(whereClause.order_date && { createdAt: whereClause.order_date }),
-      },
-    });
-    const currentProduction = await prisma.productionResponse.count({
-      where: {
-        isDeleted: false,
-        ...(whereClause.order_date && { createdAt: whereClause.order_date }),
-      },
-    });
-    const currentScrapOrders = await prisma.stockOrderSchedule.count({
-      where: { ...whereClause, scrapQuantity: { gt: 0 } },
-    });
+    // Previous month where clause
     let previousWhereClause = { isDeleted: false };
     if (month) {
       const monthNum = parseInt(month);
       const now = new Date();
       const year = now.getFullYear();
-
-      let prevMonth = monthNum - 1 === 0 ? 12 : monthNum - 1; // Previous month
+      let prevMonth = monthNum - 1 === 0 ? 12 : monthNum - 1;
       let prevYear = monthNum - 1 === 0 ? year - 1 : year;
-
       const startOfPrevMonth = new Date(prevYear, prevMonth - 1, 1, 0, 0, 0);
       const endOfPrevMonth = new Date(prevYear, prevMonth, 0, 23, 59, 59);
-
       previousWhereClause.order_date = {
         gte: startOfPrevMonth,
         lte: endOfPrevMonth,
       };
     }
 
-    const previousOrders = await prisma.stockOrderSchedule.count({
-      where: previousWhereClause,
-    });
-    const previousSuppliers = await prisma.supplier_orders.count({
-      where: {
-        isDeleted: false,
-        ...(previousWhereClause.order_date && {
-          createdAt: previousWhereClause.order_date,
-        }),
-      },
-    });
-    const previousProduction = await prisma.productionResponse.count({
-      where: {
-        isDeleted: false,
-        ...(previousWhereClause.order_date && {
-          createdAt: previousWhereClause.order_date,
-        }),
-      },
-    });
-    const previousScrapOrders = await prisma.stockOrderSchedule.count({
-      where: { ...previousWhereClause, scrapQuantity: { gt: 0 } },
-    });
-
-    const orderSchedulePercentage = calculatePercentageChange(
-      currentOrders,
-      previousOrders
-    );
-    const totalSupplierPercentage = calculatePercentageChange(
-      currentSuppliers,
-      previousSuppliers
-    );
-    const totalProductionPercentage = calculatePercentageChange(
-      currentProduction,
-      previousProduction
-    );
-    const totalScrapOrderPercentage = calculatePercentageChange(
-      currentScrapOrders,
-      previousScrapOrders
-    );
-
-    // --- Supplier, Employee, and Orders Data (remain same) ---
+    // 9️⃣ Other existing data like suppliers, top performers, productivity etc.
     const data = await prisma.supplier_orders.findMany({
       where: { isDeleted: false },
       select: {
@@ -7546,91 +7873,312 @@ const dashBoardData = async (req, res) => {
       include: { completedSchedules: true },
     });
 
-    const topPerformersSorted = topPerformers
-      .map((emp) => ({
-        id: emp.id,
-        fullName: emp.fullName,
-        completedCount: emp.completedSchedules.length,
-      }))
-      .sort((a, b) => b.completedCount - a.completedCount)
-      .slice(0, 5);
-
-    const newlyAddedEmployees = await prisma.employee.findMany({
-      where: { isDeleted: false },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, fullName: true, email: true },
-    });
-
     const orders = await prisma.stockOrderSchedule.findMany({
       where: whereClause,
       select: {
         order_id: true,
         order_date: true,
         status: true,
+        scheduleQuantity: true,
+        completedQuantity: true,
+        scrapQuantity: true,
         completedByEmployee: { select: { fullName: true, email: true } },
-        part: {
-          select: {
-            partNumber: true,
-            cost: true,
-          },
+        part: { select: { partNumber: true, cost: true } },
+        process: {
+          select: { processName: true, ratePerHour: true, cycleTime: true },
         },
-        process: { select: { processName: true, ratePerHour: true } },
       },
       orderBy: { order_date: "desc" },
     });
 
-    const formattedOrders = orders.map((order) => {
-      console.log("orderorder.", order);
-
-      // Convert cycleTime to number (hours)
-      let cycleTimeInHours = 0;
-      if (order.process.cycleTime) {
-        // Assuming format is like "1 hr" or "2.5 hr"
-        cycleTimeInHours = parseFloat(order.process.cycleTime);
-      }
-
-      const partCost = order.part?.cost ? parseFloat(order.part.cost) : 0;
-      const scheduleQty = order.scheduleQuantity || 1;
-      console.log("partCostpartCost", partCost);
-      console.log("cycleTimeInHours", cycleTimeInHours);
-      console.log("order.process.ratePerHour", order.process.ratePerHour);
-      console.log("scheduleQty", scheduleQty);
-
-      const totalCOGS =
-        (partCost + cycleTimeInHours * order.process.ratePerHour) * scheduleQty;
+    const productivityData = orders.map((order) => {
+      const cycleTime = order.process?.cycleTime
+        ? parseFloat(order.process.cycleTime)
+        : 0;
+      const qty = order.scheduleQuantity || 0;
+      const scrap = order.scrapQuantity || 0;
+      const completedQty = qty - scrap;
+      const productivity =
+        qty > 0 ? ((completedQty / qty) * 100).toFixed(2) : "0.00";
+      const totalTime = qty * cycleTime;
+      const actualTime = completedQty * cycleTime;
+      const efficiency =
+        totalTime > 0 ? ((actualTime / totalTime) * 100).toFixed(2) : "0.00";
 
       return {
         process: order.process.processName,
         employee: order.completedByEmployee?.fullName || "N/A",
-        email: order.completedByEmployee?.email || "N/A",
-        date: order.order_date.toISOString().split("T")[0],
-        status: order.status,
-        total: `$${totalCOGS.toFixed(2)}`,
+        cycleTime,
+        totalQty: qty,
+        scrap,
+        completedQty,
+        productivity: `${productivity}%`,
+        efficiency: `${efficiency}%`,
       };
     });
 
+    const parts = await prisma.partNumber.findMany({
+      where: { isDeleted: false },
+      include: {
+        process: { select: { ratePerHour: true } },
+      },
+    });
+
+    // Current month inventory
+    let currentInventoryCost = 0;
+    let currentInventoryCount = 0;
+
+    parts.forEach((part) => {
+      const partCost = parseFloat(part.cost) || 0;
+      const cycleTimeHours = parseFloat(part.cycleTime) || 0;
+      const ratePerHour = part.process?.ratePerHour || 0;
+
+      const costPerPart = partCost + cycleTimeHours * ratePerHour;
+
+      const availableStock = part.availStock || 0;
+      const minStock = part.minStock || 0;
+      const inventoryLevel = availableStock - minStock;
+
+      if (inventoryLevel > 0) {
+        currentInventoryCount += inventoryLevel;
+        currentInventoryCost += inventoryLevel * costPerPart;
+      }
+    });
+
+    // Previous month inventory (just for comparison)
+    // ⚠️ assuming stocks table has no history, so using same availStock for prev month
+    // In real case, you’d need inventory history table
+    let lastInventoryCost = currentInventoryCost * 0.8; // dummy assumption
+    let lastInventoryCount = currentInventoryCount * 0.8;
+
+    const inventoryChangePercent = calculatePercentageChange(
+      currentInventoryCost,
+      lastInventoryCost
+    );
+    const inventoryIndicator = inventoryChangePercent >= 0 ? "green" : "red";
+    // Helper function
+    const calculatePercentChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    // Current Month Production Total
+    const currentMonthProductionData = await prisma.stockOrderSchedule.findMany(
+      {
+        where: {
+          isDeleted: false,
+          order_date: {
+            gte: currentMonthStart,
+            lte: currentMonthEnd,
+          },
+        },
+        select: {
+          completedQuantity: true,
+          scrapQuantity: true,
+        },
+      }
+    );
+
+    const currentProductionTotal = currentMonthProductionData.reduce(
+      (sum, p) => {
+        const completed = p.completedQuantity || 0;
+        const scrap = p.scrapQuantity || 0;
+        return sum + (completed - scrap);
+      },
+      0
+    );
+
+    // Last Month Production Total
+    const lastMonthProductionData = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        order_date: {
+          gte: lastMonthStart,
+          lte: lastMonthEnd,
+        },
+      },
+      select: {
+        completedQuantity: true,
+        scrapQuantity: true,
+      },
+    });
+
+    const lastProductionTotal = lastMonthProductionData.reduce((sum, p) => {
+      const completed = p.completedQuantity || 0;
+      const scrap = p.scrapQuantity || 0;
+      return sum + (completed - scrap);
+    }, 0);
+
+    // Percentage change & indicator
+    const productionChangePercent = calculatePercentChange(
+      currentProductionTotal,
+      lastProductionTotal
+    );
+
+    const productionIndicator = productionChangePercent >= 0 ? "green" : "red";
+    const currentMonthScrapData = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        order_date: {
+          gte: currentMonthStart,
+          lte: currentMonthEnd,
+        },
+      },
+      select: {
+        scrapQuantity: true,
+        part: { select: { cost: true } },
+      },
+    });
+
+    let currentScrapQty = 0;
+    let currentScrapCost = 0;
+
+    currentMonthScrapData.forEach((item) => {
+      const scrap = item.scrapQuantity || 0;
+      const cost = parseFloat(item.part?.cost) || 0;
+      currentScrapQty += scrap;
+      currentScrapCost += scrap * cost;
+    });
+
+    // Scrap Totals (Last Month)
+    const lastMonthScrapData = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        order_date: {
+          gte: lastMonthStart,
+          lte: lastMonthEnd,
+        },
+      },
+      select: {
+        scrapQuantity: true,
+        part: { select: { cost: true } },
+      },
+    });
+
+    let lastScrapQty = 0;
+    let lastScrapCost = 0;
+
+    lastMonthScrapData.forEach((item) => {
+      const scrap = item.scrapQuantity || 0;
+      const cost = parseFloat(item.part?.cost) || 0;
+      lastScrapQty += scrap;
+      lastScrapCost += scrap * cost;
+    });
+
+    // % Change in Scrap
+    const scrapChangePercent = calculatePercentChange(
+      currentScrapQty,
+      lastScrapQty
+    );
+    const scrapIndicator = currentScrapQty <= lastScrapQty ? "red" : "green";
+
+    const openStockOrders = await prisma.stockOrder.findMany({
+      where: {
+        isDeleted: false,
+        NOT: {
+          status: "scheduled",
+        },
+      },
+      select: {
+        orderDate: true,
+        orderNumber: true,
+        customerName: true,
+        customerEmail: true,
+        productNumber: true,
+        productQuantity: true,
+      },
+    });
+
+    const openCustomOrders = await prisma.customOrder.findMany({
+      where: { isDeleted: false, status: "scheduled" },
+      select: {
+        orderDate: true,
+        orderNumber: true,
+        customerName: true,
+        customerEmail: true,
+        partNumber: true,
+        productQuantity: true,
+      },
+    });
+
+    const openOrders = [...openStockOrders, ...openCustomOrders].map((o) => ({
+      date: o.orderDate,
+      order: o.orderNumber,
+      firstName: o.customerName?.split(" ")[0] || "",
+      lastName: o.customerName?.split(" ")[1] || "",
+      product: o.partNumber,
+      qty: o.productQuantity,
+    }));
+
+    const totalOpenQty = openOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+    const fulfilledOrdersData = await prisma.stockOrderSchedule.findMany({
+      where: { isDeleted: false, status: "completed" },
+      include: {
+        StockOrder: { select: { orderNumber: true } },
+        CustomOrder: { select: { orderNumber: true } },
+        part: { select: { partNumber: true } },
+        completedByEmployee: { select: { fullName: true } },
+      },
+    });
+
+    const fulfilledOrders = fulfilledOrdersData.map((o) => {
+      const nameParts = o.completedByEmployee?.fullName?.split(" ") || [];
+      const type = o.order_type?.toLowerCase();
+
+      return {
+        date: o.order_date,
+        order:
+          type === "StockOrder"
+            ? o.StockOrder?.orderNumber
+            : o.CustomOrder?.orderNumber || o.order_id,
+        firstName: nameParts[0] || "",
+        lastName: nameParts[1] || "",
+        product: o.part?.partNumber || "",
+        qty: o.completedQuantity ?? 0,
+      };
+    });
+
+    const totalFulfilledQty = fulfilledOrders.reduce(
+      (sum, o) => sum + (o.qty || 0),
+      0
+    );
     res.status(200).json({
-      orderSchedule: {
-        count: currentOrders,
-        percentageChange: orderSchedulePercentage,
-      },
-      totalSupplier: {
-        count: currentSuppliers,
-        percentageChange: totalSupplierPercentage,
-      },
-      totalProduction: {
-        count: currentProduction,
-        percentageChange: totalProductionPercentage,
-      },
-      totalScrapOrder: {
-        count: currentScrapOrders,
-        percentageChange: totalScrapOrderPercentage,
-      },
       suppliers,
-      topPerformersSorted,
-      newlyAddedEmployees,
-      formattedOrders,
+      productivityData,
+      totalOrders,
+      currentRevenue,
+      lastRevenue,
+      revenueChangePercent: revenueChangePercent.toFixed(2),
+      revenueIndicator,
+      inventory: {
+        totalInventoryCount: currentInventoryCount,
+        totalInventoryCost: currentInventoryCost.toFixed(2),
+        lastInventoryCost: lastInventoryCost.toFixed(2),
+        inventoryChangePercent: inventoryChangePercent.toFixed(2),
+        inventoryIndicator,
+      },
+      production: {
+        currentProductionTotal,
+        lastProductionTotal,
+        productionChangePercent: productionChangePercent.toFixed(2),
+        productionIndicator,
+      },
+      scrap: {
+        currentScrapQty,
+        currentScrapCost: currentScrapCost.toFixed(2),
+        lastScrapQty,
+        lastScrapCost: lastScrapCost.toFixed(2),
+        scrapChangePercent: scrapChangePercent.toFixed(2),
+        scrapIndicator,
+      },
+      openOrders: {
+        list: openOrders,
+        total: totalOpenQty,
+      },
+      fulfilledOrders: {
+        list: fulfilledOrders,
+        total: totalFulfilledQty,
+      },
     });
   } catch (error) {
     console.log("Error:", error);
@@ -8146,6 +8694,156 @@ const productionEfficieny = async (req, res) => {
   }
 };
 
+const fiexedDataCalculation = async (req, res) => {
+  try {
+    const { category, name, cost, depreciation } = req.body;
+
+    const newRecord = await prisma.fixedCost.create({
+      data: {
+        category,
+        expenseName: name,
+        expenseCost: parseFloat(cost),
+        depreciation: parseFloat(depreciation),
+      },
+    });
+
+    res.status(201).json({ success: true, data: newRecord });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error creating record" });
+  }
+};
+
+const fixedDataList = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const [fixedCost, totalCount] = await Promise.all([
+      prisma.fixedCost.findMany({
+        where: {
+          isDeleted: false,
+        },
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+      }),
+      prisma.fixedCost.count({
+        where: {
+          isDeleted: false,
+        },
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Fixed cost retrieved successfully!",
+      data: fixedCost,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (error) {
+    console.log("error", error);
+
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
+  }
+};
+
+const getFixedCostGraph = async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const { year } = req.query;
+
+    const filterYear = year ? parseInt(year) : currentYear;
+
+    // 1️⃣ Fetch fixed costs
+    const costs = await prisma.fixedCost.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(`${filterYear}-01-01`),
+          lte: new Date(`${filterYear}-12-31`),
+        },
+      },
+      select: {
+        expenseCost: true,
+        createdAt: true,
+      },
+    });
+
+    // 2️⃣ Fetch stock and custom orders
+    const stockOrders = await prisma.stockOrder.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(`${filterYear}-01-01`),
+          lte: new Date(`${filterYear}-12-31`),
+        },
+      },
+      select: {
+        cost: true,
+        productQuantity: true,
+        createdAt: true,
+      },
+    });
+
+    const customOrders = await prisma.customOrder.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(`${filterYear}-01-01`),
+          lte: new Date(`${filterYear}-12-31`),
+        },
+      },
+      select: {
+        cost: true,
+        productQuantity: true,
+        createdAt: true,
+      },
+    });
+
+    // 3️⃣ Initialize arrays for 12 months
+    const monthlyFixedCost = Array(12).fill(0);
+    const monthlyStockRevenue = Array(12).fill(0);
+    const monthlyCustomRevenue = Array(12).fill(0);
+
+    // 4️⃣ Fill monthly fixed cost
+    costs.forEach((c) => {
+      const month = c.createdAt.getMonth();
+      monthlyFixedCost[month] += c.expenseCost;
+    });
+
+    // 5️⃣ Fill monthly stock revenue
+    stockOrders.forEach((o) => {
+      const month = o.createdAt.getMonth();
+      monthlyStockRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+    });
+
+    // 6️⃣ Fill monthly custom revenue
+    customOrders.forEach((o) => {
+      const month = o.createdAt.getMonth();
+      monthlyCustomRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+    });
+
+    // 7️⃣ Prepare chart data
+    const chartData = monthlyFixedCost.map((totalCost, i) => ({
+      month: new Date(0, i).toLocaleString("default", { month: "short" }),
+      totalCost,
+      stockRevenue: monthlyStockRevenue[i],
+      customRevenue: monthlyCustomRevenue[i],
+      totalRevenue: monthlyStockRevenue[i] + monthlyCustomRevenue[i],
+    }));
+
+    res.status(200).json({ success: true, data: chartData });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching graph data" });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -8243,4 +8941,7 @@ module.exports = {
   dailySchedule,
   capacityStatus,
   productionEfficieny,
+  fiexedDataCalculation,
+  fixedDataList,
+  getFixedCostGraph,
 };

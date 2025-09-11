@@ -575,7 +575,6 @@ model StockOrderSchedule {
   submittedByEmployeeId String?
   submittedByEmployee   employee? @relation("SubmittedByEmployee", fields: [submittedByEmployeeId], references: [id])
 
-  // Admin relation
   submittedByAdminId String?
   submittedByAdmin   admin?  @relation("AdminSchedules", fields: [submittedByAdminId], references: [id])
 
@@ -687,6 +686,17 @@ model ProcessOrderTable {
   @@index([orderId], map: "ProductionResponse_orderId_fkey")
   @@index([processId], map: "ProductionResponse_processId_fkey")
   @@index([partId], map: "ProductionResponse_partId_fkey")
+}
+
+model FixedCost {
+  id           String   @id @default(uuid()) @db.Char(36)
+  category     String
+  expenseName  String
+  expenseCost  Float
+  depreciation Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
 }
 
 model scapEntries {

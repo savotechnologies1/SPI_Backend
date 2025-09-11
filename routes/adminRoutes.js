@@ -97,6 +97,9 @@ const {
   dailySchedule,
   capacityStatus,
   productionEfficieny,
+  fiexedDataCalculation,
+  fixedDataList,
+  getFixedCostGraph,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -458,4 +461,8 @@ router.get("/dashboard-data", dashBoardData);
 router.get("/daily-schedule-data", dailySchedule);
 router.get("/capacity-status-data", capacityStatus);
 router.get("/production-efficiency", productionEfficieny);
+router.post("/fixed-data-calulation", fiexedDataCalculation);
+router.get("/fixed-data", fixedDataList);
+router.get("/fixed-data-graph", getFixedCostGraph);
+
 module.exports = router;

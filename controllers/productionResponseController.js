@@ -13884,7 +13884,6 @@ const getScheduleProcessInformation = async (req, res) => {
 //   }
 // };
 const findNextJobForProcess = async (processId) => {
-  // Función interna para obtener un schedule y adjuntar los datos de su pedido (Order).
   const findAndStitchJob = async (findOptions) => {
     const schedule = await prisma.stockOrderSchedule.findFirst({
       ...findOptions,
@@ -13921,18 +13920,13 @@ const findNextJobForProcess = async (processId) => {
     return { ...schedule, order: orderData };
   };
 
-  // Bucle infinito que se rompe cuando encontramos un trabajo válido o no hay ninguno.
   while (true) {
     let potentialJob = null;
 
-    // --- LÓGICA DE PRIORIDAD PARA ENCONTRAR EL SIGUIENTE TRABAJO ---
-
-    // 1. PRIORIDAD MÁXIMA: Buscar un trabajo que ya esté EN PROGRESO.
     potentialJob = await findAndStitchJob({
       where: { processId, status: "progress", isDeleted: false },
     });
 
-    // 2. LÓGICA DE ENSAMBLAJE: Si no hay nada en progreso, verificar si un trabajo de PRODUCTO está listo.
     if (!potentialJob) {
       const lastCompletedPartJob = await prisma.stockOrderSchedule.findFirst({
         where: {
@@ -13956,7 +13950,6 @@ const findNextJobForProcess = async (processId) => {
         });
 
         if (pendingPartsCount === 0) {
-          // Todas las partes están listas. Buscamos el trabajo de tipo PRODUCTO.
           potentialJob = await findAndStitchJob({
             where: {
               order_id: lastCompletedPartJob.order_id,
@@ -13969,34 +13962,24 @@ const findNextJobForProcess = async (processId) => {
         }
       }
     }
-
-    // 3. PRIORIDAD BAJA: Si no se encontró nada, buscar el trabajo NUEVO más antiguo.
     if (!potentialJob) {
       potentialJob = await findAndStitchJob({
         where: { processId, status: "new", isDeleted: false },
-        orderBy: [{ type: "asc" }, { createdAt: "asc" }], // Prioriza 'part' sobre 'product', luego por fecha.
+        orderBy: [{ type: "asc" }, { createdAt: "asc" }],
       });
     }
-
-    // --- FIN DE LA LÓGICA DE PRIORIDAD ---
-
     if (!potentialJob) {
-      return null; // No hay más trabajos disponibles para este proceso.
+      return null;
     }
-
-    // Si el trabajo encontrado tiene cantidad por hacer, es el correcto. Lo devolvemos.
     if (potentialJob.remainingQty > 0) {
       return potentialJob;
     }
-
-    // Si el trabajo tiene 0 de cantidad pero no está marcado como 'completed', lo actualizamos y buscamos el siguiente.
     if (potentialJob.status !== "completed") {
       await prisma.stockOrderSchedule.update({
         where: { id: potentialJob.id },
         data: { status: "completed", completed_date: new Date() },
       });
     }
-    // El bucle 'while(true)' continuará para encontrar el siguiente trabajo válido.
   }
 };
 
