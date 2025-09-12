@@ -100,6 +100,7 @@ const {
   fiexedDataCalculation,
   fixedDataList,
   getFixedCostGraph,
+  getParts,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -159,6 +160,14 @@ const {
   customerRelation,
   qualityPerformance,
 } = require("../controllers/productionResponseController");
+const {
+  importProcess,
+  importParts,
+  importProductTree,
+  importEmp,
+  importCust,
+  importSupp,
+} = require("../controllers/importController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
 router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
@@ -402,7 +411,7 @@ router.get(
 );
 router.put("/complete-order/:id", adminValidateToken, completeScheduleOrder);
 router.put(
-  "/production-response/:id/update-step-time",
+  "/production-response/update-step-time/:id",
   adminValidateToken,
   updateStepTime
 );
@@ -464,5 +473,12 @@ router.get("/production-efficiency", productionEfficieny);
 router.post("/fixed-data-calulation", fiexedDataCalculation);
 router.get("/fixed-data", fixedDataList);
 router.get("/fixed-data-graph", getFixedCostGraph);
+router.get("/get-parts", getParts);
+router.post("/process/import", adminValidateToken, importProcess);
+router.post("/parts/import", adminValidateToken, importParts);
+router.post("/product-tree/import", adminValidateToken, importProductTree);
+router.post("/emp/import", adminValidateToken, importEmp);
+router.post("/cust/import", adminValidateToken, importCust);
+router.post("/supp/import", adminValidateToken, importSupp);
 
 module.exports = router;

@@ -12,7 +12,13 @@ const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
 const moment = require("moment"); // For date/time manipulation
-const { startOfMonth, endOfMonth, subMonths } = require("date-fns");
+const {
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  startOfDay,
+  endOfDay,
+} = require("date-fns");
 
 const login = async (req, res) => {
   try {
@@ -6815,115 +6821,115 @@ const currentQualityStatusOverview = async (req, res) => {
   }
 };
 
-const monitorChartsData = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
+// const monitorChartsData = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
 
-    const data = await prisma.stockOrderSchedule.findMany({
-      include: {
-        part: {
-          select: { partNumber: true },
-        },
-        process: {
-          select: {
-            processName: true,
-            processDesc: true,
-          },
-        },
-      },
-    });
+//     const data = await prisma.stockOrderSchedule.findMany({
+//       include: {
+//         part: {
+//           select: { partNumber: true },
+//         },
+//         process: {
+//           select: {
+//             processName: true,
+//             processDesc: true,
+//           },
+//         },
+//       },
+//     });
 
-    const manualGrouped = {};
-    data.forEach((item) => {
-      const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
+//     const manualGrouped = {};
+//     data.forEach((item) => {
+//       const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
 
-      if (!manualGrouped[key]) {
-        manualGrouped[key] = {
-          processId: item.processId,
-          process: item.processId,
-          processName: item.process.processName,
-          processDesc: item.part.partNumber,
-          part: item.part?.partNumber || "N/A",
-          totalQuantity: 0,
-          totalCompleted: 0,
-          totalScrap: 0,
-        };
-      }
-      manualGrouped[key].totalQuantity += item.quantity || 0;
-      manualGrouped[key].totalCompleted += item.completedQuantity || 0;
-      manualGrouped[key].totalScrap += item.scrapQuantity || 0;
-    });
-    const manualTable = Object.values(manualGrouped);
+//       if (!manualGrouped[key]) {
+//         manualGrouped[key] = {
+//           processId: item.processId,
+//           process: item.processId,
+//           processName: item.process.processName,
+//           processDesc: item.part.partNumber,
+//           part: item.part?.partNumber || "N/A",
+//           totalQuantity: 0,
+//           totalCompleted: 0,
+//           totalScrap: 0,
+//         };
+//       }
+//       manualGrouped[key].totalQuantity += item.quantity || 0;
+//       manualGrouped[key].totalCompleted += item.completedQuantity || 0;
+//       manualGrouped[key].totalScrap += item.scrapQuantity || 0;
+//     });
+//     const manualTable = Object.values(manualGrouped);
 
-    // Monitor Table (production responses)
-    const partToMonitor = await prisma.productionResponse.findMany({
-      where: {
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      },
-      include: {
-        PartNumber: { select: { partNumber: true } },
-        process: { select: { processName: true, processDesc: true } },
-      },
-    });
+//     // Monitor Table (production responses)
+//     const partToMonitor = await prisma.productionResponse.findMany({
+//       where: {
+//         createdAt: {
+//           gte: new Date(startDate),
+//           lte: new Date(endDate),
+//         },
+//       },
+//       include: {
+//         PartNumber: { select: { partNumber: true } },
+//         process: { select: { processName: true, processDesc: true } },
+//       },
+//     });
 
-    // Grouping monitor table by part
-    const monitorGrouped = {};
-    partToMonitor.forEach((item) => {
-      const key = item.PartNumber?.partNumber || "N/A";
-      if (!monitorGrouped[key]) {
-        monitorGrouped[key] = {
-          part: key,
-          processName: item.process?.processName || "N/A",
-          processDesc: item.process?.processDesc || "",
-          totalCycleTime: 0,
-          count: 0,
-        };
-      }
+//     // Grouping monitor table by part
+//     const monitorGrouped = {};
+//     partToMonitor.forEach((item) => {
+//       const key = item.PartNumber?.partNumber || "N/A";
+//       if (!monitorGrouped[key]) {
+//         monitorGrouped[key] = {
+//           part: key,
+//           processName: item.process?.processName || "N/A",
+//           processDesc: item.process?.processDesc || "",
+//           totalCycleTime: 0,
+//           count: 0,
+//         };
+//       }
 
-      if (item.cycleTimeStart && item.cycleTimeEnd) {
-        const start = new Date(item.cycleTimeStart).getTime();
-        const end = new Date(item.cycleTimeEnd).getTime();
-        const diffSec = Math.max(0, (end - start) / 1000); // seconds
-        const diffMin = diffSec / 60; // ✅ convert to minutes
-        monitorGrouped[key].totalCycleTime += diffMin;
-        monitorGrouped[key].count += 1;
-      }
-    });
+//       if (item.cycleTimeStart && item.cycleTimeEnd) {
+//         const start = new Date(item.cycleTimeStart).getTime();
+//         const end = new Date(item.cycleTimeEnd).getTime();
+//         const diffSec = Math.max(0, (end - start) / 1000); // seconds
+//         const diffMin = diffSec / 60; // ✅ convert to minutes
+//         monitorGrouped[key].totalCycleTime += diffMin;
+//         monitorGrouped[key].count += 1;
+//       }
+//     });
 
-    const monitorTable = Object.values(monitorGrouped).map((row) => ({
-      processName: row.processName,
-      processDesc: row.processDesc,
-      part: row.part,
-      cycleTime:
-        row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
-    }));
+//     const monitorTable = Object.values(monitorGrouped).map((row) => ({
+//       processName: row.processName,
+//       processDesc: row.processDesc,
+//       part: row.part,
+//       cycleTime:
+//         row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+//     }));
 
-    // Totals
-    const totalCompletedQty = data.reduce(
-      (sum, item) => sum + (item.completedQuantity || 0),
-      0
-    );
-    const totalScrapQty = data.reduce(
-      (sum, item) => sum + (item.scrapQuantity || 0),
-      0
-    );
+//     // Totals
+//     const totalCompletedQty = data.reduce(
+//       (sum, item) => sum + (item.completedQuantity || 0),
+//       0
+//     );
+//     const totalScrapQty = data.reduce(
+//       (sum, item) => sum + (item.scrapQuantity || 0),
+//       0
+//     );
 
-    return res.status(200).json({
-      message: "All chart data retrieved successfully!",
-      manualTable,
-      monitorTable,
-      totals: { totalCompletedQty, totalScrapQty },
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Internal Server Error",
-      details: error.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       message: "All chart data retrieved successfully!",
+//       manualTable,
+//       monitorTable,
+//       totals: { totalCompletedQty, totalScrapQty },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
 
 // const getDiveApi = async (req, res) => {
 //   try {
@@ -7071,6 +7077,142 @@ const monitorChartsData = async (req, res) => {
 //       .json({ error: "Internal Server Error", details: error.message });
 //   }
 // };
+
+const monitorChartsData = async (req, res) => {
+  try {
+    const today = new Date();
+    const start = startOfDay(today);
+    const end = endOfDay(today);
+
+    const data = await prisma.stockOrderSchedule.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      include: {
+        part: { select: { partNumber: true } },
+        process: { select: { processName: true, processDesc: true } },
+      },
+    });
+
+    const manualGrouped = {};
+    data.forEach((item) => {
+      const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
+
+      if (!manualGrouped[key]) {
+        manualGrouped[key] = {
+          process: item.process?.processName || "N/A",
+          part: item.part?.partNumber || "N/A",
+          qty: 0,
+          scrap: 0,
+        };
+      }
+      manualGrouped[key].qty += item.quantity || 0;
+      manualGrouped[key].scrap += item.scrapQuantity || 0;
+    });
+
+    const manualTable = Object.values(manualGrouped);
+
+    // ---------------- Monitor Table (cycle time) ----------------
+    const partToMonitor = await prisma.productionResponse.findMany({
+      where: {
+        isDeleted: false,
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      include: {
+        PartNumber: { select: { partNumber: true } },
+        process: {
+          select: { processName: true, processDesc: true, cycleTime: true },
+        },
+      },
+    });
+
+    const monitorGrouped = {};
+    partToMonitor.forEach((item) => {
+      const key = `${item.process?.processName || "N/A"}-${
+        item.PartNumber?.partNumber || "N/A"
+      }`;
+
+      if (!monitorGrouped[key]) {
+        monitorGrouped[key] = {
+          processName: item.process?.processName || "N/A",
+          processDesc: item.process?.processDesc || "",
+          cycleTime: item.process?.cycleTime || "",
+          part: item.PartNumber?.partNumber || "N/A",
+          totalCycleTime: 0,
+          count: 0,
+        };
+      }
+
+      if (item.cycleTimeStart && item.cycleTimeEnd) {
+        const start = new Date(item.cycleTimeStart).getTime();
+        const end = new Date(item.cycleTimeEnd).getTime();
+        const diffSec = Math.max(0, (end - start) / 1000);
+        const diffMin = diffSec / 60;
+        monitorGrouped[key].totalCycleTime += diffMin;
+        monitorGrouped[key].count += 1;
+      }
+    });
+
+    const monitorTable = Object.values(monitorGrouped)
+      .map((row) => ({
+        processName: row.processName,
+        processDesc: row.processDesc,
+        part: row.part,
+        actualCycleTime: row.cycleTime,
+        cycleTime:
+          row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+      }))
+      .sort((a, b) => a.cycleTime - b.cycleTime);
+
+    const scrapGrouped = {};
+    partToMonitor.forEach((item) => {
+      const key = `${item.process?.processName || "N/A"}-${
+        item.PartNumber?.partNumber || "N/A"
+      }`;
+
+      if (!scrapGrouped[key]) {
+        scrapGrouped[key] = {
+          processName: item.process?.processName || "N/A",
+          part: item.PartNumber?.partNumber || "N/A",
+          scrap: 0,
+        };
+      }
+      scrapGrouped[key].scrap += item.scrapQuantity || 0;
+    });
+
+    const productionScrap = Object.values(scrapGrouped).sort(
+      (a, b) => b.scrap - a.scrap
+    );
+
+    const totalCompletedQty = data.reduce(
+      (sum, item) => sum + (item.completedQuantity || 0),
+      0
+    );
+    const totalScrapQty = data.reduce(
+      (sum, item) => sum + (item.scrapQuantity || 0),
+      0
+    );
+
+    return res.status(200).json({
+      message: "All chart data retrieved successfully!",
+      manualTable,
+      monitorTable,
+      productionScrap,
+      totals: { totalCompletedQty, totalScrapQty },
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
+  }
+};
 
 const getDiveApi = async (req, res) => {
   try {
@@ -7227,42 +7369,337 @@ const getDiveApi = async (req, res) => {
   }
 };
 
+// controllers/cycleTimeController.js
+// const cycleTimeComparisionData = async (req, res) => {
+//   try {
+//     let { startDate, endDate, partId } = req.query;
+//     const today = new Date().toISOString().split("T")[0];
+//     if (!startDate) startDate = today;
+//     if (!endDate) endDate = today;
+
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//       return res.status(400).json({
+//         error: "Invalid date format. Use YYYY-MM-DD",
+//       });
+//     }
+
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: {
+//         partId: partId,
+//         isDeleted: false,
+//         cycleTimeStart: { gte: start },
+//         cycleTimeEnd: { lte: end },
+//       },
+//       include: {
+//         process: { select: { processName: true } },
+//         PartNumber: { select: { cycleTime: true } },
+//       },
+//     });
+//     console.log(
+//       "productionResponsesproductionResponses",
+//       productionResponses.id
+//     );
+
+//     const getSteps = await prisma.productionStepTracking.findMany({
+//       where: {
+//         productionResponseId: productionResponses.id,
+//       },
+//       select: {
+//         productId: true,
+//         stepStartTime: true,
+//         stepEndTime: true,
+//       },
+//     });
+//     console.log("getStepsgetSteps", getSteps);
+
+//     const manualData = productionResponses.map((resp) => {
+//       let manualCT = null;
+//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+//         manualCT =
+//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+//           1000 /
+//           60; // minutes
+//       }
+//       return {
+//         processId: resp.processId,
+//         processName: resp.process?.processName,
+//         manualCT,
+//         idealCT: resp.PartNumber?.cycleTime
+//           ? parseFloat(resp.PartNumber.cycleTime) / 60
+//           : null,
+//       };
+//     });
+
+//     // Group by processId
+//     const grouped = {};
+//     manualData.forEach((item) => {
+//       if (!grouped[item.processId]) {
+//         grouped[item.processId] = {
+//           processName: item.processName,
+//           manualCTs: [],
+//           idealCT: item.idealCT,
+//         };
+//       }
+//       if (item.manualCT !== null) {
+//         grouped[item.processId].manualCTs.push(item.manualCT);
+//       }
+//     });
+
+//     // Average manual CT per process
+//     const result = Object.values(grouped).map((proc) => ({
+//       processName: proc.processName,
+//       manualCT:
+//         proc.manualCTs.length > 0
+//           ? proc.manualCTs.reduce((a, b) => a + b, 0) / proc.manualCTs.length
+//           : 0,
+//       idealCT: proc.idealCT || 0,
+//     }));
+
+//     res.json({
+//       message: "Cycle Time Comparison retrieved successfully!",
+//       data: result,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching cycle time comparison:", error);
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
+
+// const cycleTimeComparisionData = async (req, res) => {
+//   try {
+//     let { startDate, endDate, partId } = req.query;
+//     const today = new Date().toISOString().split("T")[0];
+//     if (!startDate) startDate = today;
+//     if (!endDate) endDate = today;
+
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//       return res.status(400).json({
+//         error: "Invalid date format. Use YYYY-MM-DD",
+//       });
+//     }
+//     console.log("1111", partId);
+
+//     // 🔹 1. Get all production responses for this part
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: {
+//         partId: partId,
+//         isDeleted: false,
+//       },
+//       include: {
+//         process: { select: { processName: true } },
+//         PartNumber: { select: { cycleTime: true } },
+//       },
+//     });
+//     console.log("productionResponsesproductionResponses", productionResponses);
+
+//     if (!productionResponses.length) {
+//       return res.json({
+//         message: "No production responses found for this part/date range",
+//         data: [],
+//       });
+//     }
+
+//     // 🔹 2. Collect all productionResponseIds
+//     const responseIds = productionResponses.map((resp) => resp.id);
+//     console.log("responseIdsresponseIds", responseIds);
+
+//     // 🔹 3. Get all step tracking for these responses
+//     // const stepTrackings = await prisma.productionStepTracking.findMany({
+//     //   where: {
+//     //     productionResponseId: { in: responseIds },
+//     //   },
+//     //   select: {
+//     //     id: true,
+//     //     productionResponseId: true,
+//     //     stepStartTime: true,
+//     //     stepEndTime: true,
+//     //     workInstructionStepId: true,
+//     //     workInstructionStep: {
+//     //       select: {
+//     //         id: true,
+//     //         title: true,
+//     //         stepNumber: true,
+//     //       },
+//     //     },
+//     //   },
+//     // });
+
+//     // console.log("stepTrackingsstepTrackings", stepTrackings);
+
+//     // 🔹 4. Calculate step cycle time
+//     const stepsData = stepTrackings.map((st) => {
+//       console.log("stst111", st);
+
+//       let stepTime = null;
+//       if (st.stepStartTime && st.stepEndTime) {
+//         stepTime =
+//           (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60; // minutes
+//       }
+//       return {
+//         stepId: st.WorkInstructionSteps?.id,
+//         stepNumber: st.WorkInstructionSteps?.stepNumber,
+//         stepTitle: st.WorkInstructionSteps?.title,
+//         stepTime,
+//       };
+//     });
+
+//     // 🔹 5. Prepare manual vs ideal CT comparison (existing logic)
+//     const manualData = productionResponses.map((resp) => {
+//       let manualCT = null;
+//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+//         manualCT =
+//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+//           1000 /
+//           60; // minutes
+//       }
+//       return {
+//         processId: resp.processId,
+//         processName: resp.process?.processName,
+//         manualCT,
+//         idealCT: resp.PartNumber?.cycleTime
+//           ? parseFloat(resp.PartNumber.cycleTime) / 60
+//           : null,
+//       };
+//     });
+
+//     // 🔹 6. Group per process
+//     const grouped = {};
+//     manualData.forEach((item) => {
+//       if (!grouped[item.processId]) {
+//         grouped[item.processId] = {
+//           processName: item.processName,
+//           manualCTs: [],
+//           idealCT: item.idealCT,
+//         };
+//       }
+//       if (item.manualCT !== null) {
+//         grouped[item.processId].manualCTs.push(item.manualCT);
+//       }
+//     });
+
+//     const result = Object.values(grouped).map((proc) => ({
+//       processName: proc.processName,
+//       manualCT:
+//         proc.manualCTs.length > 0
+//           ? proc.manualCTs.reduce((a, b) => a + b, 0) / proc.manualCTs.length
+//           : 0,
+//       idealCT: proc.idealCT || 0,
+//     }));
+//     // 1️⃣ Get all production responses for this part
+
+//     const productionResponseIds = productionResponses.map((p) => p.id);
+
+//     // 2️⃣ Get all step tracking for these production responses
+//     const stepTrackings = await prisma.productionStepTracking.findMany({
+//       where: {
+//         productionResponseId: { in: productionResponseIds },
+//         stepStartTime: { not: null },
+//         stepEndTime: { not: null },
+//       },
+//       include: {
+//         WorkInstructionSteps: {
+//           select: {
+//             id: true,
+//             stepNumber: true,
+//             title: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!stepTrackings.length) {
+//       return res.json({ message: "No step tracking found for this part", data: [] });
+//     }
+
+//     // 3️⃣ Calculate step durations in minutes
+//     const stepDurations = stepTrackings.map((st) => {
+//       const duration =
+//         (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60; // minutes
+//       return {
+//         stepId: st.WorkInstructionSteps?.id,
+//         stepNumber: st.WorkInstructionSteps?.stepNumber,
+//         stepTitle: st.WorkInstructionSteps?.title,
+//         duration,
+//       };
+//     });
+
+//     // 4️⃣ Group by stepId to calculate average per step
+//     const stepGrouped = {};
+//     stepDurations.forEach((sd) => {
+//       if (!stepGrouped[sd.stepId]) {
+//         stepGrouped[sd.stepId] = { stepTitle: sd.stepTitle, durations: [] };
+//       }
+//       stepGrouped[sd.stepId].durations.push(sd.duration);
+//     });
+
+//     const stepAverages = Object.keys(stepGrouped).map((stepId) => {
+//       const durations = stepGrouped[stepId].durations;
+//       const avgDuration =
+//         durations.reduce((a, b) => a + b, 0) / durations.length;
+//     res.json({
+//       message: "Cycle Time Comparison retrieved successfully!",
+//       data: {
+//         processWiseCT: result,
+//         stepWiseCT: stepsData,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching cycle time comparison:", error);
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
 const cycleTimeComparisionData = async (req, res) => {
   try {
-    let { startDate, endDate } = req.query;
+    let { startDate, endDate, partId } = req.query;
     const today = new Date().toISOString().split("T")[0];
     if (!startDate) startDate = today;
     if (!endDate) endDate = today;
+
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
-        error: "Invalid date format. Use YYYY-MM-DD or ISO string",
+        error: "Invalid date format. Use YYYY-MM-DD",
       });
     }
+    console.log("partIdpartId", partId);
+
+    // =============================
+    // 1️⃣ Existing process-wise cycle time
+    // =============================
     const productionResponses = await prisma.productionResponse.findMany({
       where: {
+        partId: partId,
         isDeleted: false,
-        cycleTimeStart: { gte: start },
-        cycleTimeEnd: { lte: end },
       },
       include: {
-        process: true,
-        PartNumber: true,
+        process: { select: { processName: true } },
+        PartNumber: { select: { cycleTime: true } },
       },
     });
+    console.log("productionResponsesproductionResponses", productionResponses);
 
     const manualData = productionResponses.map((resp) => {
       let manualCT = null;
-
       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
         manualCT =
           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
           1000 /
-          60;
+          60; // minutes
       }
-
       return {
         processId: resp.processId,
         processName: resp.process?.processName,
@@ -7273,6 +7710,7 @@ const cycleTimeComparisionData = async (req, res) => {
       };
     });
 
+    // Group by processId
     const grouped = {};
     manualData.forEach((item) => {
       if (!grouped[item.processId]) {
@@ -7282,11 +7720,13 @@ const cycleTimeComparisionData = async (req, res) => {
           idealCT: item.idealCT,
         };
       }
-      if (item.manualCT !== null)
+      if (item.manualCT !== null) {
         grouped[item.processId].manualCTs.push(item.manualCT);
+      }
     });
 
-    const result = Object.values(grouped).map((proc) => ({
+    // Average manual CT per process
+    const processWiseCT = Object.values(grouped).map((proc) => ({
       processName: proc.processName,
       manualCT:
         proc.manualCTs.length > 0
@@ -7295,9 +7735,81 @@ const cycleTimeComparisionData = async (req, res) => {
       idealCT: proc.idealCT || 0,
     }));
 
+    // =============================
+    // 2️⃣ Step-wise average time for selected part
+    // =============================
+    const productionResponseIds = productionResponses.map((p) => p.id);
+
+    const stepTrackings = await prisma.productionStepTracking.findMany({
+      where: {
+        productionResponseId: { in: productionResponseIds },
+        stepStartTime: { not: null },
+        stepEndTime: { not: null },
+      },
+      include: {
+        workInstructionStep: {
+          select: {
+            id: true,
+            stepNumber: true,
+            title: true,
+          },
+        },
+      },
+    });
+    console.log("stepTrackingsstepTrackings", stepTrackings);
+    const stepDurations = stepTrackings.map((st) => ({
+      stepId: st.workInstructionStep?.id,
+      stepNumber: st.workInstructionStep?.stepNumber,
+      stepTitle: st.workInstructionStep?.title,
+      duration:
+        (new Date(st.stepEndTime).getTime() -
+          new Date(st.stepStartTime).getTime()) /
+        1000 /
+        60, // duration in minutes
+    }));
+
+    const stepGrouped = {};
+    stepDurations.forEach((sd) => {
+      if (!stepGrouped[sd.stepId]) {
+        stepGrouped[sd.stepId] = {
+          stepTitle: sd.stepTitle,
+          stepNumber: sd.stepNumber,
+          durations: [],
+        };
+      }
+      stepGrouped[sd.stepId].durations.push(sd.duration);
+    });
+
+    const stepAverages = Object.keys(stepGrouped).map((stepId) => {
+      const durations = stepGrouped[stepId].durations;
+
+      const avgDuration =
+        durations.reduce((a, b) => a + b, 0) / durations.length;
+
+      return {
+        stepId,
+        stepTitle: stepGrouped[stepId].stepTitle,
+        stepNumber: stepGrouped[stepId].stepNumber,
+        averageDuration: avgDuration,
+        count: durations.length,
+      };
+    });
+
+    const allDurations = stepDurations.map((s) => s.duration);
+    const overallAverage =
+      allDurations.length > 0
+        ? allDurations.reduce((a, b) => a + b, 0) / allDurations.length
+        : 0;
+
     res.json({
-      message: "Cycle Time Comparison retrieved successfully!",
-      data: result,
+      message: "Cycle Time Comparison & Step Averages retrieved successfully!",
+      data: {
+        processWiseCT,
+        stepWiseCT: {
+          stepAverages,
+          overallAverage,
+        },
+      },
     });
   } catch (error) {
     console.error("Error fetching cycle time comparison:", error);
@@ -7307,6 +7819,7 @@ const cycleTimeComparisionData = async (req, res) => {
     });
   }
 };
+
 // ordersController.js
 
 // import { PrismaClient } from '@prisma/client';
@@ -8843,7 +9356,17 @@ const getFixedCostGraph = async (req, res) => {
       .json({ success: false, message: "Error fetching graph data" });
   }
 };
-
+const getParts = async (req, res) => {
+  try {
+    const parts = await prisma.partNumber.findMany({
+      where: { isDeleted: false },
+      select: { part_id: true, partDescription: true },
+    });
+    res.json(parts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -8944,4 +9467,5 @@ module.exports = {
   fiexedDataCalculation,
   fixedDataList,
   getFixedCostGraph,
+  getParts,
 };

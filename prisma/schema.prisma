@@ -371,19 +371,20 @@ model PartNumber {
 
   usedAsPart StockOrderSchedule[] @relation(name: "PartRelation")
 
-  ProductionResponse   ProductionResponse[]
-  WorkInstruction      WorkInstruction[]
-  WorkInstructionApply WorkInstructionApply[]
-  WorkInstructionSteps WorkInstructionSteps[]
-  processLogin         processLogin[]
-  supplier_orders      supplier_orders[]
-  ProductTree          ProductTree[]
-  StockOrderSchedule   StockOrderSchedule[]
-  ProcessOrderTable    ProcessOrderTable[]
-  scapEntries          scapEntries[]
-  supplier_inventory   supplier_inventory?
-  CustomOrder          CustomOrder[]
-  ordersAsProduct      CustomOrder[]          @relation("ProductForOrder")
+  ProductionResponse     ProductionResponse[]
+  WorkInstruction        WorkInstruction[]
+  WorkInstructionApply   WorkInstructionApply[]
+  WorkInstructionSteps   WorkInstructionSteps[]
+  processLogin           processLogin[]
+  supplier_orders        supplier_orders[]
+  ProductTree            ProductTree[]
+  StockOrderSchedule     StockOrderSchedule[]
+  ProcessOrderTable      ProcessOrderTable[]
+  scapEntries            scapEntries[]
+  supplier_inventory     supplier_inventory?
+  CustomOrder            CustomOrder[]
+  ordersAsProduct        CustomOrder[]            @relation("ProductForOrder")
+  ProductionStepTracking ProductionStepTracking[]
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -642,11 +643,11 @@ model ProductionResponse {
 }
 
 model ProductionStepTracking {
-  id            String    @id @default(uuid())
-  status        String    @default("pending")
-  stepStartTime DateTime?
-  stepEndTime   DateTime?
-
+  id                   String             @id @default(uuid())
+  status               String             @default("pending")
+  stepStartTime        DateTime?
+  stepEndTime          DateTime?
+  productId            String?            @db.Char(36)
   productionResponseId String
   productionResponse   ProductionResponse @relation(fields: [productionResponseId], references: [id])
 
@@ -654,6 +655,7 @@ model ProductionStepTracking {
   workInstructionStep   WorkInstructionSteps @relation(fields: [workInstructionStepId], references: [id])
   scapEntries           scapEntries?         @relation(fields: [scapEntriesId], references: [id])
   scapEntriesId         String?              @db.Char(36)
+  PartNumber            PartNumber?          @relation(fields: [productId], references: [part_id])
 
   @@map("production_step_tracking")
 }

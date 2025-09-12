@@ -17,6 +17,8 @@ const storage = multer.diskStorage({
       cb(null, "./public/uploads/partImages");
     } else if (file.fieldname === "PartEnquiryImg") {
       cb(null, "./public/uploads/PartEnquiryImg");
+    } else if (file.fieldname === "ImportFile") {
+      cb(null, "./public/uploads/ImportFile");
     } else {
       cb(new Error("Invalid file fieldname"), false);
     }
@@ -31,6 +33,13 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
+  if (
+    file.fieldname === "ImportFile" &&
+    (file.mimetype === "text/csv" || path.extname(file.originalname) === ".csv")
+  ) {
+    return cb(null, true);
+  }
+
   const allowedImageTypes = [
     "image/jpeg",
     "image/jpg",
