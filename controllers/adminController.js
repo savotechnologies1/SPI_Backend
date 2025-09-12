@@ -9266,6 +9266,97 @@ const fixedDataList = async (req, res) => {
   }
 };
 
+// const getFixedCostGraph = async (req, res) => {
+//   try {
+//     const currentYear = new Date().getFullYear();
+//     const { year } = req.query;
+
+//     const filterYear = year ? parseInt(year) : currentYear;
+
+//     // 1️⃣ Fetch fixed costs
+//     const costs = await prisma.fixedCost.findMany({
+//       where: {
+//         createdAt: {
+//           gte: new Date(`${filterYear}-01-01`),
+//           lte: new Date(`${filterYear}-12-31`),
+//         },
+//       },
+//       select: {
+//         expenseCost: true,
+//         createdAt: true,
+//       },
+//     });
+
+//     // 2️⃣ Fetch stock and custom orders
+//     const stockOrders = await prisma.stockOrder.findMany({
+//       where: {
+//         createdAt: {
+//           gte: new Date(`${filterYear}-01-01`),
+//           lte: new Date(`${filterYear}-12-31`),
+//         },
+//       },
+//       select: {
+//         cost: true,
+//         productQuantity: true,
+//         createdAt: true,
+//       },
+//     });
+
+//     const customOrders = await prisma.customOrder.findMany({
+//       where: {
+//         createdAt: {
+//           gte: new Date(`${filterYear}-01-01`),
+//           lte: new Date(`${filterYear}-12-31`),
+//         },
+//       },
+//       select: {
+//         cost: true,
+//         productQuantity: true,
+//         createdAt: true,
+//       },
+//     });
+
+//     // 3️⃣ Initialize arrays for 12 months
+//     const monthlyFixedCost = Array(12).fill(0);
+//     const monthlyStockRevenue = Array(12).fill(0);
+//     const monthlyCustomRevenue = Array(12).fill(0);
+
+//     // 4️⃣ Fill monthly fixed cost
+//     costs.forEach((c) => {
+//       const month = c.createdAt.getMonth();
+//       monthlyFixedCost[month] += c.expenseCost;
+//     });
+
+//     // 5️⃣ Fill monthly stock revenue
+//     stockOrders.forEach((o) => {
+//       const month = o.createdAt.getMonth();
+//       monthlyStockRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+//     });
+
+//     // 6️⃣ Fill monthly custom revenue
+//     customOrders.forEach((o) => {
+//       const month = o.createdAt.getMonth();
+//       monthlyCustomRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+//     });
+
+//     // 7️⃣ Prepare chart data
+//     const chartData = monthlyFixedCost.map((totalCost, i) => ({
+//       month: new Date(0, i).toLocaleString("default", { month: "short" }),
+//       totalCost,
+//       stockRevenue: monthlyStockRevenue[i],
+//       customRevenue: monthlyCustomRevenue[i],
+//       totalRevenue: monthlyStockRevenue[i] + monthlyCustomRevenue[i],
+//     }));
+
+//     res.status(200).json({ success: true, data: chartData });
+//   } catch (error) {
+//     console.error(error);
+//     res
+//       .status(500)
+//       .json({ success: false, message: "Error fetching graph data" });
+//   }
+// };
+
 const getFixedCostGraph = async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
@@ -9280,6 +9371,7 @@ const getFixedCostGraph = async (req, res) => {
           gte: new Date(`${filterYear}-01-01`),
           lte: new Date(`${filterYear}-12-31`),
         },
+        isDeleted: false,
       },
       select: {
         expenseCost: true,
@@ -9294,6 +9386,7 @@ const getFixedCostGraph = async (req, res) => {
           gte: new Date(`${filterYear}-01-01`),
           lte: new Date(`${filterYear}-12-31`),
         },
+        isDeleted: false,
       },
       select: {
         cost: true,
@@ -9308,6 +9401,7 @@ const getFixedCostGraph = async (req, res) => {
           gte: new Date(`${filterYear}-01-01`),
           lte: new Date(`${filterYear}-12-31`),
         },
+        isDeleted: false,
       },
       select: {
         cost: true,
@@ -9321,22 +9415,31 @@ const getFixedCostGraph = async (req, res) => {
     const monthlyStockRevenue = Array(12).fill(0);
     const monthlyCustomRevenue = Array(12).fill(0);
 
-    // 4️⃣ Fill monthly fixed cost
+    // Totals
+    let totalFixedCost = 0;
+    let totalRevenue = 0;
+
+    // 4️⃣ Fill monthly fixed cost + yearly total
     costs.forEach((c) => {
       const month = c.createdAt.getMonth();
       monthlyFixedCost[month] += c.expenseCost;
+      totalFixedCost += c.expenseCost;
     });
 
-    // 5️⃣ Fill monthly stock revenue
+    // 5️⃣ Fill monthly stock revenue + yearly total
     stockOrders.forEach((o) => {
+      const revenue = parseFloat(o.cost) * o.productQuantity;
       const month = o.createdAt.getMonth();
-      monthlyStockRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+      monthlyStockRevenue[month] += revenue;
+      totalRevenue += revenue;
     });
 
-    // 6️⃣ Fill monthly custom revenue
+    // 6️⃣ Fill monthly custom revenue + yearly total
     customOrders.forEach((o) => {
+      const revenue = parseFloat(o.cost) * o.productQuantity;
       const month = o.createdAt.getMonth();
-      monthlyCustomRevenue[month] += parseFloat(o.cost) * o.productQuantity;
+      monthlyCustomRevenue[month] += revenue;
+      totalRevenue += revenue;
     });
 
     // 7️⃣ Prepare chart data
@@ -9348,7 +9451,15 @@ const getFixedCostGraph = async (req, res) => {
       totalRevenue: monthlyStockRevenue[i] + monthlyCustomRevenue[i],
     }));
 
-    res.status(200).json({ success: true, data: chartData });
+    res.status(200).json({
+      success: true,
+      data: chartData,
+      totals: {
+        year: filterYear,
+        totalFixedCost,
+        totalRevenue,
+      },
+    });
   } catch (error) {
     console.error(error);
     res
@@ -9356,6 +9467,7 @@ const getFixedCostGraph = async (req, res) => {
       .json({ success: false, message: "Error fetching graph data" });
   }
 };
+
 const getParts = async (req, res) => {
   try {
     const parts = await prisma.partNumber.findMany({
