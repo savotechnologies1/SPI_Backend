@@ -17,21 +17,34 @@ const importProcess = async (req, res) => {
       (file) => file.fieldname === "ImportFile"
     );
     const filePath = getCsvFile[0].path;
-    const csvData = []; // Renamed from results to csvData
+    const csvData = [];
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
 
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "process"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
+          console.log("rowrowrow", row);
+
           return new Promise(async (resolve, reject) => {
             try {
               const trimmedProcessName = row.processName;
@@ -141,7 +154,20 @@ const importParts = async (req, res) => {
         csvData.push(data); // Using csvData instead of results
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "part"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
           // Using csvData instead of results
 
@@ -206,8 +232,8 @@ const importParts = async (req, res) => {
                     processId: row.processId,
                     processDesc: row.processDesc,
                     type: row.type,
-                    submittedBy: req.user.id,
-                    createdBy: req.user.id,
+                    submittedBy: req?.user?.id,
+                    createdBy: req?.user?.id,
                   },
                 });
                 resolve({ status: "fulfilled", index });
@@ -284,7 +310,20 @@ const importProductTree = async (req, res) => {
         csvData.push(data); // Using csvData instead of results
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "product"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
           // Using csvData instead of results
 
@@ -413,7 +452,20 @@ const importEmp = async (req, res) => {
         csvData.push(data); // Using csvData instead of results
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "employee"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
           // Using csvData instead of results
           return new Promise(async (resolve, reject) => {
@@ -532,7 +584,20 @@ const importSupp = async (req, res) => {
         csvData.push(data); // Using csvData instead of results
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "supplier"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
           // Using csvData instead of results
           return new Promise(async (resolve, reject) => {
@@ -643,7 +708,20 @@ const importCust = async (req, res) => {
         csvData.push(data); // Using csvData instead of results
       })
       .on("end", async () => {
-        // Create an array of promises for all database operations
+        if (
+          !csvData[0]?.fileName ||
+          csvData[0]?.fileName.toLowerCase() !== "customer"
+        ) {
+          console.log("csvDatacsvData", csvData);
+
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid file type. Expected 'process', but got '${
+              csvData[0]?.fileName || "undefined"
+            }'`,
+          });
+        }
         const promises = csvData.map((row, index) => {
           // Using csvData instead of results
           return new Promise(async (resolve, reject) => {

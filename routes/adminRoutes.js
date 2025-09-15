@@ -101,6 +101,8 @@ const {
   fixedDataList,
   getFixedCostGraph,
   getParts,
+  revenueApi,
+  scheudleInventory,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -474,11 +476,13 @@ router.post("/fixed-data-calulation", fiexedDataCalculation);
 router.get("/fixed-data", fixedDataList);
 router.get("/fixed-data-graph", getFixedCostGraph);
 router.get("/get-parts", getParts);
-router.post("/process/import", adminValidateToken, importProcess);
+router.post("/process/import", importProcess);
 router.post("/parts/import", adminValidateToken, importParts);
 router.post("/product-tree/import", adminValidateToken, importProductTree);
 router.post("/emp/import", adminValidateToken, importEmp);
 router.post("/cust/import", adminValidateToken, importCust);
 router.post("/supp/import", adminValidateToken, importSupp);
+router.get("/revenue-api", revenueApi);
+router.get("/schedule-inventory", scheudleInventory);
 
 module.exports = router;

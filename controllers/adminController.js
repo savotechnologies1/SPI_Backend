@@ -9479,6 +9479,324 @@ const getParts = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+const revenueApi = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year);
+
+    // --- Stock Orders ---
+    const stockOrders = await prisma.stockOrder.findMany({
+      where: { isDeleted: false },
+      include: {
+        part: {
+          select: {
+            cost: true,
+            partNumber: true,
+            cycleTime: true,
+            process: { select: { ratePerHour: true } },
+          },
+        },
+        PartNumber_StockOrder_productNumberToPartNumber: {
+          select: { cost: true, partNumber: true },
+        },
+      },
+    });
+
+    // --- Custom Orders ---
+    const customOrders = await prisma.customOrder.findMany({
+      where: { isDeleted: false },
+      include: {
+        part: {
+          select: {
+            cost: true,
+            partNumber: true,
+            cycleTime: true,
+            process: { select: { ratePerHour: true } },
+          },
+        },
+        product: { select: { cost: true, partNumber: true } },
+      },
+    });
+
+    const getFixedCost = await prisma.fixedCost.findMany({
+      select: {
+        expenseCost: true,
+      },
+    });
+
+    console.log("getFixedCostgetFixedCostgetFixedCost", getFixedCost);
+    const totalFixedCost = getFixedCost.reduce(
+      (sum, item) => sum + parseFloat(item.expenseCost || 0),
+      0
+    );
+
+    const totalFullfilled = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        status: "completed",
+      },
+      select: {
+        part: {
+          select: {
+            partNumber: true,
+            cost: true,
+          },
+        },
+      },
+    });
+
+    console.log("totalFullfilledtotalFullfilled", totalFullfilled);
+
+    const monthlyRevenue = {};
+    const monthlyCOGS = {};
+
+    let totalStockRevenue = 0;
+    let totalCustomRevenue = 0;
+    let totalCOGS = 0;
+    let scrapCost = 0;
+    let supplierReturn = 0;
+
+    // --- Process Stock Orders ---
+    stockOrders.forEach((order) => {
+      const date = new Date(order.orderDate || order.shipDate);
+      if (year && date.getFullYear() !== year) return;
+
+      const monthKey =
+        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
+      // Revenue
+      const productCost = parseFloat(order.cost || 0);
+      const productRevenue = productCost * (order.productQuantity || 0);
+
+      let partCostTotal = 0;
+      if (order.part?.cost) {
+        partCostTotal +=
+          parseFloat(order.part.cost) * (order.productQuantity || 0);
+      }
+      if (order.PartNumber_StockOrder_productNumberToPartNumber?.cost) {
+        partCostTotal +=
+          parseFloat(
+            order.PartNumber_StockOrder_productNumberToPartNumber.cost
+          ) * (order.productQuantity || 0);
+      }
+
+      const totalRevenueForOrder = productRevenue + partCostTotal;
+      monthlyRevenue[monthKey] =
+        (monthlyRevenue[monthKey] || 0) + totalRevenueForOrder;
+      totalStockRevenue += totalRevenueForOrder;
+
+      // --- COGS ---
+      const partCost = order.part?.cost || 0;
+      const cycleTimeHours = parseCycleTime(order.part?.cycleTime);
+      const ratePerHour = order.part?.process?.ratePerHour || 0;
+      const orderCOGS =
+        (partCost + cycleTimeHours * ratePerHour) *
+        (order.productQuantity || 1);
+
+      monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+      totalCOGS += orderCOGS;
+
+      // Scrap + Supplier Return
+      scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
+      supplierReturn += order.supplierReturnQuantity
+        ? partCost * order.supplierReturnQuantity
+        : 0;
+    });
+
+    // --- Process Custom Orders ---
+    customOrders.forEach((order) => {
+      const date = new Date(order.orderDate || order.shipDate);
+      if (year && date.getFullYear() !== year) return;
+
+      const monthKey =
+        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
+      // Revenue
+      const baseCost = parseFloat(order.totalCost || 0);
+
+      let extraPartCost = 0;
+      if (order.part?.cost) {
+        extraPartCost +=
+          parseFloat(order.part.cost) * (order.productQuantity || 0);
+      }
+      if (order.product?.cost) {
+        extraPartCost +=
+          parseFloat(order.product.cost) * (order.productQuantity || 0);
+      }
+
+      const totalRevenueForOrder = baseCost + extraPartCost;
+      monthlyRevenue[monthKey] =
+        (monthlyRevenue[monthKey] || 0) + totalRevenueForOrder;
+      totalCustomRevenue += totalRevenueForOrder;
+
+      // --- COGS ---
+      const partCost = order.part?.cost || 0;
+      const cycleTimeHours = parseCycleTime(order.part?.cycleTime);
+      const ratePerHour = order.part?.process?.ratePerHour || 0;
+      const orderCOGS =
+        (partCost + cycleTimeHours * ratePerHour) *
+        (order.productQuantity || 1);
+
+      monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+      totalCOGS += orderCOGS;
+
+      // Scrap + Supplier Return
+      scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
+      supplierReturn += order.supplierReturnQuantity
+        ? partCost * order.supplierReturnQuantity
+        : 0;
+    });
+
+    const fulfilledOrders = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        status: "completed",
+      },
+      include: {
+        part: {
+          select: { partNumber: true, cost: true },
+        },
+        StockOrder: { select: { cost: true } }, // agar product cost bhi chahiye
+        CustomOrder: { select: { totalCost: true } }, // agar custom order h
+      },
+    });
+
+    let fulfilledRevenue = 0;
+
+    fulfilledOrders.forEach((order) => {
+      const partCost = parseFloat(order.part?.cost || 0);
+      const productCost = parseFloat(
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+      );
+      const qty = order.completedQuantity || 0;
+
+      fulfilledRevenue += (partCost + productCost) * qty;
+    });
+    const unfulfilledOrders = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        NOT: { status: "completed" }, // yani jo complete nahi hue
+      },
+      include: {
+        part: {
+          select: { partNumber: true, cost: true },
+        },
+        StockOrder: { select: { cost: true } },
+        CustomOrder: { select: { totalCost: true } },
+      },
+    });
+
+    let unfulfilledRevenue = 0;
+
+    unfulfilledOrders.forEach((order) => {
+      const partCost = parseFloat(order.part?.cost || 0);
+      const productCost = parseFloat(
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+      );
+      const qty = order.remainingQty || order.quantity || 0; // remaining/pending qty
+
+      unfulfilledRevenue += (partCost + productCost) * qty;
+    });
+    const cashflowNeeded =
+      totalFixedCost + totalCOGS - fulfilledRevenue + unfulfilledRevenue;
+
+    const dailyCashFlow = {};
+
+    // Example: iterate over stockOrders and customOrders to fill daily data
+    [...stockOrders, ...customOrders].forEach((order) => {
+      const date = new Date(order.orderDate || order.shipDate);
+      const dateKey = date.toISOString().slice(0, 10); // YYYY-MM-DD
+
+      const partCost = parseFloat(order.part?.cost || 0);
+      const productCost = parseFloat(order.cost || order.totalCost || 0) || 0;
+      const qty = order.productQuantity || 1;
+
+      const cashNeededForOrder =
+        totalFixedCost + (partCost + productCost) * qty;
+
+      dailyCashFlow[dateKey] =
+        (dailyCashFlow[dateKey] || 0) + cashNeededForOrder;
+    });
+
+    res.json({
+      monthlyRevenue,
+      monthlyCOGS,
+      stockOrderRevenue: totalStockRevenue,
+      customOrderRevenue: totalCustomRevenue,
+      totalRevenue: totalStockRevenue + totalCustomRevenue,
+      totalCOGS,
+      scrapCost,
+      supplierReturn,
+      grossProfit:
+        totalStockRevenue +
+        totalCustomRevenue -
+        totalCOGS -
+        scrapCost -
+        supplierReturn,
+      totalFixedCost,
+      fulfilledRevenue,
+      unfulfilledRevenue,
+      cashflowNeeded,
+      dailyCashFlow, // ✅ New day-wise schedule
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Something went wrong while fetching revenue & cogs.",
+      error: error.message,
+    });
+  }
+};
+
+const scheudleInventory = async (req, res) => {
+  try {
+    const parts = await prisma.partNumber.findMany({
+      where: { isDeleted: false },
+      select: {
+        partNumber: true,
+        partDescription: true,
+        availStock: true,
+        minStock: true,
+        cost: true,
+      },
+    });
+
+    // Aggregate by partNumber
+    const inventoryMap = {};
+
+    parts.forEach((part) => {
+      if (!inventoryMap[part.partNumber]) {
+        inventoryMap[part.partNumber] = {
+          partNumber: part.partNumber,
+          partDescription: part.partDescription,
+          qtyAvailable: part.availStock ?? 0,
+          safetyStock: part.minStock ?? 0,
+          totalCost: (part.availStock ?? 0) * part.cost,
+          unitCost: part.cost.toFixed(2),
+        };
+      } else {
+        inventoryMap[part.partNumber].qtyAvailable += part.availStock ?? 0;
+        inventoryMap[part.partNumber].totalCost +=
+          (part.availStock ?? 0) * part.cost;
+      }
+    });
+
+    const inventoryData = Object.values(inventoryMap).map((item) => ({
+      ...item,
+      totalCost: item.totalCost.toFixed(2),
+    }));
+
+    res.json({
+      message: "Inventory fetched successfully",
+      data: inventoryData,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong while fetching inventory.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -9580,4 +9898,6 @@ module.exports = {
   fixedDataList,
   getFixedCostGraph,
   getParts,
+  revenueApi,
+  scheudleInventory,
 };
