@@ -27860,9 +27860,9 @@ const stationLogin = async (req, res) => {
     }
 
     // --- FIX 2: Dynamically build the data for the create operation ---
+    // Dynamically build the data for the create operation
     const createData = {
       process: { connect: { id: processId } },
-      PartNumber: { connect: { part_id: partId } },
       employeeInfo: { connect: { id: stationUserId } },
       type,
       instructionId: nextJob?.part?.WorkInstruction?.[0]?.id || null,
@@ -27873,16 +27873,16 @@ const stationLogin = async (req, res) => {
       scheduleQuantity: nextJob.scheduleQuantity,
     };
 
-    // Conditionally connect to the correct order table based on the job's type
+    // ✅ Only connect PartNumber if partId exists
+    if (partId) {
+      createData.PartNumber = { connect: { part_id: partId } };
+    }
+
+    // Connect to correct order
     if (nextJob.order_type === "StockOrder") {
       createData.StockOrder = { connect: { id: nextJob.order_id } };
     } else if (nextJob.order_type === "CustomOrder") {
       createData.CustomOrder = { connect: { id: nextJob.order_id } };
-    } else {
-      // Handle cases where the order_type is unknown or null
-      return res.status(400).json({
-        message: `Unsupported order type "${nextJob.order_type}" found for this job.`,
-      });
     }
 
     // Now, create the production response with the correctly built data
@@ -29166,7 +29166,7 @@ const selectScheduleProcess = async (req, res) => {
           status: { in: ["new", "progress"] },
           type: "product",
           processId: processId,
-          orderId: orderId,
+          order_id: orderId,
         },
         include: {
           StockOrder: true,
@@ -29207,46 +29207,28 @@ const selectScheduleProcess = async (req, res) => {
     );
 
     const processMap = new Map();
+    // 🔹 Determine next jobs for processes
+    console.log("schedule", activeSchedules);
 
     for (const schedule of activeSchedules) {
       if (schedule.type === "part") {
         const process = schedule.part?.process;
         if (process && process.id) {
-          if (
-            !processMap.has(process.id) ||
-            processMap.get(process.id).nextJobType === "part"
-          ) {
-            processMap.set(process.id, {
-              id: process.id,
-              name: process.processName,
-              nextJobType: "part",
-            });
-          }
+          processMap.set(process.id, {
+            id: process.id,
+            name: process.processName,
+            nextJobType: "part",
+          });
         }
-      } else if (schedule.type === "product" && schedule.orderId) {
-        const partsForOrder = allSchedules.filter(
-          (s) => s.orderId === schedule.orderId && s.type === "part"
-        );
-
-        const allPartsCompleted =
-          partsForOrder.length > 0 &&
-          partsForOrder.every((p) => p.status === "completed");
-
-        if (allPartsCompleted) {
-          const productProcess = schedule.process;
-          if (productProcess && productProcess.id) {
-            if (
-              !processMap.has(productProcess.id) ||
-              processMap.get(productProcess.id).nextJobType !== "part"
-            ) {
-              processMap.set(productProcess.id, {
-                id: productProcess.id,
-                name: productProcess.processName,
-                nextJobType: "product",
-                orderId: schedule.orderId,
-              });
-            }
-          }
+      } else if (schedule.type === "product" && schedule.order_id) {
+        const productProcess = schedule.process;
+        if (productProcess && productProcess.id) {
+          processMap.set(productProcess.id, {
+            id: productProcess.id,
+            name: productProcess.processName,
+            nextJobType: "product",
+            orderId: schedule.order_id,
+          });
         }
       }
     }
@@ -30314,7 +30296,7 @@ const scrapScheduleOrder = async (req, res) => {
         partId: partId,
         returnQuantity: 1,
         scrapStatus: true,
-        customersId,
+        // customersId,
       },
     });
     // Check if the schedule is now complete after scrapping
@@ -31389,36 +31371,149 @@ const changeStationNotification = async (req, res) => {
 //   }
 // };
 
+// const qualityPerformance = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query; // frontend se aayega
+
+//     let whereCondition = { isDeleted: false };
+
+//     if (startDate && endDate) {
+//       whereCondition.createdAt = {
+//         gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+//         lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     } else if (startDate) {
+//       whereCondition.createdAt = {
+//         gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+//       };
+//     } else if (endDate) {
+//       whereCondition.createdAt = {
+//         lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     }
+
+//     const data = await prisma.stockOrderSchedule.findMany({
+//       where: whereCondition,
+//       select: {
+//         scrapQuantity: true,
+//         scheduleQuantity: true,
+//         createdAt: true,
+//         part: {
+//           select: {
+//             part_id: true,
+//             partNumber: true,
+//             partDescription: true,
+//             process: {
+//               select: {
+//                 processName: true,
+//               },
+//             },
+//           },
+//         },
+//       },
+//       orderBy: {
+//         createdAt: "desc",
+//       },
+//     });
+
+//     return res.status(200).json({
+//       message: "Quality performance data retrieved successfully!",
+//       data,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const qualityPerformance = async (req, res) => {
   try {
-    const data = await prisma.stockOrderSchedule.findMany({
-      where: {
-        isDeleted: false,
-      },
+    const { startDate, endDate } = req.query;
+
+    let whereCondition = { isDeleted: false };
+
+    if (startDate && endDate) {
+      whereCondition.createdAt = {
+        gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+        lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+      };
+    } else if (startDate) {
+      whereCondition.createdAt = {
+        gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+      };
+    } else if (endDate) {
+      whereCondition.createdAt = {
+        lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+      };
+    }
+
+    // stockOrderSchedule data
+    const rawData = await prisma.stockOrderSchedule.findMany({
+      where: whereCondition,
       select: {
         scrapQuantity: true,
         scheduleQuantity: true,
+        createdAt: true,
         part: {
           select: {
             part_id: true,
             partNumber: true,
             partDescription: true,
             process: {
-              select: {
-                processName: true,
-              },
+              select: { processName: true },
             },
           },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
+
+    // ✅ Merge same parts
+    const mergedMap = new Map();
+
+    rawData.forEach((item) => {
+      if (!item.part) return; // safety check
+
+      const key = item.part.part_id;
+
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, {
+          part: item.part,
+          scrapQuantity: item.scrapQuantity || 0,
+          scheduleQuantity: item.scheduleQuantity || 0,
+          latestDate: item.createdAt,
+        });
+      } else {
+        const existing = mergedMap.get(key);
+        existing.scrapQuantity += item.scrapQuantity || 0;
+        existing.scheduleQuantity += item.scheduleQuantity || 0;
+        if (item.createdAt > existing.latestDate) {
+          existing.latestDate = item.createdAt;
+        }
+      }
+    });
+
+    const data = Array.from(mergedMap.values());
+
+    // total scrap qty
+    const totalScrapQty = data.reduce(
+      (acc, item) => acc + (item.scrapQuantity || 0),
+      0
+    );
+
     return res.status(200).json({
-      message: "Quality performance data retrived successfully!",
-      data: data,
+      message: "Quality performance data retrieved successfully!",
+      totalScrapQty,
+      data,
     });
   } catch (error) {
-    return res.status(500).send({
+    console.error(error);
+    return res.status(500).json({
       message: "Something went wrong. Please try again later.",
+      error: error.message,
     });
   }
 };
@@ -31792,7 +31887,7 @@ const costingApi = async (req, res) => {
           select: {
             partNumber: true,
             cost: true,
-            cycleTime: true,
+            cycleTime: true, // minutes me store hai
             process: { select: { ratePerHour: true } },
           },
         },
@@ -31803,27 +31898,38 @@ const costingApi = async (req, res) => {
     let scrapCost = 0;
     let supplierReturn = 0;
     let totalYearCost = 0;
+
     completedStock.forEach((order) => {
       const date = new Date(order.completed_date || order.delivery_date);
       if (year && date.getFullYear() !== year) return;
+
       const monthKey =
         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
       const partCost = order.part.cost || 0;
-      const cycleTimeHours = parseCycleTime(order.part.cycleTime);
+
+      // ✅ cycleTime minutes ko hours me convert
+      const cycleTimeMinutes = order.part.cycleTime || 0;
+      const cycleTimeHours = cycleTimeMinutes / 60;
+
       const ratePerHour = order.part.process?.ratePerHour || 0;
+
+      // ✅ Total COGS Formula
       const totalCOGS =
         (partCost + cycleTimeHours * ratePerHour) *
-        (order.completedQuantity || 1);
+        (order.completedQuantity || 0);
+
       if (!cogsData[monthKey]) cogsData[monthKey] = 0;
       cogsData[monthKey] += totalCOGS;
 
       totalYearCost += totalCOGS;
 
-      scrapCost += order.scrapQuantity
-        ? order.part.cost * order.scrapQuantity
-        : 0;
+      // ✅ Scrap Cost
+      scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
+
+      // ✅ Supplier Return Cost
       supplierReturn += order.supplierReturnQuantity
-        ? order.part.cost * order.supplierReturnQuantity
+        ? partCost * order.supplierReturnQuantity
         : 0;
     });
 
@@ -31845,6 +31951,7 @@ const costingApi = async (req, res) => {
     });
   }
 };
+
 const fixedCost = async (req, res) => {
   try {
     const year = parseInt(req.query.year);
@@ -32121,11 +32228,17 @@ const getInventory = async (req, res) => {
 const customerRelation = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
+    console.log("req.queryreq.query", req.query);
+
     const today = new Date().toISOString().split("T")[0];
     if (!startDate) startDate = today;
     if (!endDate) endDate = today;
+
     const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
     const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
@@ -32142,6 +32255,7 @@ const customerRelation = async (req, res) => {
         },
       },
     });
+    console.log("stockOrderDatastockOrderData", stockOrderData);
 
     const scheduleStockOrder = await prisma.stockOrderSchedule.findMany({
       where: {

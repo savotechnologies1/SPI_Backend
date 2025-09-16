@@ -386,6 +386,7 @@ model PartNumber {
   ordersAsProduct        CustomOrder[]            @relation("ProductForOrder")
   ProductionStepTracking ProductionStepTracking[]
 
+  @@unique([partNumber, isDeleted])
   @@index([processId], map: "PartNumber_processId_fkey")
 }
 
