@@ -8430,8 +8430,8 @@ const dashBoardData = async (req, res) => {
           total: 0,
         };
       }
-      supplierMap[supplierName].products.push(item.part.partNumber);
-      supplierMap[supplierName].total += Number(item.part.cost);
+      supplierMap[supplierName].products.push(item.part?.partNumber);
+      supplierMap[supplierName].total += Number(item.part?.cost);
     });
 
     let suppliers = Object.values(supplierMap)
@@ -10113,4 +10113,3 @@ module.exports = {
   revenueApi,
   scheudleInventory,
 };
-
