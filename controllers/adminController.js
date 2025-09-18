@@ -5360,6 +5360,16 @@ const updateSupplierOrderStatus = async (req, res) => {
           },
         },
       });
+      await prisma.supplier_inventory.update({
+        where: {
+          part_id: part_id,
+        },
+        data: {
+          availStock: {
+            increment: quantity,
+          },
+        },
+      });
     }
     return res.status(200).json({
       message: "Order status updated successfully",
@@ -10008,6 +10018,56 @@ const scheudleInventory = async (req, res) => {
     });
   }
 };
+const getLabourForcast = async (req, res) => {
+  try {
+    const getInventory = await prisma.supplier_inventory.findMany({
+      where: { isDeleted: false },
+    });
+
+    const orderDetail = await prisma.stockOrderSchedule.findMany({
+      where: { isDeleted: false },
+      include: {
+        part: { select: { part_id: true, partNumber: true, availStock: true } },
+        process: { select: { processName: true, id: true, cycleTime: true } },
+      },
+    });
+    console.log("getInventorygetInventory", getInventory);
+
+    // const getInvData = getInventory.map((item)=>item.availStock)
+    // Group data by part_id and process
+    const forecastData = orderDetail.map((order) => {
+      const matchingInventory = getInventory.find(
+        (inv) => inv.part_id === order.part_id
+      );
+
+      const available = order.part.availStock || 0;
+      const need = order.scheduleQuantity || 0;
+      const prodNeed = need - available;
+      const cycleTime = parseFloat(order.process.cycleTime || "0"); // minutes
+
+      // Convert to hours:
+      const processTime = cycleTime / 60;
+      console.log("processTimeprocessTime", processTime);
+
+      return {
+        product_name: order.part.partNumber,
+        sub_name: order.process.processName,
+        Available: available,
+        Need: need,
+        Forc: null,
+        cycleTime: processTime,
+        Hr_Need: null,
+      };
+    });
+
+    res.status(200).json({ data: forecastData });
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong while fetching forecast data.",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   login,
@@ -10112,4 +10172,5 @@ module.exports = {
   getParts,
   revenueApi,
   scheudleInventory,
+  getLabourForcast,
 };

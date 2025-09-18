@@ -103,6 +103,7 @@ const {
   getParts,
   revenueApi,
   scheudleInventory,
+  getLabourForcast,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -484,5 +485,6 @@ router.post("/cust/import", adminValidateToken, importCust);
 router.post("/supp/import", adminValidateToken, importSupp);
 router.get("/revenue-api", revenueApi);
 router.get("/schedule-inventory", scheudleInventory);
+router.get("/get-labour-forcast", getLabourForcast);
 
 module.exports = router;
