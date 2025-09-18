@@ -31876,6 +31876,81 @@ const parseCycleTime = (cycleTime) => {
 //   }
 // };
 
+// const costingApi = async (req, res) => {
+//   try {
+//     const year = parseInt(req.query.year);
+
+//     const completedStock = await prisma.stockOrderSchedule.findMany({
+//       where: { status: "completed", isDeleted: false },
+//       include: {
+//         part: {
+//           select: {
+//             partNumber: true,
+//             cost: true,
+//             cycleTime: true, // minutes me store hai
+//             process: { select: { ratePerHour: true } },
+//           },
+//         },
+//       },
+//     });
+
+//     const cogsData = {};
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+//     let totalYearCost = 0;
+
+//     completedStock.forEach((order) => {
+//       const date = new Date(order.completed_date || order.delivery_date);
+//       if (year && date.getFullYear() !== year) return;
+
+//       const monthKey =
+//         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+
+//       const partCost = order.part.cost || 0;
+
+//       // ✅ cycleTime minutes ko hours me convert
+//       const cycleTimeMinutes = order.part.cycleTime || 0;
+//       const cycleTimeHours = cycleTimeMinutes / 60;
+
+//       const ratePerHour = order.part.process?.ratePerHour || 0;
+
+//       // ✅ Total COGS Formula
+//       const totalCOGS =
+//         (partCost + cycleTimeHours * ratePerHour) *
+//         (order.completedQuantity || 0);
+
+//       if (!cogsData[monthKey]) cogsData[monthKey] = 0;
+//       cogsData[monthKey] += totalCOGS;
+
+//       totalYearCost += totalCOGS;
+
+//       // ✅ Scrap Cost
+//       scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
+
+//       // ✅ Supplier Return Cost
+//       supplierReturn += order.supplierReturnQuantity
+//         ? partCost * order.supplierReturnQuantity
+//         : 0;
+//     });
+
+//     res.json({
+//       monthlyCOGS: cogsData,
+//       totalYearCost,
+//       scrapCost,
+//       supplierReturn,
+//       scrapIncrease: 0,
+//       supplierReturnIncrease: 0,
+//       part1Cost: 0,
+//       part2Cost: 0,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
 const costingApi = async (req, res) => {
   try {
     const year = parseInt(req.query.year);
@@ -31891,6 +31966,8 @@ const costingApi = async (req, res) => {
             process: { select: { ratePerHour: true } },
           },
         },
+        StockOrder: { select: { cost: true } },
+        CustomOrder: { select: { totalCost: true } },
       },
     });
 
@@ -31906,15 +31983,17 @@ const costingApi = async (req, res) => {
       const monthKey =
         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
 
-      const partCost = order.part.cost || 0;
-
-      // ✅ cycleTime minutes ko hours me convert
+      const partCost = parseFloat(order.part.cost || 0);
       const cycleTimeMinutes = order.part.cycleTime || 0;
       const cycleTimeHours = cycleTimeMinutes / 60;
-
       const ratePerHour = order.part.process?.ratePerHour || 0;
 
-      // ✅ Total COGS Formula
+      // ✅ Product/Stock Order cost
+      const productCost = parseFloat(
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+      );
+
+      // ✅ Total COGS = Part + Process + Product/StockOrder × Quantity Completed
       const totalCOGS =
         (partCost + cycleTimeHours * ratePerHour) *
         (order.completedQuantity || 0);
@@ -31938,10 +32017,7 @@ const costingApi = async (req, res) => {
       totalYearCost,
       scrapCost,
       supplierReturn,
-      scrapIncrease: 0,
-      supplierReturnIncrease: 0,
-      part1Cost: 0,
-      part2Cost: 0,
+      totalCOGSWithScrap: totalYearCost + scrapCost + supplierReturn,
     });
   } catch (error) {
     console.error(error);

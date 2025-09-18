@@ -992,6 +992,9 @@ const processList = async (req, res) => {
         where: whereFilter,
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc", // latest first
+        },
       }),
       prisma.process.count({
         where: whereFilter,
@@ -9888,8 +9891,8 @@ const revenueApi = async (req, res) => {
 
       const orderCOGS =
         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
+      console.log("orderCOGSorderCOGS", orderCOGS);
 
-      totalCOGS += orderCOGS;
       // --- Revenue ---
       const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
       const unfulfilledRevenue = (partCost + productCost) * qtyUnfulfilled;
@@ -10110,3 +10113,4 @@ module.exports = {
   revenueApi,
   scheudleInventory,
 };
+
