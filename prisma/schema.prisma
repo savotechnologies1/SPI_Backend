@@ -191,7 +191,8 @@ model supplier_orders {
   id           String      @id @default(uuid()) @db.Char(36)
   order_number String?     @db.VarChar(50)
   order_date   String?     @db.VarChar(50)
-  supplier_id  String?     @db.VarChar(100)
+  supplier_id  String      @db.VarChar(100)
+  part_id      String      @db.VarChar(100)
   firstName    String?     @db.VarChar(255)
   lastName     String?     @db.VarChar(255)
   email        String?     @db.VarChar(100)
@@ -204,7 +205,6 @@ model supplier_orders {
   isDeleted    Boolean?    @default(false)
   createdAt    DateTime?   @default(now()) @db.DateTime(0)
   updatedAt    DateTime?   @default(now()) @db.DateTime(0)
-  part_id      String?     @db.VarChar(100)
   part         PartNumber? @relation(fields: [part_id], references: [part_id])
   supplier     suppliers?  @relation(fields: [supplier_id], references: [id])
 

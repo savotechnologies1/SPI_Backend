@@ -327,13 +327,34 @@ const customerList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
     const { search = "" } = req.query;
+
+    const searchFilter = search.trim();
+
     const [allCustomers, totalCount] = await Promise.all([
       prisma.customers.findMany({
         where: {
-          email: {
-            contains: search.trim(),
-          },
-          isDeleted: false,
+          AND: [
+            { isDeleted: false },
+            {
+              OR: [
+                {
+                  email: {
+                    contains: searchFilter,
+                  },
+                },
+                {
+                  firstName: {
+                    contains: searchFilter,
+                  },
+                },
+                {
+                  lastName: {
+                    contains: searchFilter,
+                  },
+                },
+              ],
+            },
+          ],
         },
         orderBy: {
           createdAt: "desc",
@@ -343,21 +364,38 @@ const customerList = async (req, res) => {
       }),
       prisma.customers.count({
         where: {
-          email: {
-            contains: search,
-          },
-          isDeleted: false,
-        },
-        orderBy: {
-          createdAt: "desc",
+          AND: [
+            { isDeleted: false },
+            {
+              OR: [
+                {
+                  email: {
+                    contains: searchFilter,
+                  },
+                },
+                {
+                  firstName: {
+                    contains: searchFilter,
+                  },
+                },
+                {
+                  lastName: {
+                    contains: searchFilter,
+                  },
+                },
+              ],
+            },
+          ],
         },
       }),
     ]);
+
     const getPagination = await pagination({
       page: paginationData.page,
       pageSize: paginationData.pageSize,
       total: totalCount,
     });
+
     return res.status(200).json({
       message: "Customer data retrieved successfully!",
       data: allCustomers,
@@ -365,8 +403,9 @@ const customerList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
-      message: "Something went wrong .please try again later",
+      message: "Something went wrong, please try again later",
     });
   }
 };
@@ -517,31 +556,51 @@ const supplierList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
     const { search = "" } = req.query;
+    const searchFilter = search.trim();
+    const searchConditions = {
+      OR: [
+        {
+          email: {
+            contains: searchFilter,
+          },
+        },
+        {
+          firstName: {
+            contains: searchFilter,
+          },
+        },
+        {
+          lastName: {
+            contains: searchFilter,
+          },
+        },
+      ],
+    };
+
     const [allSuppliers, totalCount] = await Promise.all([
       prisma.suppliers.findMany({
         where: {
-          email: {
-            contains: search,
-          },
-          isDeleted: false,
+          AND: [{ isDeleted: false }, searchConditions],
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc",
+        },
       }),
       prisma.suppliers.count({
         where: {
-          email: {
-            contains: search,
-          },
-          isDeleted: false,
+          AND: [{ isDeleted: false }, searchConditions],
         },
       }),
     ]);
+
     const getPagination = await pagination({
       page: paginationData.page,
       pageSize: paginationData.pageSize,
       total: totalCount,
     });
+
     return res.status(200).json({
       message: "Suppliers data retrieved successfully!",
       data: allSuppliers,
@@ -549,8 +608,9 @@ const supplierList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
-      message: "Something went wrong .please try again later",
+      message: "Something went wrong, please try again later",
     });
   }
 };
@@ -3111,21 +3171,16 @@ const selectProductNumberForStockOrder = async (req, res) => {
       },
     });
 
-    // --- KYA BADLA GAYA HAI (WHAT HAS CHANGED) ---
-    // Hum `data` array ke har object ko transform kar rahe hain.
-    // Har object se `part_id` nikal kar use `product_id` ke naam se ek naye object mein daal rahe hain.
     const transformedData = data.map(
       ({ part_id, partDescription, ...rest }) => ({
-        productId: part_id, // part_id ko product_id bana diya
+        productId: part_id,
         productDescription: partDescription,
-        ...rest, // Baaki saari properties (partNumber, partDescription, etc.) waise hi rahengi
+        ...rest,
       })
     );
-    // ---------------------------------------------
 
     return res.status(200).json({
       message: "Product number retrived successfully !",
-      // Yahan original 'data' ki jagah 'transformedData' bhejenge
       data: transformedData,
     });
   } catch (error) {
@@ -3258,24 +3313,49 @@ const getCustomOrderById = async (req, res) => {
 const searchStockOrders = async (req, res) => {
   try {
     const { customerName, shipDate, productNumber } = req.query;
-    if (!customerName && !shipDate && !productNumber) {
-      return res.status(400).json({
-        message: "Please provide at least one search parameter.",
-        data: null,
-      });
-    }
+
+    // Always apply these base conditions
     const whereClause = {
       isDeleted: false,
       status: {
         not: "scheduled",
       },
     };
+
+    // Filter by customer name if provided
     if (customerName) {
-      whereClause.customer = {
-        firstName: {
-          contains: customerName.trim(),
-        },
-      };
+      const name = customerName.trim();
+      const parts = name.split(/\s+/);
+
+      if (parts.length >= 2) {
+        whereClause.customer = {
+          is: {
+            OR: [
+              { firstName: { contains: name } },
+              { lastName: { contains: name } },
+              {
+                AND: [
+                  { firstName: { contains: parts[0] } },
+                  {
+                    lastName: {
+                      contains: parts.slice(1).join(" "),
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        };
+      } else {
+        whereClause.customer = {
+          is: {
+            OR: [
+              { firstName: { contains: name } },
+              { lastName: { contains: name } },
+            ],
+          },
+        };
+      }
     }
     if (productNumber) {
       whereClause.part = {
@@ -3298,7 +3378,6 @@ const searchStockOrders = async (req, res) => {
       },
       include: {
         customer: true,
-
         part: {
           include: {
             components: {
@@ -3323,31 +3402,15 @@ const searchStockOrders = async (req, res) => {
       },
     });
 
-    // const data = await prisma.stockOrderSchedule.findFirst({});
-
-    // if (orders.length === 0) {
-    //   return res.status(200).json({
-    //     message: "No stock orders found matching your criteria.",
-    //     data: [],
-    //   });
-    // }
-
     return res.status(200).json({
       message: "Stock orders retrieved successfully!",
       data: orders,
     });
   } catch (error) {
-    console.error("Error searching stock orders:", error);
-    if (error.name === "PrismaClientValidationError") {
-      return res.status(400).json({
-        message: "Invalid search query. Please check the field names.",
-        error: error.message,
-        data: null,
-      });
-    }
+    console.error("Error fetching stock orders:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
-      data: null,
+      error: error.message,
     });
   }
 };
@@ -4127,6 +4190,7 @@ const searchStockOrders = async (req, res) => {
 //     console.error("Error searching custom orders:", error);
 //   }
 // };
+
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber } = req.query;
@@ -4138,8 +4202,26 @@ const searchCustomOrders = async (req, res) => {
     }
     const andConditions = [{ isDeleted: false }];
     if (customerName) {
-      andConditions.push({ customerName: { contains: customerName.trim() } });
+      andConditions.push({
+        customer: {
+          is: {
+            OR: [
+              {
+                firstName: {
+                  contains: customerName.trim(),
+                },
+              },
+              {
+                lastName: {
+                  contains: customerName.trim(),
+                },
+              },
+            ],
+          },
+        },
+      });
     }
+
     if (shipDate) {
       const date = new Date(shipDate);
       andConditions.push({
@@ -5236,7 +5318,6 @@ const deleteProfileImage = async (req, res) => {
     });
   }
 };
-
 const getAllSupplierOrder = async (req, res) => {
   try {
     const { search = "" } = req.query;
@@ -5252,34 +5333,50 @@ const getAllSupplierOrder = async (req, res) => {
       };
     }
 
-    const [getAllSupplierOrder, totalCount] = await Promise.all([
-      prisma.supplier_orders.findMany({
-        where: filterConditions,
-        include: {
-          part: {
-            select: {
-              partNumber: true,
-            },
-          },
-          supplier: {
+    // Step 1: Fetch orders WITHOUT include (avoid Prisma panic)
+    const orders = await prisma.supplier_orders.findMany({
+      where: filterConditions,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: paginationData.skip,
+      take: paginationData.pageSize,
+    });
+
+    // Step 2: Manually fetch relations for each order
+    const enrichedOrders = await Promise.all(
+      orders.map(async (order) => {
+        const [supplier, part] = await Promise.all([
+          prisma.suppliers.findUnique({
+            where: { id: order.supplier_id },
             select: {
               firstName: true,
               lastName: true,
-              email: true,
             },
-          },
-        },
-        skip: paginationData.skip,
-        take: paginationData.pageSize,
-        orderBy: {
-          createdAt: "desc",
-        },
-      }),
-      prisma.supplier_orders.count({
-        where: filterConditions,
-      }),
-    ]);
+          }),
+          prisma.partNumber.findUnique({
+            where: { part_id: order.part_id },
+            select: {
+              partNumber: true,
+              partDescription: true,
+            },
+          }),
+        ]);
 
+        return {
+          ...order,
+          supplier,
+          part,
+        };
+      })
+    );
+
+    // Total count for pagination
+    const totalCount = await prisma.supplier_orders.count({
+      where: filterConditions,
+    });
+
+    // Pagination response
     const paginationObj = {
       page: paginationData.page,
       pageSize: paginationData.pageSize,
@@ -5290,7 +5387,7 @@ const getAllSupplierOrder = async (req, res) => {
 
     return res.status(200).json({
       message: "Supplier order list retrieved successfully!",
-      data: getAllSupplierOrder,
+      data: enrichedOrders,
       totalCounts: totalCount,
       pagination: getPagination,
     });
@@ -5371,6 +5468,30 @@ const updateSupplierOrderStatus = async (req, res) => {
         },
       });
     }
+    // if (result.status === "Delivered" && status === "Shipped") {
+    //   await prisma.partNumber.update({
+    //     where: {
+    //       part_id: part_id,
+    //     },
+    //     data: {
+    //       supplierOrderQty: { increment: quantity },
+    //       availStock: {
+    //         decrement: quantity,
+    //       },
+    //     },
+    //   });
+    //   await prisma.supplier_inventory.update({
+    //     where: {
+    //       part_id: part_id,
+    //     },
+    //     data: {
+    //       availStock: {
+    //         decrement: quantity,
+    //       },
+    //     },
+    //   });
+    // }
+
     return res.status(200).json({
       message: "Order status updated successfully",
     });
@@ -8298,7 +8419,6 @@ const cycleTimeComparisionData = async (req, res) => {
 const dashBoardData = async (req, res) => {
   try {
     const { month } = req.query;
-
     let whereClause = { isDeleted: false };
     if (month) {
       const monthNum = parseInt(month);
@@ -8371,12 +8491,8 @@ const dashBoardData = async (req, res) => {
       (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
       0
     );
-
     const lastRevenue = lastStockRevenue + lastCustomRevenue;
-
-    // 6️⃣ Total Orders (current month)
     const totalOrders = currentStockOrders.length + currentCustomOrders.length;
-
     let revenueChangePercent = 0;
     let revenueIndicator = "gray";
 
@@ -8397,13 +8513,10 @@ const dashBoardData = async (req, res) => {
       revenueIndicator = revenueChangePercent >= 0 ? "green" : "red";
     }
 
-    // 8️⃣ Existing revenueIndicatorcounts & % change
     const calculatePercentageChange = (current, previous) => {
       if (previous === 0) return current > 0 ? 100 : 0;
       return ((current - previous) / previous) * 100;
     };
-
-    // Previous month where clause
     let previousWhereClause = { isDeleted: false };
     if (month) {
       const monthNum = parseInt(month);
@@ -8418,20 +8531,35 @@ const dashBoardData = async (req, res) => {
         lte: endOfPrevMonth,
       };
     }
-
-    // 9️⃣ Other existing data like suppliers, top performers, productivity etc.
     const data = await prisma.supplier_orders.findMany({
       where: { isDeleted: false },
-      select: {
-        supplier: { select: { firstName: true, lastName: true } },
-        email: true,
-        part: { select: { partNumber: true, cost: true } },
-      },
+      orderBy: { createdAt: "desc" },
     });
+
+    // const data = await prisma.supplier_orders.findMany({
+    //   where: {
+    //     isDeleted: false,
+    //   },
+    //   include: {
+    //     supplier: {
+    //       select: {
+    //         id: true,
+    //         firstName: true,
+    //         lastName: true,
+    //       },
+    //     },
+    //     part: {
+    //       select: {
+    //         partNumber: true,
+    //         cost: true,
+    //       },
+    //     },
+    //   },
+    // });
 
     const supplierMap = {};
     data.forEach((item) => {
-      const supplierName = `${item.supplier.firstName} ${item.supplier.lastName}`;
+      const supplierName = `${item?.supplier?.firstName} ${item?.supplier?.lastName}`;
       if (!supplierMap[supplierName]) {
         supplierMap[supplierName] = {
           supplierName,
@@ -8708,8 +8836,9 @@ const dashBoardData = async (req, res) => {
     });
 
     const fulfilledOrders = fulfilledOrdersData.map((o) => {
+      console.log("**************9999999999999********************", o);
       const nameParts = o.completedByEmployee?.fullName?.split(" ") || [];
-      const type = o.order_type?.toLowerCase();
+      const type = o.order_type ? o.order_type.toLowerCase() : "";
 
       return {
         date: o.order_date,
@@ -8767,7 +8896,7 @@ const dashBoardData = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log("Error:", error);
+    console.log("Error********************:", error);
     res
       .status(500)
       .json({ error: "Internal Server Error", details: error.message });
@@ -9437,7 +9566,6 @@ const getFixedCostGraph = async (req, res) => {
 
     const filterYear = year ? parseInt(year) : currentYear;
 
-    // 1️⃣ Fetch fixed costs
     const costs = await prisma.fixedCost.findMany({
       where: {
         createdAt: {
@@ -9451,8 +9579,6 @@ const getFixedCostGraph = async (req, res) => {
         createdAt: true,
       },
     });
-
-    // 2️⃣ Fetch stock and custom orders
     const stockOrders = await prisma.stockOrder.findMany({
       where: {
         createdAt: {
@@ -9483,23 +9609,19 @@ const getFixedCostGraph = async (req, res) => {
       },
     });
 
-    // 3️⃣ Initialize arrays for 12 months
     const monthlyFixedCost = Array(12).fill(0);
     const monthlyStockRevenue = Array(12).fill(0);
     const monthlyCustomRevenue = Array(12).fill(0);
 
-    // Totals
     let totalFixedCost = 0;
     let totalRevenue = 0;
 
-    // 4️⃣ Fill monthly fixed cost + yearly total
     costs.forEach((c) => {
       const month = c.createdAt.getMonth();
       monthlyFixedCost[month] += c.expenseCost;
       totalFixedCost += c.expenseCost;
     });
 
-    // 5️⃣ Fill monthly stock revenue + yearly total
     stockOrders.forEach((o) => {
       const revenue = parseFloat(o.cost) * o.productQuantity;
       const month = o.createdAt.getMonth();
@@ -9507,7 +9629,6 @@ const getFixedCostGraph = async (req, res) => {
       totalRevenue += revenue;
     });
 
-    // 6️⃣ Fill monthly custom revenue + yearly total
     customOrders.forEach((o) => {
       const revenue = parseFloat(o.cost) * o.productQuantity;
       const month = o.createdAt.getMonth();
@@ -9515,7 +9636,6 @@ const getFixedCostGraph = async (req, res) => {
       totalRevenue += revenue;
     });
 
-    // 7️⃣ Prepare chart data
     const chartData = monthlyFixedCost.map((totalCost, i) => ({
       month: new Date(0, i).toLocaleString("default", { month: "short" }),
       totalCost,
@@ -9982,7 +10102,6 @@ const scheudleInventory = async (req, res) => {
       },
     });
 
-    // Aggregate by partNumber
     const inventoryMap = {};
 
     parts.forEach((part) => {
@@ -10034,7 +10153,6 @@ const getLabourForcast = async (req, res) => {
     console.log("getInventorygetInventory", getInventory);
 
     // const getInvData = getInventory.map((item)=>item.availStock)
-    // Group data by part_id and process
     const forecastData = orderDetail.map((order) => {
       const matchingInventory = getInventory.find(
         (inv) => inv.part_id === order.part_id
@@ -10043,9 +10161,8 @@ const getLabourForcast = async (req, res) => {
       const available = order.part.availStock || 0;
       const need = order.scheduleQuantity || 0;
       const prodNeed = need - available;
-      const cycleTime = parseFloat(order.process.cycleTime || "0"); // minutes
+      const cycleTime = parseFloat(order.process.cycleTime || "0");
 
-      // Convert to hours:
       const processTime = cycleTime / 60;
       console.log("processTimeprocessTime", processTime);
 
