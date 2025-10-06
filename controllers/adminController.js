@@ -705,6 +705,9 @@ const deleteSupplier = async (req, res) => {
 const selectSupplier = async (req, res) => {
   try {
     const suppliers = await prisma.suppliers.findMany({
+      where: {
+        isDeleted: false,
+      },
       select: {
         id: true,
         firstName: true,
@@ -1738,13 +1741,17 @@ const createStockOrder = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: "Product not found." });
     }
+    const available = product.availStock || 0;
 
-    if (parseInt(productQuantity, 10) > (product.availStock || 0)) {
-      return res.status(400).json({
-        message: `Only ${
-          product.availStock || 0
-        } units are available in stock.`,
-      });
+    if (parseInt(productQuantity, 10) > available) {
+      const message =
+        available === 0
+          ? "This product is currently out of stock."
+          : `Not enough stock available. Only ${available} unit${
+              available === 1 ? "" : "s"
+            } can be ordered at this time.`;
+
+      return res.status(400).json({ message });
     }
 
     // Check for duplicate order (optional but good practice)
@@ -5434,63 +5441,57 @@ const updateSupplierOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, quantity, part_id } = req.body;
-    const result = await prisma.supplier_orders.update({
-      where: {
-        id: id,
-        isDeleted: false,
-      },
-      data: {
-        status: status,
-      },
-    });
-    console.log("part_idpart_id", part_id);
 
-    if (status === "Delivered") {
+    console.log("part_idpart_id", part_id);
+    const existingOrder = await prisma.supplier_orders.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    const record = await prisma.partNumber.findUnique({
+      where: { part_id },
+    });
+
+    console.log("Record found:", record);
+    if (!record) {
+      return res.status(404).json({ message: "Part/Product record not found" });
+    }
+
+    if (!existingOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const oldStatus = existingOrder.status;
+
+    await prisma.supplier_orders.update({
+      where: { id },
+      data: { status },
+    });
+
+    if (status === "Delivered" && oldStatus !== "Delivered") {
       await prisma.partNumber.update({
-        where: {
-          part_id: part_id,
-        },
+        where: { part_id },
         data: {
           supplierOrderQty: { increment: quantity },
-          availStock: {
-            increment: quantity,
-          },
+          availStock: { increment: quantity },
         },
       });
-      await prisma.supplier_inventory.update({
-        where: {
-          part_id: part_id,
-        },
+      await prisma.supplier_inventory.updateMany({
+        where: { part_id },
+        data: { availStock: { increment: quantity } },
+      });
+    } else if (oldStatus === "Delivered" && status !== "Delivered") {
+      await prisma.partNumber.update({
+        where: { part_id },
         data: {
-          availStock: {
-            increment: quantity,
-          },
+          supplierOrderQty: { decrement: quantity },
+          availStock: { decrement: quantity },
         },
+      });
+      await prisma.supplier_inventory.updateMany({
+        where: { part_id },
+        data: { availStock: { decrement: quantity } },
       });
     }
-    // if (result.status === "Delivered" && status === "Shipped") {
-    //   await prisma.partNumber.update({
-    //     where: {
-    //       part_id: part_id,
-    //     },
-    //     data: {
-    //       supplierOrderQty: { increment: quantity },
-    //       availStock: {
-    //         decrement: quantity,
-    //       },
-    //     },
-    //   });
-    //   await prisma.supplier_inventory.update({
-    //     where: {
-    //       part_id: part_id,
-    //     },
-    //     data: {
-    //       availStock: {
-    //         decrement: quantity,
-    //       },
-    //     },
-    //   });
-    // }
 
     return res.status(200).json({
       message: "Order status updated successfully",
@@ -9361,7 +9362,7 @@ const productionEfficieny = async (req, res) => {
 
       const partCost = item.part?.cost || 0;
       const scrapCost = partCost * (item.scrapQuantity || 0);
-      const supplierReturnCost = partCost * (item.remainingQty || 0);
+      const supplierReturnCost = partCost * (item.scrapQuantity || 0);
 
       current.completed += item.completedQuantity || 0;
       current.scheduled += item.scheduleQuantity || 0;
@@ -10037,8 +10038,9 @@ const revenueApi = async (req, res) => {
 
       // --- Scrap & Supplier Return ---
       scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
-      supplierReturn += order.supplierReturnQuantity
-        ? partCost * order.supplierReturnQuantity
+      console.log("************orderm*****************", order);
+      supplierReturn += order.scrapQuantity
+        ? partCost * order.scrapQuantity
         : 0;
 
       // --- Daily cash flow (required for planning)
