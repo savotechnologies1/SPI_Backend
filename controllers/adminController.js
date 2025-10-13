@@ -1084,11 +1084,11 @@ const processList = async (req, res) => {
 const processDetail = async (req, res) => {
   try {
     const id = req.params.id;
+    console.log("idid", id);
     const data = await prisma.process.findUnique({
       where: {
         id: id,
         isDeleted: false,
-        createdBy: req.user.id,
       },
     });
 
@@ -5606,7 +5606,6 @@ const validateStockQty = async (req, res) => {
 
     const { minStock, availStock } = product;
 
-    // Validation
     if (quantity % minStock !== 0) {
       return res.status(400).json({
         success: false,
@@ -5621,7 +5620,6 @@ const validateStockQty = async (req, res) => {
       });
     }
 
-    // Valid quantity
     const maxAddableQty = Math.floor(availStock / minStock) * minStock;
 
     return res.status(200).json({
