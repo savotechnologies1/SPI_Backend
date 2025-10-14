@@ -350,6 +350,7 @@ model PartNumber {
   supplierOrderQty     Int?     @default(0)
   cycleTime            String?  @db.VarChar(255)
   processId            String?  @db.VarChar(10)
+  processName          String?  @db.VarChar(100)
   processDesc          String?  @db.VarChar(255)
   processOrderRequired Boolean  @default(false)
   instructionRequired  Boolean  @default(false)

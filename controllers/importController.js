@@ -129,289 +129,446 @@ const importProcess = async (req, res) => {
   }
 };
 
+// const importParts = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     if (fileData.type === "fileNotFound" || fileData.data === undefined) {
+//       res.status(400).json({
+//         success: true,
+//         error: "CSV file is required with product tree fields",
+//       });
+//     }
+
+//     console.log("fileDatafileData", fileData);
+//     const getCsvFile = fileData?.data?.filter(
+//       (file) => file.fieldname === "ImportFile"
+//     );
+//     const filePath = getCsvFile[0].path;
+//     const csvData = []; // Renamed from results to csvData
+//     let successCount = 0;
+//     let errorCount = 0;
+//     const errors = [];
+
+//     // Read and parse CSV
+//     fs.createReadStream(filePath)
+//       .pipe(csv())
+//       .on("data", (data) => {
+//         csvData.push(data); // Using csvData instead of results
+//       })
+//       .on("end", async () => {
+//         if (
+//           !csvData[0]?.fileName ||
+//           csvData[0]?.fileName.toLowerCase() !== "part"
+//         ) {
+//           console.log("csvDatacsvData", csvData);
+
+//           fs.unlinkSync(filePath);
+//           return res.status(400).json({
+//             success: false,
+//             message: `Invalid file type. Expected 'process', but got '${
+//               csvData[0]?.fileName || "undefined"
+//             }'`,
+//           });
+//         }
+//         const promises = csvData.map((row, index) => {
+//           // Using csvData instead of results
+
+//           return new Promise(async (resolve, reject) => {
+//             try {
+//               let isError = false;
+//               if (row?.type !== "part" && row?.type !== "product") {
+//                 isError = true;
+//                 reject({
+//                   status: "rejected",
+//                   reason: `Part type is not correct`,
+//                   index,
+//                 });
+//               }
+//               const existingActivePart = await prisma.partNumber.findFirst({
+//                 where: {
+//                   partNumber: row.partNumber,
+//                   isDeleted: false,
+//                 },
+//               });
+//               const isProces = await prisma.process.findFirst({
+//                 where: {
+//                   id: row.processId,
+//                   isDeleted: false,
+//                 },
+//               });
+
+//               if (!isProces) {
+//                 isError = true;
+//                 reject({
+//                   status: "rejected",
+//                   reason: `Process id is not exists ${row.processId}`,
+//                   index,
+//                 });
+//               }
+
+//               if (existingActivePart) {
+//                 isError = true;
+//                 reject({
+//                   status: "rejected",
+//                   reason: `product/Part Number is already exists ${row.partNumber}`,
+//                   index,
+//                 });
+//               }
+
+//               if (!isError) {
+//                 const getId = uuidv4().slice(0, 8);
+//                 await prisma.partNumber.create({
+//                   data: {
+//                     part_id: getId,
+//                     partFamily: row.partFamily,
+//                     partNumber: row.partNumber,
+//                     partDescription: row.partDescription,
+//                     cost: parseFloat(row.cost),
+//                     leadTime: parseInt(row.leadTime),
+//                     supplierOrderQty: parseInt(row.supplierOrderQty),
+//                     companyName: row.companyName,
+//                     minStock: parseInt(row?.minStock),
+//                     availStock: parseInt(row?.availStock),
+//                     cycleTime: row?.cycleTime,
+//                     processOrderRequired: row.processOrderRequired === "TRUE",
+//                     // processId: row?.processId,
+//                     processName: row.processName,
+//                     processDesc: row.processDesc,
+//                     type: row.type,
+//                     submittedBy: req?.user?.id,
+//                     createdBy: req?.user?.id,
+//                   },
+//                 });
+//                 resolve({ status: "fulfilled", index });
+//               }
+//             } catch (error) {
+//               let reason = error.message;
+//               if (error?.code == "P2002") {
+//                 reason = `something wrong in ${error.meta.modelName}. it maybe duplicate or wrong value.`;
+//               }
+//               reject({ status: "rejected", reason: reason, index });
+//             }
+//           });
+//         });
+
+//         // Wait for all promises to settle (complete or fail)
+//         const settledResults = await Promise.allSettled(promises); // Renamed to settledResults
+
+//         // Process the results
+//         settledResults.forEach((result) => {
+//           // Using settledResults instead of results
+//           if (result.status === "fulfilled") {
+//             successCount++;
+//           } else {
+//             errorCount++;
+//             errors.push(
+//               `Row ${result.reason.index + 2}: ${result.reason.reason}`
+//             );
+//           }
+//         });
+
+//         fs.unlinkSync(filePath);
+//         res.json({
+//           success: true,
+//           message: "CSV import completed.",
+//           summary: {
+//             totalRows: csvData.length, // Using csvData instead of results
+//             successCount,
+//             errorCount,
+//             errors: errors.length > 0 ? errors : undefined,
+//           },
+//         });
+//       });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// };
 const importParts = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     if (fileData.type === "fileNotFound" || fileData.data === undefined) {
-      res.status(400).json({
-        success: true,
+      return res.status(400).json({
+        success: false,
         error: "CSV file is required with product tree fields",
       });
     }
+
     const getCsvFile = fileData?.data?.filter(
       (file) => file.fieldname === "ImportFile"
     );
     const filePath = getCsvFile[0].path;
-    const csvData = []; // Renamed from results to csvData
-    let successCount = 0;
-    let errorCount = 0;
+    const csvData = [];
     const errors = [];
 
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
+        // Validate file type
         if (
           !csvData[0]?.fileName ||
           csvData[0]?.fileName.toLowerCase() !== "part"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
-            message: `Invalid file type. Expected 'process', but got '${
+            message: `Invalid file type. Expected 'part', but got '${
               csvData[0]?.fileName || "undefined"
             }'`,
           });
         }
-        const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
 
-          return new Promise(async (resolve, reject) => {
-            try {
-              let isError = false;
-              if (row?.type !== "part" && row?.type !== "product") {
-                isError = true;
-                reject({
-                  status: "rejected",
-                  reason: `Part type is not correct`,
-                  index,
-                });
-              }
-              const existingActivePart = await prisma.partNumber.findFirst({
-                where: {
-                  partNumber: row.partNumber,
-                  isDeleted: false,
-                },
-              });
-              const isProces = await prisma.process.findFirst({
-                where: {
-                  id: row.processId,
-                  isDeleted: false,
-                },
-              });
+        const validatedData = [];
 
-              if (!isProces) {
-                isError = true;
-                reject({
-                  status: "rejected",
-                  reason: `Process id is not exists ${row.processId}`,
-                  index,
-                });
-              }
+        // Validate each row
+        for (let index = 0; index < csvData.length; index++) {
+          const row = csvData[index];
+          const rowErrors = [];
 
-              if (existingActivePart) {
-                isError = true;
-                reject({
-                  status: "rejected",
-                  reason: `product/Part Number is already exists ${row.partNumber}`,
-                  index,
-                });
-              }
+          // Type validation
+          if (row?.type !== "part" && row?.type !== "product") {
+            rowErrors.push("Part type is not correct.");
+          }
 
-              if (!isError) {
-                const getId = uuidv4().slice(0, 8);
-                await prisma.partNumber.create({
-                  data: {
-                    part_id: getId,
-                    partFamily: row.partFamily,
-                    partNumber: row.partNumber,
-                    partDescription: row.partDescription,
-                    cost: parseFloat(row.cost),
-                    leadTime: parseInt(row.leadTime),
-                    supplierOrderQty: parseInt(row.supplierOrderQty),
-                    companyName: row.companyName,
-                    minStock: parseInt(row?.minStock),
-                    availStock: parseInt(row?.availStock),
-                    cycleTime: row?.cycleTime,
-                    processOrderRequired: row.processOrderRequired === "TRUE",
-                    processId: row.processId,
-                    processDesc: row.processDesc,
-                    type: row.type,
-                    submittedBy: req?.user?.id,
-                    createdBy: req?.user?.id,
-                  },
-                });
-                resolve({ status: "fulfilled", index });
-              }
-            } catch (error) {
-              let reason = error.message;
-              if (error?.code == "P2002") {
-                reason = `something wrong in ${error.meta.modelName}. it maybe duplicate or wrong value.`;
-              }
-              reject({ status: "rejected", reason: reason, index });
-            }
+          // Existing part number check
+          const existingActivePart = await prisma.partNumber.findFirst({
+            where: {
+              partNumber: row.partNumber,
+              isDeleted: false,
+            },
           });
-        });
+          if (existingActivePart) {
+            rowErrors.push(`Part Number already exists: ${row.partNumber}`);
+          }
 
-        // Wait for all promises to settle (complete or fail)
-        const settledResults = await Promise.allSettled(promises); // Renamed to settledResults
+          // Process name validation from process table (not processId)
+          const matchedProcess = await prisma.process.findFirst({
+            where: {
+              processName: row.processName?.trim(),
+              isDeleted: false,
+            },
+          });
 
-        // Process the results
-        settledResults.forEach((result) => {
-          // Using settledResults instead of results
-          if (result.status === "fulfilled") {
-            successCount++;
-          } else {
-            errorCount++;
-            errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+          if (!matchedProcess) {
+            rowErrors.push(
+              `Process name not found or deleted: ${row.processName}`
             );
           }
-        });
+
+          // Collect row errors
+          if (rowErrors.length > 0) {
+            errors.push(`Row ${index + 2}: ${rowErrors.join(", ")}`);
+          } else {
+            validatedData.push({
+              ...row,
+              matchedProcessId: matchedProcess?.id,
+            });
+          }
+        }
+
+        // If any error found, abort the import
+        if (errors.length > 0) {
+          fs.unlinkSync(filePath);
+          return res.status(400).json({
+            success: false,
+            message: "CSV import failed due to errors.",
+            errors,
+          });
+        }
+
+        // All rows are valid — proceed with insert
+        for (const row of validatedData) {
+          const getId = uuidv4().slice(0, 8);
+          await prisma.partNumber.create({
+            data: {
+              part_id: getId,
+              partFamily: row.partFamily,
+              partNumber: row.partNumber,
+              partDescription: row.partDescription,
+              cost: parseFloat(row.cost),
+              leadTime: parseInt(row.leadTime),
+              supplierOrderQty: parseInt(row.supplierOrderQty),
+              companyName: row.companyName,
+              minStock: parseInt(row?.minStock),
+              availStock: parseInt(row?.availStock),
+              cycleTime: row?.cycleTime,
+              processOrderRequired: row.processOrderRequired === "TRUE",
+              processId: row.matchedProcessId,
+              processName: row.processName,
+              processDesc: row.processDesc,
+              type: row.type,
+              submittedBy: req?.user?.id,
+              createdBy: req?.user?.id,
+            },
+          });
+        }
 
         fs.unlinkSync(filePath);
-        res.json({
+        return res.status(201).json({
           success: true,
-          message: "CSV import completed.",
-          summary: {
-            totalRows: csvData.length, // Using csvData instead of results
-            successCount,
-            errorCount,
-            errors: errors.length > 0 ? errors : undefined,
-          },
+          message: "All parts imported successfully.",
+          totalImported: validatedData.length,
         });
       });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
       error: error.message,
     });
   }
 };
-
 const importProductTree = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     if (fileData.type === "fileNotFound" || fileData.data === undefined) {
-      res.status(400).json({
-        success: true,
+      return res.status(400).json({
+        success: false,
         error: "CSV file is required with product/part fields",
       });
     }
+
     const getCsvFile = fileData?.data?.filter(
       (file) => file.fieldname === "ImportFile"
     );
     const filePath = getCsvFile[0].path;
-    const csvData = []; // Renamed from results to csvData
+
+    const csvData = [];
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
 
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
         if (
           !csvData[0]?.fileName ||
-          csvData[0]?.fileName.toLowerCase() !== "product"
+          csvData[0]?.fileName.toLowerCase().trim() !== "product"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
-            message: `Invalid file type. Expected 'process', but got '${
+            message: `Invalid file type. Expected 'product', but got '${
               csvData[0]?.fileName || "undefined"
             }'`,
           });
         }
-        const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
 
-          return new Promise(async (resolve, reject) => {
-            try {
-              let isError = false;
-              const product = await prisma.partNumber.findFirst({
-                where: {
-                  partNumber: row.product_number,
-                  isDeleted: false,
-                },
-              });
-              const part = await prisma.partNumber.findFirst({
-                where: {
-                  partNumber: row.part_number,
-                  isDeleted: false,
-                },
-              });
+        for (let index = 0; index < csvData.length; index++) {
+          const row = csvData[index];
 
-              if (!product || !part) {
-                isError = true;
-                reject({
-                  status: "rejected",
-                  reason: `product/Part not found with given number ${row.product_number}/${row.part_number}`,
-                  index,
-                });
-              }
-
-              const productTree = await prisma.productTree.findFirst({
-                where: {
-                  product_id: product?.part_id,
-                  part_id: part?.part_id,
-                },
-              });
-
-              if (productTree) {
-                isError = true;
-                reject({
-                  status: "rejected",
-                  reason: `Product/Part tree is already exists ${row.product_number}/${row.part_number}`,
-                  index,
-                });
-              }
-
-              if (!isError) {
-                const getId = uuidv4().slice(0, 8);
-                await prisma.productTree.create({
-                  data: {
-                    product_id: product.part_id,
-                    processId: part.processId,
-                    part_id: part.part_id,
-                    partQuantity: part.availStock,
-                    processOrderRequired: part.processOrderRequired,
-                    instructionRequired:
-                      row.instructionRequired === "TRUE" ? true : false,
-                  },
-                });
-                resolve({ status: "fulfilled", index });
-              }
-            } catch (error) {
-              const reason = `something wrong in ${error.meta.modelName}. it maybe duplicate or wrong value.`;
-              reject({ status: "rejected", reason: reason, index });
-            }
+          const product = await prisma.partNumber.findFirst({
+            where: {
+              partNumber: row.product_number?.trim(),
+              isDeleted: false,
+              type: "product",
+            },
           });
-        });
 
-        // Wait for all promises to settle (complete or fail)
-        const settledResults = await Promise.allSettled(promises); // Renamed to settledResults
+          const part = await prisma.partNumber.findFirst({
+            where: {
+              partNumber: row.part_number?.trim(),
+              isDeleted: false,
+              type: "part",
+            },
+          });
 
-        // Process the results
-        settledResults.forEach((result) => {
-          // Using settledResults instead of results
-          if (result.status === "fulfilled") {
-            successCount++;
-          } else {
+          if (!part) {
             errorCount++;
             errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+              `Row ${index + 2}: Part not found (${row.part_number})`
             );
+            continue;
           }
-        });
+          let getId = uuidv4().slice(0, 6);
+          const existingTree = await prisma.productTree.findFirst({
+            where: {
+              part_id: getId,
+            },
+          });
+
+          console.log(")))))wwwwwwwww))))))))))", row);
+          console.log("existingTreeexistingTree", existingTree);
+          if (existingTree) {
+            errorCount++;
+            errors.push(
+              `Row ${index + 2}: Product/Part tree already exists (${
+                row.product_number
+              }/${row.part_number})`
+            );
+            continue;
+          }
+          console.log(")))))))))))))))", row);
+
+          const data = await prisma.partNumber.create({
+            data: {
+              part_id: getId,
+              partNumber: row.product_number,
+              partFamily: row.partFamily,
+              partDescription: row.partDescription,
+              processOrderRequired: part.processOrderRequired,
+              cost: part.cost,
+              minStock: part.minStock,
+              leadTime: part.leadTime,
+              availStock: part.availStock,
+              cycleTime: part.cycleTime,
+              processName: part.processName,
+              processDesc: part.processDesc,
+              companyName: part.companyName,
+              instructionRequired:
+                row.instructionRequired?.trim().toUpperCase() === "TRUE",
+              type: "product",
+
+              // ✅ Correct way to link to existing process by ID
+              ...(part?.processId && {
+                process: {
+                  connect: {
+                    id: part.processId,
+                  },
+                },
+              }),
+            },
+          });
+          console.log(")datadatadatadata))))))))", data);
+
+          await prisma.productTree.create({
+            data: {
+              product_id: getId,
+              part_id: part.part_id,
+
+              partQuantity: part.availStock,
+              processOrderRequired: part.processOrderRequired,
+              instructionRequired:
+                row.instructionRequired?.trim().toUpperCase() === "TRUE",
+
+              // ✅ Only connect process if processId is available
+              ...(part?.processId && {
+                process: {
+                  connect: {
+                    id: part.processId,
+                  },
+                },
+              }),
+            },
+          });
+        }
 
         fs.unlinkSync(filePath);
-        res.json({
+
+        return res.status(200).json({
           success: true,
           message: "CSV import completed.",
           summary: {
-            totalRows: csvData.length, // Using csvData instead of results
+            totalRows: csvData.length,
             successCount,
             errorCount,
             errors: errors.length > 0 ? errors : undefined,
@@ -419,7 +576,7 @@ const importProductTree = async (req, res) => {
         });
       });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
       error: error.message,
