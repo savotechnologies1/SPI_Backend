@@ -104,6 +104,7 @@ const {
   revenueApi,
   scheudleInventory,
   getLabourForcast,
+  deleteFixedCost,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -468,6 +469,7 @@ router.get("/dive-chart-data", getDiveApi);
 router.get("/cycle-time-comparision-data", cycleTimeComparisionData);
 router.get("/costing-data", costingApi);
 router.get("/fixed-cost-data", fixedCost);
+router.delete("/fixed-cost-delete/:id", deleteFixedCost);
 router.get("/inventory-data", getInventory);
 router.get("/customer-relation-data", customerRelation);
 router.get("/dashboard-data", dashBoardData);

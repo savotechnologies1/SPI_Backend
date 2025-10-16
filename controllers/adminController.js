@@ -1287,31 +1287,32 @@ const createEmployee = async (req, res) => {
 //     });
 //   }
 // };
-
 const allEmployee = async (req, res) => {
   try {
-    const { search = "", processLogin } = req.query;
+    const { search = "", processLogin, status } = req.query;
     const paginationData = await paginationQuery(req.query); // page, pageSize, skip
 
     const whereCondition = {
       isDeleted: false,
       ...(search && {
         OR: [
-          { firstName: { contains: search, mode: "insensitive" } },
-          { lastName: { contains: search, mode: "insensitive" } },
+          { firstName: { contains: search } },
+          { lastName: { contains: search } },
         ],
       }),
       ...(processLogin === "true" || processLogin === "false"
         ? { processLogin: processLogin === "true" }
         : {}),
+      ...(status ? { status } : {}),
     };
+    console.log("Filter conditions:", whereCondition);
 
     const [employeeData, totalCount] = await Promise.all([
       prisma.employee.findMany({
         where: whereCondition,
         skip: paginationData.skip,
         take: paginationData.pageSize,
-        orderBy: { createdAt: "desc" }, // optional
+        orderBy: { createdAt: "desc" },
       }),
       prisma.employee.count({
         where: whereCondition,
@@ -9428,6 +9429,21 @@ const fiexedDataCalculation = async (req, res) => {
   }
 };
 
+const deleteFixedCost = async (req, res) => {
+  try {
+    const id = req.params.id;
+    await prisma.fixedCost.delete({
+      where: {
+        id: id,
+      },
+    });
+    return res.status(200).json({
+      message: "Fixed cost deleted successfully !",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Error creating record" });
+  }
+};
 const fixedDataList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -10285,6 +10301,7 @@ module.exports = {
   productionEfficieny,
   fiexedDataCalculation,
   fixedDataList,
+  deleteFixedCost,
   getFixedCostGraph,
   getParts,
   revenueApi,
