@@ -3331,7 +3331,7 @@ const searchStockOrders = async (req, res) => {
     const { customerName, shipDate, productNumber } = req.query;
     const whereClause = {
       isDeleted: false,
-      NOT: [{ status: "scheduled" }, { status: "" }],
+      NOT: [{ status: "" }],
     };
     if (!customerName && !shipDate && !productNumber) {
       const whereClause = {
@@ -4288,7 +4288,7 @@ const searchCustomOrders = async (req, res) => {
         where: {
           isDeleted: false,
           status: {
-            OR: [{ not: "scheduled" }, { equals: "" }],
+            equals: "",
           },
         },
         orderBy: { createdAt: "desc" },
