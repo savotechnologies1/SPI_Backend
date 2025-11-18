@@ -1928,8 +1928,7 @@ const addCustomOrder = async (req, res) => {
     });
 
     return res.status(201).json({
-      message:
-        "Custom order created and product structure updated successfully!",
+      message: "Custom order created successfully!",
       data: newCustomOrder,
     });
   } catch (error) {
@@ -1973,6 +1972,7 @@ const selectProcess = async (req, res) => {
         processDesc: true,
       },
       where: {
+        isProcessReq: true,
         isDeleted: false,
       },
     });
@@ -2242,10 +2242,10 @@ const createPartNumber = async (req, res) => {
     });
   }
 };
-
 const partNumberList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
+
     const [allProcess, totalCount] = await Promise.all([
       prisma.partNumber.findMany({
         where: {
@@ -2254,6 +2254,9 @@ const partNumberList = async (req, res) => {
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,
+        orderBy: {
+          createdAt: "desc", // latest first
+        },
         include: {
           process: {
             select: {
@@ -2515,6 +2518,9 @@ const bomDataList = async (req, res) => {
               processName: true,
             },
           },
+        },
+        orderBy: {
+          createdAt: "desc", // latest first
         },
       }),
       prisma.PartNumber.count({
@@ -2799,6 +2805,7 @@ const getSingleProductTree = async (req, res) => {
           select: {
             partNumber: true,
             partFamily: true,
+            minStock: true,
             process: {
               select: {
                 id: true,
@@ -2812,6 +2819,7 @@ const getSingleProductTree = async (req, res) => {
         },
       },
     });
+    console.log("productTreeEntries", productTreeEntries);
 
     const parts = productTreeEntries.map((pt) => ({
       id: pt.id,
@@ -2820,7 +2828,7 @@ const getSingleProductTree = async (req, res) => {
       partFamily: pt.part?.partFamily || null,
       process: pt.part?.process || null,
       instructionRequired: pt.instructionRequired,
-      partQuantity: pt.partQuantity,
+      partQuantity: pt.part?.minStock,
     }));
 
     const result = {
@@ -3321,16 +3329,19 @@ const getCustomOrderById = async (req, res) => {
 const searchStockOrders = async (req, res) => {
   try {
     const { customerName, shipDate, productNumber } = req.query;
-
-    // Always apply these base conditions
     const whereClause = {
       isDeleted: false,
-      status: {
-        not: "scheduled",
-      },
+      NOT: [{ status: "scheduled" }, { status: "" }],
     };
+    if (!customerName && !shipDate && !productNumber) {
+      const whereClause = {
+        where: {
+          isDeleted: false,
+          AND: [{ status: { not: "scheduled" } }, { status: { not: "" } }],
+        },
+      };
+    }
 
-    // Filter by customer name if provided
     if (customerName) {
       const name = customerName.trim();
       const parts = name.split(/\s+/);
@@ -4199,30 +4210,139 @@ const searchStockOrders = async (req, res) => {
 //   }
 // };
 
+const formatOrders = (orders) => {
+  return orders.map((order) => {
+    const { part, product, ...rest } = order;
+
+    const productFamily = [];
+
+    // -------------------------
+    // PRODUCT (Parent + Components)
+    // -------------------------
+    if (product) {
+      // Parent product
+      productFamily.push({
+        ...product,
+        isParent: true,
+        quantityRequired: order.productQuantity || 1,
+        components: undefined,
+      });
+
+      // Product components
+      if (product.components?.length) {
+        product.components.forEach((c) => {
+          if (c.part) {
+            productFamily.push({
+              ...c.part,
+              isParent: false,
+              quantityRequired: c.partQuantity,
+            });
+          }
+        });
+      }
+    }
+
+    // -------------------------
+    // PART (Parent + Components)
+    // -------------------------
+    if (part) {
+      // Parent part
+      productFamily.push({
+        ...part,
+        isParent: true,
+        quantityRequired: 1,
+        components: undefined,
+      });
+
+      // Part components
+      if (part.components?.length) {
+        part.components.forEach((c) => {
+          if (c.part) {
+            productFamily.push({
+              ...c.part,
+              isParent: false,
+              quantityRequired: c.partQuantity,
+            });
+          }
+        });
+      }
+    }
+
+    return { ...rest, productFamily };
+  });
+};
+
+// ===================================================================
+//                      SEARCH CUSTOM ORDERS
+// ===================================================================
+
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber } = req.query;
+
+    // -------------------------------------------------------------------------------------
+    // CASE 1: IF NO SEARCH INPUT → RETURN ALL CUSTOM ORDERS
+    // -------------------------------------------------------------------------------------
     if (!customerName && !shipDate && !partNumber) {
-      return res.status(400).json({
-        message: "Please provide at least one search parameter.",
-        data: null,
+      const orders = await prisma.customOrder.findMany({
+        where: {
+          isDeleted: false,
+          status: {
+            OR: [{ not: "scheduled" }, { equals: "" }],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          customer: true,
+          part: {
+            include: {
+              components: {
+                where: { isDeleted: false },
+                include: { part: true },
+              },
+            },
+          },
+          product: {
+            include: {
+              process: { select: { id: true, processName: true } },
+              components: {
+                where: { isDeleted: false },
+                include: { part: true },
+              },
+            },
+          },
+        },
+      });
+
+      return res.status(200).json({
+        message: "All custom orders retrieved successfully.",
+        data: formatOrders(orders),
       });
     }
+
+    // -------------------------------------------------------------------------------------
+    // CASE 2: SEARCH LOGIC
+    // -------------------------------------------------------------------------------------
     const andConditions = [{ isDeleted: false }];
+
+    // -----------------------------
+    // 🔹 SEARCH BY CUSTOMER NAME (full name support)
+    // -----------------------------
     if (customerName) {
+      const name = customerName.trim();
+      const [fName, lName] = name.split(" ");
+
       andConditions.push({
         customer: {
           is: {
             OR: [
+              { firstName: { contains: name, mode: "insensitive" } },
+              { lastName: { contains: name, mode: "insensitive" } },
               {
-                firstName: {
-                  contains: customerName.trim(),
-                },
-              },
-              {
-                lastName: {
-                  contains: customerName.trim(),
-                },
+                AND: [
+                  { firstName: { contains: fName || "", mode: "insensitive" } },
+                  { lastName: { contains: lName || "", mode: "insensitive" } },
+                ],
               },
             ],
           },
@@ -4230,6 +4350,9 @@ const searchCustomOrders = async (req, res) => {
       });
     }
 
+    // -----------------------------
+    // 🔹 SEARCH BY SHIP DATE
+    // -----------------------------
     if (shipDate) {
       const date = new Date(shipDate);
       andConditions.push({
@@ -4239,50 +4362,56 @@ const searchCustomOrders = async (req, res) => {
         },
       });
     }
+
+    // -----------------------------
+    // 🔹 SEARCH BY PART NUMBER
+    // -----------------------------
     if (partNumber) {
       andConditions.push({
         OR: [
-          { part: { partNumber: { contains: partNumber.trim() } } },
-          { product: { partNumber: { contains: partNumber.trim() } } },
+          {
+            part: {
+              partNumber: { contains: partNumber.trim(), mode: "insensitive" },
+            },
+          },
+          {
+            product: {
+              partNumber: { contains: partNumber.trim(), mode: "insensitive" },
+            },
+          },
         ],
       });
     }
 
+    // -------------------------------------------------------------------------------------
+    // 🔹 GET SEARCH RESULTS
+    // -------------------------------------------------------------------------------------
     const orders = await prisma.customOrder.findMany({
       where: { AND: andConditions },
       orderBy: { createdAt: "desc" },
       include: {
         customer: true,
         part: {
-          // Assuming 'part' is the relation name for CustomOrder.partId -> PartNumber
           include: {
             components: {
               where: { isDeleted: false },
-              include: {
-                part: true,
-              },
+              include: { part: true },
             },
           },
         },
         product: {
           include: {
-            process: {
-              select: {
-                id: true,
-                processName: true,
-              },
-            },
+            process: { select: { id: true, processName: true } },
             components: {
               where: { isDeleted: false },
-              include: {
-                part: true,
-              },
+              include: { part: true },
             },
           },
         },
       },
     });
 
+    // No results
     if (orders.length === 0) {
       return res.status(200).json({
         message: "No custom orders found matching your criteria.",
@@ -4290,74 +4419,10 @@ const searchCustomOrders = async (req, res) => {
       });
     }
 
-    const formattedOrders = orders.map((order) => {
-      // Destructure 'part' and 'product' relations
-      const { part, product, ...restOfOrder } = order;
-
-      const productFamily = [];
-
-      // Add 'product' as a parent if it exists
-      if (product) {
-        productFamily.push({
-          ...product,
-          isParent: true,
-          quantityRequired: order.productQuantity || 1, // Assuming productQuantity refers to the main product
-          components: undefined, // Remove nested components from the parent item itself
-        });
-
-        // Add components of the product
-        if (product.components && product.components.length > 0) {
-          product.components.forEach((componentEntry) => {
-            if (componentEntry.part) {
-              productFamily.push({
-                ...componentEntry.part,
-                isParent: false,
-                quantityRequired: componentEntry.partQuantity,
-              });
-            }
-          });
-        }
-      }
-
-      // Add 'part' as a parent if it exists (and if it's not the same as the product if that's a concern)
-      // You might need a more sophisticated check if a single order can have a `product` and a `part`
-      // that are essentially the same entity but come from different relation fields.
-      if (part) {
-        // If product already added, and this part has the same part_id as the product,
-        // you might want to skip it to avoid duplication.
-        // For now, it adds it as a distinct parent.
-        productFamily.push({
-          ...part,
-          isParent: true, // Mark this as a parent too
-          // Decide how to set quantityRequired for a direct part on the CustomOrder
-          quantityRequired: 1, // Defaulting to 1, adjust as needed.
-          components: undefined, // Remove nested components from the parent item itself
-        });
-
-        // Add components of the part
-        if (part.components && part.components.length > 0) {
-          part.components.forEach((componentEntry) => {
-            if (componentEntry.part) {
-              productFamily.push({
-                ...componentEntry.part,
-                isParent: false,
-                quantityRequired: componentEntry.partQuantity,
-              });
-            }
-          });
-        }
-      }
-
-      // Final object return karein
-      return {
-        ...restOfOrder,
-        productFamily, // Product aur uske parts ki flat list
-      };
-    });
-
+    // FINAL RESPONSE
     return res.status(200).json({
       message: "Custom orders retrieved successfully!",
-      data: formattedOrders,
+      data: formatOrders(orders),
     });
   } catch (error) {
     console.error("Error searching custom orders:", error);
@@ -4367,6 +4432,7 @@ const searchCustomOrders = async (req, res) => {
     });
   }
 };
+
 // const stockOrderSchedule = async (req, res) => {
 //   const ordersToSchedule = req.body;
 //   try {
@@ -5075,7 +5141,7 @@ const customOrderSchedule = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: `Successfully scheduled or updated ${newSchedules.length} items.`,
+      message: `Successfully scheduled ordres`,
       data: newSchedules,
     });
   } catch (error) {

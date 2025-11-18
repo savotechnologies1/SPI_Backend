@@ -29242,9 +29242,34 @@ const selectScheduleProcess = async (req, res) => {
     }
     const processOverviewsPromises = uniqueProcesses.map(async (process) => {
       let nextJob = null;
+
       if (process.nextJobType === "part") {
         nextJob = await findNextJobForProcess(process.id);
       } else if (process.nextJobType === "product" && process.orderId) {
+        // 🔍 1. Check if all parts for this order are completed
+        const partSchedules = await prisma.stockOrderSchedule.findMany({
+          where: {
+            order_id: process.orderId,
+            type: "part",
+            isDeleted: false,
+          },
+          select: { status: true },
+        });
+
+        const hasIncompleteParts = partSchedules.some(
+          (p) => p.status !== "completed"
+        );
+
+        // ⛔ If any part NOT completed → do not show product
+        if (hasIncompleteParts) {
+          return {
+            processId: process.id,
+            processName: process.name,
+            nextJob: null,
+          };
+        }
+
+        // ✔ All parts complete → allow showing product
         nextJob = await findNextJobForProduct(process.id, process.orderId);
       }
 
