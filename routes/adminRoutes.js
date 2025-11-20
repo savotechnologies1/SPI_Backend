@@ -287,11 +287,7 @@ router.post("/create-custom-order", adminValidateToken, customeOrder);
 router.post("/add-custom-orders", adminValidateToken, addCustomOrder);
 router.get("/get-customOrders/:id", adminValidateToken, getCustomOrderById);
 router.post("/custom-order-schedule", adminValidateToken, customOrderSchedule);
-router.get(
-  "/stock-order-schedule-list",
-  adminValidateToken,
-  scheduleStockOrdersList
-);
+
 router.post("/stock-order-schedule", adminValidateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
@@ -424,7 +420,7 @@ router.put("/complete-traning/:id", adminValidateToken, completeTraning);
 router.put("/scrap-order/:id", adminValidateToken, scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
 router.post("/validate-stock-quantity", validateStockQty);
-router.patch("/delete-schedule-order/:id", deleteScheduleOrder);
+router.delete("/delete-schedule-order/:id", deleteScheduleOrder);
 router.get("/scan-complete", completeScheduleOrderViaGet);
 router.post("/add-scrap-entry", adminValidateToken, scrapEntry);
 router.get("/all-scrap-entry", allScrapEntires);

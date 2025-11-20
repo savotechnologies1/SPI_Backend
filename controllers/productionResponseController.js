@@ -29541,11 +29541,27 @@ const getScheduleProcessInformation = async (req, res) => {
           return { ...upcomingSchedule, order: upcomingOrderData };
         })(),
       ]);
+    const employeeScheduleStats = await prisma.stockOrderSchedule.aggregate({
+      where: {
+        order_id: order_id,
+        part_id: part_id,
+        processId,
+        isDeleted: false,
+        completed_EmpId: stationUserId, // 👈 employee completed this job
+      },
+      _sum: {
+        completedQuantity: true,
+        scrapQuantity: true,
+      },
+    });
 
-    // <<< HERE WE EXTRACT THE CALCULATED VALUE
+    const employeeCompletedQty =
+      employeeScheduleStats._sum.completedQuantity || 0;
+
+    const employeeScrapQty = employeeScheduleStats._sum.scrapQuantity || 0;
+
     const userCompletedQty = userProductionStats._sum.completedQuantity || 0;
     console.log("nextJobnextJob", nextJob);
-
     const responseData = {
       ...nextJob,
       productionId: lastUserProductionCycle?.id || null,
@@ -29553,13 +29569,15 @@ const getScheduleProcessInformation = async (req, res) => {
       upcommingOrder: upcomingOrder?.order?.shipDate || null,
       employeeInfo: lastUserProductionCycle?.employeeInfo || null,
       cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
-      // <<< AND HERE WE USE IT IN THE FINAL RESPONSE
-      completedQty: userCompletedQty,
+
+      // === ADDED ===
+      employeeCompletedQty: employeeCompletedQty,
+      employeeScrapQty: employeeScrapQty,
+
       scheduleQuantity: nextJob.scheduleQuantity || 0,
       scrapQty: lastUserProductionCycle?.scrapQuantity || 0,
       remainingQty: nextJob.remainingQty,
     };
-
     res.status(200).json({
       message: "Next job found successfully.",
       data: responseData,
@@ -30622,28 +30640,60 @@ const processBarcodeScan = async (req, res) => {
     res.status(500).json({ message: "An error occurred on the server." });
   }
 };
-
 const deleteScheduleOrder = async (req, res) => {
   try {
     const id = req.params.id;
-    prisma.partNumber
-      .update({
-        where: {
-          id: id,
-          isDeleted: false,
-        },
-        data: {
-          isDeleted: true,
-        },
-      })
-      .then();
+    console.log(" req?.body req?.body", req?.query);
+    const orderId = req?.query.orderId;
+
+    // STEP 1: Find the schedule
+    const schedule = await prisma.stockOrderSchedule.findUnique({
+      where: { id },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    const orderType = schedule.order_type; // StockOrder or CustomOrder
+
+    // STEP 2: Delete the schedule
+    await prisma.stockOrderSchedule.delete({
+      where: { id },
+    });
+
+    // STEP 3: Check if any schedule exists for same order_id
+    const remainingSchedules = await prisma.stockOrderSchedule.count({
+      where: { order_id: orderId },
+    });
+
+    // STEP 4: If no schedule left → delete parent order
+    if (remainingSchedules === 0) {
+      if (orderType === "StockOrder") {
+        await prisma.stockOrder.delete({
+          where: { id: orderId },
+          data: { isDeleted: true },
+        });
+      } else if (orderType === "CustomOrder") {
+        await prisma.customOrder.delete({
+          where: { id: orderId },
+          data: { isDeleted: true },
+        });
+      }
+    }
 
     return res.status(200).json({
-      message: "Employee delete successfully !",
+      message: "Schedule deleted successfully!",
+      parentOrderDeleted:
+        remainingSchedules === 0
+          ? "Parent order also deleted"
+          : "Parent order kept",
     });
   } catch (error) {
+    console.error("Delete error:", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
+      error: error.message,
     });
   }
 };

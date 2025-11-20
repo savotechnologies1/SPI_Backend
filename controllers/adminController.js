@@ -1679,30 +1679,21 @@ const createStockOrder = async (req, res) => {
       cost,
       totalCost,
       productId,
-      customerId, // Can be a real ID or a temporary UUID for a new customer
+      customerId,
       customerEmail,
       customerName,
       customerPhone,
     } = req.body;
 
-    let finalCustomerId; // This will hold the ID of the customer for the order
+    let finalCustomerId;
 
-    // --- CORRECTED LOGIC TO HANDLE NEW OR EXISTING CUSTOMER ---
-
-    // We receive a customerId for both existing and new customers.
-    // The key is to check if this ID actually exists in our database.
     const existingCustomerById = await prisma.customers.findUnique({
       where: { id: customerId },
     });
 
     if (existingCustomerById) {
-      // CASE 1: The customerId provided exists. This is an existing customer.
       finalCustomerId = existingCustomerById.id;
     } else {
-      // CASE 2: The customerId was not found. This is a new customer.
-      // The frontend sent a temporary UUID which we can now ignore.
-
-      // 1. Check for duplicates using email or phone number to be safe.
       const duplicateCustomer = await prisma.customers.findFirst({
         where: {
           OR: [{ email: customerEmail }, { customerPhone: customerPhone }],
@@ -1711,7 +1702,6 @@ const createStockOrder = async (req, res) => {
 
       if (duplicateCustomer) {
         return res.status(409).json({
-          // 409 Conflict is more appropriate here
           message: "A customer with this email or phone number already exists.",
         });
       }
@@ -1788,6 +1778,7 @@ const createStockOrder = async (req, res) => {
         customerPhone,
         customerId: finalCustomerId, // This ID is now guaranteed to be a valid one
         partId: productId,
+        status: "Pending",
       },
     });
 
@@ -3329,91 +3320,64 @@ const getCustomOrderById = async (req, res) => {
 const searchStockOrders = async (req, res) => {
   try {
     const { customerName, shipDate, productNumber } = req.query;
-    const whereClause = {
-      isDeleted: false,
-      NOT: [{ status: "" }],
-    };
-    if (!customerName && !shipDate && !productNumber) {
-      const whereClause = {
-        where: {
-          isDeleted: false,
-          AND: [{ status: { not: "scheduled" } }, { status: { not: "" } }],
-        },
-      };
-    }
 
+    let whereClause = {
+      isDeleted: false,
+      status: "Pending",
+      // status: { not: "" }, // only empty status remove, scheduled allow
+    };
+
+    // CUSTOMER NAME SEARCH
     if (customerName) {
       const name = customerName.trim();
       const parts = name.split(/\s+/);
 
       if (parts.length >= 2) {
         whereClause.customer = {
-          is: {
-            OR: [
-              { firstName: { contains: name } },
-              { lastName: { contains: name } },
-              {
-                AND: [
-                  { firstName: { contains: parts[0] } },
-                  {
-                    lastName: {
-                      contains: parts.slice(1).join(" "),
-                    },
-                  },
-                ],
-              },
-            ],
-          },
+          OR: [
+            { firstName: { contains: name } },
+            { lastName: { contains: name } },
+            {
+              AND: [
+                { firstName: { contains: parts[0] } },
+                { lastName: { contains: parts.slice(1).join(" ") } },
+              ],
+            },
+          ],
         };
       } else {
         whereClause.customer = {
-          is: {
-            OR: [
-              { firstName: { contains: name } },
-              { lastName: { contains: name } },
-            ],
-          },
+          OR: [
+            { firstName: { contains: name } },
+            { lastName: { contains: name } },
+          ],
         };
       }
     }
+
+    // PRODUCT NUMBER SEARCH
     if (productNumber) {
       whereClause.part = {
-        partNumber: {
-          contains: productNumber.trim(),
-        },
+        partNumber: { contains: productNumber.trim() },
       };
     }
 
+    // SHIP DATE SEARCH
     if (shipDate) {
-      whereClause.shipDate = {
-        equals: shipDate,
-      };
+      whereClause.shipDate = shipDate;
     }
 
+    // FINAL QUERY
     const orders = await prisma.stockOrder.findMany({
       where: whereClause,
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
       include: {
         customer: true,
         part: {
           include: {
             components: {
-              select: {
-                partQuantity: true,
-                part: {
-                  where: {
-                    processOrderRequired: true,
-                  },
-                  select: {
-                    part_id: true,
-                    partNumber: true,
-                    partDescription: true,
-                    minStock: true,
-                    cost: true,
-                  },
-                },
+              include: {
+                part: true,
               },
             },
           },
@@ -3428,7 +3392,7 @@ const searchStockOrders = async (req, res) => {
   } catch (error) {
     console.error("Error fetching stock orders:", error);
     return res.status(500).json({
-      message: "Something went wrong. Please try again later.",
+      message: "Something went wrong.",
       error: error.message,
     });
   }
@@ -5167,9 +5131,9 @@ const scheduleStockOrdersList = async (req, res) => {
     if (search) {
       whereClause.OR = [{ part: { partNumber: { contains: search } } }];
     }
-    if (req.user?.role === "Frontline_Manager") {
-      whereClause.submittedByEmployeeId = req.user.id;
-    }
+    // if (req.user?.role === "Frontline_Manager") {
+    //   whereClause.submittedByEmployeeId = req.user.id;
+    // }
 
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
@@ -10062,7 +10026,6 @@ const revenueApi = async (req, res) => {
       },
     });
 
-    // ✅ Fixed costs
     const fixedCosts = await prisma.fixedCost.findMany({
       select: { expenseCost: true },
     });
