@@ -29135,27 +29135,20 @@ const getNextJobDetails = async (req, res) => {
 //     });
 //   }
 // };
-
 const selectScheduleProcess = async (req, res) => {
   try {
     const stationUser = req.user;
+
     const findNextJobForProcess = async (processId) => {
       return await prisma.stockOrderSchedule.findFirst({
         where: {
           isDeleted: false,
           status: { in: ["new", "progress"] },
           type: "part",
-          part: {
-            processId: processId,
-          },
+          part: { processId: processId },
         },
-        include: {
-          StockOrder: true,
-          part: true,
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
+        include: { StockOrder: true, part: true },
+        orderBy: { createdAt: "asc" },
       });
     };
 
@@ -29168,13 +29161,8 @@ const selectScheduleProcess = async (req, res) => {
           processId: processId,
           order_id: orderId,
         },
-        include: {
-          StockOrder: true,
-          part: true,
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
+        include: { StockOrder: true, part: true },
+        orderBy: { createdAt: "asc" },
       });
     };
 
@@ -29186,15 +29174,9 @@ const selectScheduleProcess = async (req, res) => {
       include: {
         StockOrder: true,
         part: {
-          include: {
-            process: {
-              select: { id: true, processName: true },
-            },
-          },
+          include: { process: { select: { id: true, processName: true } } },
         },
-        process: {
-          select: { id: true, processName: true },
-        },
+        process: { select: { id: true, processName: true } },
       },
     });
 
@@ -29202,36 +29184,34 @@ const selectScheduleProcess = async (req, res) => {
       return res.status(404).json({ message: "No schedules found." });
     }
 
-    const activeSchedules = allSchedules.filter(
-      (s) => s.status === "new" || s.status === "progress"
+    const activeSchedules = allSchedules.filter((s) =>
+      ["new", "progress"].includes(s.status)
     );
 
     const processMap = new Map();
-    // 🔹 Determine next jobs for processes
-    console.log("schedule", activeSchedules);
 
-    for (const schedule of activeSchedules) {
-      if (schedule.type === "part") {
-        const process = schedule.part?.process;
-        if (process && process.id) {
-          processMap.set(process.id, {
-            id: process.id,
-            name: process.processName,
-            nextJobType: "part",
-          });
-        }
-      } else if (schedule.type === "product" && schedule.order_id) {
-        const productProcess = schedule.process;
-        if (productProcess && productProcess.id) {
-          processMap.set(productProcess.id, {
-            id: productProcess.id,
-            name: productProcess.processName,
-            nextJobType: "product",
-            orderId: schedule.order_id,
-          });
-        }
+    activeSchedules.forEach((schedule) => {
+      if (schedule.type === "part" && schedule.part?.process?.id) {
+        const process = schedule.part.process;
+        processMap.set(process.id, {
+          id: process.id,
+          name: process.processName,
+          nextJobType: "part",
+        });
+      } else if (
+        schedule.type === "product" &&
+        schedule.process?.id &&
+        schedule.order_id
+      ) {
+        const process = schedule.process;
+        processMap.set(process.id, {
+          id: process.id,
+          name: process.processName,
+          nextJobType: "product",
+          orderId: schedule.order_id,
+        });
       }
-    }
+    });
 
     const uniqueProcesses = Array.from(processMap.values());
 
@@ -29240,75 +29220,51 @@ const selectScheduleProcess = async (req, res) => {
         .status(404)
         .json({ message: "No unique processes found for active schedules." });
     }
+
     const processOverviewsPromises = uniqueProcesses.map(async (process) => {
       let nextJob = null;
 
       if (process.nextJobType === "part") {
         nextJob = await findNextJobForProcess(process.id);
       } else if (process.nextJobType === "product" && process.orderId) {
-        // 🔍 1. Check if all parts for this order are completed
+        // ✅ Only show product if all parts are completed
         const partSchedules = await prisma.stockOrderSchedule.findMany({
-          where: {
-            order_id: process.orderId,
-            type: "part",
-            isDeleted: false,
-          },
+          where: { order_id: process.orderId, type: "part", isDeleted: false },
           select: { status: true },
         });
 
-        const hasIncompleteParts = partSchedules.some(
-          (p) => p.status !== "completed"
+        const allPartsCompleted = partSchedules.every(
+          (p) => p.status === "completed"
         );
-
-        // ⛔ If any part NOT completed → do not show product
-        if (hasIncompleteParts) {
-          return {
-            processId: process.id,
-            processName: process.name,
-            nextJob: null,
-          };
+        if (!allPartsCompleted) {
+          // Skip this product process
+          return null;
         }
 
-        // ✔ All parts complete → allow showing product
         nextJob = await findNextJobForProduct(process.id, process.orderId);
       }
 
       return {
         processId: process.id,
         processName: process.name,
-        nextJob: nextJob
-          ? {
-              scheduleId: nextJob.id,
-              orderNumber: nextJob.order?.orderNumber || "N/A",
-              partName: nextJob.part?.partName || "Product Assembly",
-              partNumber: nextJob.part?.partNumber || "N/A",
-              scheduleQuantity: nextJob.scheduleQuantity,
-              remainingQty: nextJob.remainingQty,
-              shipDate: nextJob.order?.shipDate || null,
-              type: nextJob.type,
-              partId: nextJob.part_id,
-            }
-          : null,
+        nextJob: nextJob || null,
       };
     });
 
     let processOverviews = await Promise.all(processOverviewsPromises);
-    processOverviews = processOverviews.filter((p) => p.nextJob !== null);
 
-    if (processOverviews.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No available jobs found for any active process." });
-    }
+    // Remove nulls (product processes not ready)
+    processOverviews = processOverviews.filter((p) => p !== null);
 
-    let employeeFormattedData = [];
+    // Employee info
+    let stationUsers = [];
     if (stationUser.role === "Shop_Floor") {
       const employee = await prisma.employee.findUnique({
         where: { email: stationUser.email, isDeleted: false },
         select: { id: true, employeeId: true, email: true, fullName: true },
       });
       if (employee) {
-        employeeFormattedData.push({
+        stationUsers.push({
           id: employee.id,
           name: employee.fullName,
           employeeId: employee.employeeId,
@@ -29320,25 +29276,20 @@ const selectScheduleProcess = async (req, res) => {
         where: { isDeleted: false },
         select: { id: true, employeeId: true, email: true, fullName: true },
       });
-      employeeFormattedData = employees.map((employee) => ({
-        id: employee.id,
-        name: employee.fullName,
-        employeeId: employee.employeeId,
-        email: employee.email,
+      stationUsers = employees.map((e) => ({
+        id: e.id,
+        name: e.fullName,
+        employeeId: e.employeeId,
+        email: e.email,
       }));
     }
 
-    // 5. Enviar la respuesta combinada.
-    return res.status(200).json({
-      processOverviews: processOverviews,
-      stationUsers: employeeFormattedData,
-    });
+    return res.status(200).json({ processOverviews, stationUsers });
   } catch (error) {
     console.error("Error in selectScheduleProcess:", error);
-    return res.status(500).json({
-      message: "Something went wrong. Please try again later.",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Something went wrong.", error: error.message });
   }
 };
 

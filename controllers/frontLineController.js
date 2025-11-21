@@ -490,6 +490,7 @@ const validOtp = async (req, res) => {
     }
 
     if (new Date() > user.otpExpiresAt) {
+      console.log("3999999999");
       await prisma.employee.update({
         where: { id: user.id },
         data: { otp: null, otpExpiresAt: null },

@@ -2309,7 +2309,7 @@ const createProductNumber = async (req, res) => {
 
     const existingPart = await prisma.partNumber.findUnique({
       where: {
-        partNumber: productNumber.trim(),
+        partNumber: productNumber?.trim(),
       },
     });
 
@@ -5917,7 +5917,12 @@ const allEmployeeTimeLine = async (req, res) => {
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-
+    const vacationRequests1 = await prisma.vacationRequest.findMany({
+      where: {
+        employeeId: queryEmployeeId,
+        isDeleted: false,
+      },
+    });
     switch (filter) {
       case "This Week":
         const dayOfWeek = now.getDay();
@@ -5976,11 +5981,15 @@ const allEmployeeTimeLine = async (req, res) => {
       },
     });
 
-    // Group events by date using a reducer
     const groupedByDate = allEvents.reduce((acc, event) => {
-      const date = new Date(event.timestamp).toISOString().split("T")[0]; // '2025-03-20'
+      const date = new Date(event.timestamp).toISOString().split("T")[0];
 
-      // Initialize the day's object if it doesn't exist
+      const matchedVacation = vacationRequests1.find((v) => {
+        const vStart = new Date(v.startDate);
+        const vEnd = new Date(v.endDate);
+        console.log("vvvvv", v);
+        return v.employeeId === event.employee.id;
+      });
       if (!acc[date]) {
         acc[date] = {
           date: date,
@@ -5995,7 +6004,7 @@ const allEmployeeTimeLine = async (req, res) => {
           logout: null,
           exceptionStart: null, // Placeholder
           exceptionEnd: null, // Placeholder
-          vacation: "No", // Placeholder
+          vacation: matchedVacation.status || "PENDING",
         };
       }
 
@@ -6022,14 +6031,11 @@ const allEmployeeTimeLine = async (req, res) => {
       return acc;
     }, {});
 
-    // Convert the grouped object back into an array
     let timeSheetData = Object.values(groupedByDate);
 
-    // --- Searching Logic (applied AFTER grouping) ---
     if (search) {
       const lowercasedSearch = search.toLowerCase();
       timeSheetData = timeSheetData.filter((entry) => {
-        // Search by date, employee name, or employee email
         return (
           entry.date.toLowerCase().includes(lowercasedSearch) ||
           entry.employeeName.toLowerCase().includes(lowercasedSearch) ||
@@ -6038,7 +6044,6 @@ const allEmployeeTimeLine = async (req, res) => {
       });
     }
 
-    // --- Pagination (Now we paginate the PROCESSED and SEARCHED data) ---
     const totalCount = timeSheetData.length;
     const paginatedData = timeSheetData.slice(
       (currentPage - 1) * itemsPerPage,
@@ -6066,7 +6071,6 @@ const allEmployeeTimeLine = async (req, res) => {
   }
 };
 
-// Helper function (if not already defined)
 function formatTime(timestamp) {
   const date = new Date(timestamp);
   return date.toLocaleTimeString("en-US", {
@@ -8462,6 +8466,13 @@ const dashBoardData = async (req, res) => {
       };
     }
 
+    // Helper: percentage change
+    const calculatePercentageChange = (current, previous) => {
+      if (!previous || previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    // Fetch orders (stock & custom) for revenue computations
     const stockOrder = await prisma.stockOrder.findMany({
       where: { isDeleted: false },
     });
@@ -8502,27 +8513,32 @@ const dashBoardData = async (req, res) => {
     );
 
     const stockOrderRevenue = currentStockOrders.reduce(
-      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      (sum, order) =>
+        sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
       0
     );
 
     const customOrderRevenue = currentCustomOrders.reduce(
-      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      (sum, order) =>
+        sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
       0
     );
 
     const currentRevenue = stockOrderRevenue + customOrderRevenue;
 
     const lastStockRevenue = lastStockOrders.reduce(
-      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      (sum, order) =>
+        sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
       0
     );
     const lastCustomRevenue = lastCustomOrders.reduce(
-      (sum, order) => sum + parseFloat(order.cost) * order.productQuantity,
+      (sum, order) =>
+        sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
       0
     );
     const lastRevenue = lastStockRevenue + lastCustomRevenue;
     const totalOrders = currentStockOrders.length + currentCustomOrders.length;
+
     let revenueChangePercent = 0;
     let revenueIndicator = "gray";
 
@@ -8543,53 +8559,21 @@ const dashBoardData = async (req, res) => {
       revenueIndicator = revenueChangePercent >= 0 ? "green" : "red";
     }
 
-    const calculatePercentageChange = (current, previous) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return ((current - previous) / previous) * 100;
-    };
-    let previousWhereClause = { isDeleted: false };
-    if (month) {
-      const monthNum = parseInt(month);
-      const now = new Date();
-      const year = now.getFullYear();
-      let prevMonth = monthNum - 1 === 0 ? 12 : monthNum - 1;
-      let prevYear = monthNum - 1 === 0 ? year - 1 : year;
-      const startOfPrevMonth = new Date(prevYear, prevMonth - 1, 1, 0, 0, 0);
-      const endOfPrevMonth = new Date(prevYear, prevMonth, 0, 23, 59, 59);
-      previousWhereClause.order_date = {
-        gte: startOfPrevMonth,
-        lte: endOfPrevMonth,
-      };
-    }
+    // Supplier mapping (kept same)
     const data = await prisma.supplier_orders.findMany({
       where: { isDeleted: false },
       orderBy: { createdAt: "desc" },
+      include: {
+        supplier: { select: { firstName: true, lastName: true } },
+        part: { select: { partNumber: true, cost: true } },
+      },
     });
-
-    // const data = await prisma.supplier_orders.findMany({
-    //   where: {
-    //     isDeleted: false,
-    //   },
-    //   include: {
-    //     supplier: {
-    //       select: {
-    //         id: true,
-    //         firstName: true,
-    //         lastName: true,
-    //       },
-    //     },
-    //     part: {
-    //       select: {
-    //         partNumber: true,
-    //         cost: true,
-    //       },
-    //     },
-    //   },
-    // });
 
     const supplierMap = {};
     data.forEach((item) => {
-      const supplierName = `${item?.supplier?.firstName} ${item?.supplier?.lastName}`;
+      const supplierName = `${item?.supplier?.firstName || ""} ${
+        item?.supplier?.lastName || ""
+      }`.trim();
       if (!supplierMap[supplierName]) {
         supplierMap[supplierName] = {
           supplierName,
@@ -8598,8 +8582,9 @@ const dashBoardData = async (req, res) => {
           total: 0,
         };
       }
-      supplierMap[supplierName].products.push(item.part?.partNumber);
-      supplierMap[supplierName].total += Number(item.part?.cost);
+      if (item.part?.partNumber)
+        supplierMap[supplierName].products.push(item.part.partNumber);
+      supplierMap[supplierName].total += Number(item.part?.cost || 0);
     });
 
     let suppliers = Object.values(supplierMap)
@@ -8612,11 +8597,7 @@ const dashBoardData = async (req, res) => {
         rank: index + 1,
       }));
 
-    const topPerformers = await prisma.employee.findMany({
-      where: { isDeleted: false },
-      include: { completedSchedules: true },
-    });
-
+    // Productivity / orders (kept mostly same)
     const orders = await prisma.stockOrderSchedule.findMany({
       where: whereClause,
       select: {
@@ -8641,7 +8622,7 @@ const dashBoardData = async (req, res) => {
         : 0;
       const qty = order.scheduleQuantity || 0;
       const scrap = order.scrapQuantity || 0;
-      const completedQty = qty - scrap;
+      const completedQty = order.completedQuantity ?? 0;
       const productivity =
         qty > 0 ? ((completedQty / qty) * 100).toFixed(2) : "0.00";
       const totalTime = qty * cycleTime;
@@ -8650,7 +8631,7 @@ const dashBoardData = async (req, res) => {
         totalTime > 0 ? ((actualTime / totalTime) * 100).toFixed(2) : "0.00";
 
       return {
-        process: order.process.processName,
+        process: order.process?.processName || "N/A",
         employee: order.completedByEmployee?.fullName || "N/A",
         cycleTime,
         totalQty: qty,
@@ -8661,65 +8642,55 @@ const dashBoardData = async (req, res) => {
       };
     });
 
+    // === Inventory calculation using CLIENT formula ===
+    // inventoryCost = (availableStock - minStock) × (partCost + cycleTime_hours × ratePerHour)
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
-      include: {
-        process: { select: { ratePerHour: true } },
-      },
+      include: { process: { select: { ratePerHour: true } } },
     });
 
-    // Current month inventory
     let currentInventoryCost = 0;
     let currentInventoryCount = 0;
 
     parts.forEach((part) => {
       const partCost = parseFloat(part.cost) || 0;
-      const cycleTimeHours = parseFloat(part.cycleTime) || 0;
-      const ratePerHour = part.process?.ratePerHour || 0;
+      // treat cycleTime as minutes in DB; convert to hours
+      const cycleTimeMinutes = parseFloat(part.cycleTime) || 0;
+      const cycleTimeHours = cycleTimeMinutes / 60;
+      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
 
-      const costPerPart = partCost + cycleTimeHours * ratePerHour;
+      // cost per unit = partCost + (cycleTimeHours * ratePerHour)
+      const costPerUnit = partCost + cycleTimeHours * ratePerHour;
 
-      const availableStock = part.availStock || 0;
-      const minStock = part.minStock || 0;
-      const inventoryLevel = availableStock - minStock;
+      const available = Number(part.availStock || 0);
+      const minimum = Number(part.minStock || 0);
+      const inventoryLevel = available - minimum;
 
       if (inventoryLevel > 0) {
         currentInventoryCount += inventoryLevel;
-        currentInventoryCost += inventoryLevel * costPerPart;
+        currentInventoryCost += inventoryLevel * costPerUnit;
       }
     });
 
-    // Previous month inventory (just for comparison)
-    // ⚠️ assuming stocks table has no history, so using same availStock for prev month
-    // In real case, you’d need inventory history table
-    let lastInventoryCost = currentInventoryCost * 0.8; // dummy assumption
-    let lastInventoryCount = currentInventoryCount * 0.8;
+    // For previous month we don't have real snapshot -> keep dummy or replace with real logic if available
+    // (if you have historical inventory table, replace this)
+    const lastInventoryCost = currentInventoryCost * 0.8;
+    const lastInventoryCount = Math.round(currentInventoryCount * 0.8);
 
     const inventoryChangePercent = calculatePercentageChange(
       currentInventoryCost,
       lastInventoryCost
     );
     const inventoryIndicator = inventoryChangePercent >= 0 ? "green" : "red";
-    // Helper function
-    const calculatePercentChange = (current, previous) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return ((current - previous) / previous) * 100;
-    };
 
-    // Current Month Production Total
+    // === Production totals (unchanged) ===
     const currentMonthProductionData = await prisma.stockOrderSchedule.findMany(
       {
         where: {
           isDeleted: false,
-          order_date: {
-            gte: currentMonthStart,
-            lte: currentMonthEnd,
-          },
+          order_date: { gte: currentMonthStart, lte: currentMonthEnd },
         },
-        select: {
-          completedQuantity: true,
-          scrapQuantity: true,
-        },
+        select: { completedQuantity: true, scrapQuantity: true },
       }
     );
 
@@ -8732,19 +8703,12 @@ const dashBoardData = async (req, res) => {
       0
     );
 
-    // Last Month Production Total
     const lastMonthProductionData = await prisma.stockOrderSchedule.findMany({
       where: {
         isDeleted: false,
-        order_date: {
-          gte: lastMonthStart,
-          lte: lastMonthEnd,
-        },
+        order_date: { gte: lastMonthStart, lte: lastMonthEnd },
       },
-      select: {
-        completedQuantity: true,
-        scrapQuantity: true,
-      },
+      select: { completedQuantity: true, scrapQuantity: true },
     });
 
     const lastProductionTotal = lastMonthProductionData.reduce((sum, p) => {
@@ -8753,30 +8717,23 @@ const dashBoardData = async (req, res) => {
       return sum + (completed - scrap);
     }, 0);
 
-    // Percentage change & indicator
-    const productionChangePercent = calculatePercentChange(
+    const productionChangePercent = calculatePercentageChange(
       currentProductionTotal,
       lastProductionTotal
     );
-
     const productionIndicator = productionChangePercent >= 0 ? "green" : "red";
+
+    // === Scrap calculations (unchanged) ===
     const currentMonthScrapData = await prisma.stockOrderSchedule.findMany({
       where: {
         isDeleted: false,
-        order_date: {
-          gte: currentMonthStart,
-          lte: currentMonthEnd,
-        },
+        order_date: { gte: currentMonthStart, lte: currentMonthEnd },
       },
-      select: {
-        scrapQuantity: true,
-        part: { select: { cost: true } },
-      },
+      select: { scrapQuantity: true, part: { select: { cost: true } } },
     });
 
     let currentScrapQty = 0;
     let currentScrapCost = 0;
-
     currentMonthScrapData.forEach((item) => {
       const scrap = item.scrapQuantity || 0;
       const cost = parseFloat(item.part?.cost) || 0;
@@ -8784,24 +8741,16 @@ const dashBoardData = async (req, res) => {
       currentScrapCost += scrap * cost;
     });
 
-    // Scrap Totals (Last Month)
     const lastMonthScrapData = await prisma.stockOrderSchedule.findMany({
       where: {
         isDeleted: false,
-        order_date: {
-          gte: lastMonthStart,
-          lte: lastMonthEnd,
-        },
+        order_date: { gte: lastMonthStart, lte: lastMonthEnd },
       },
-      select: {
-        scrapQuantity: true,
-        part: { select: { cost: true } },
-      },
+      select: { scrapQuantity: true, part: { select: { cost: true } } },
     });
 
     let lastScrapQty = 0;
     let lastScrapCost = 0;
-
     lastMonthScrapData.forEach((item) => {
       const scrap = item.scrapQuantity || 0;
       const cost = parseFloat(item.part?.cost) || 0;
@@ -8809,20 +8758,15 @@ const dashBoardData = async (req, res) => {
       lastScrapCost += scrap * cost;
     });
 
-    // % Change in Scrap
-    const scrapChangePercent = calculatePercentChange(
+    const scrapChangePercent = calculatePercentageChange(
       currentScrapQty,
       lastScrapQty
     );
     const scrapIndicator = currentScrapQty <= lastScrapQty ? "red" : "green";
 
+    // === Open / Fulfilled orders (kept same) ===
     const openStockOrders = await prisma.stockOrder.findMany({
-      where: {
-        isDeleted: false,
-        NOT: {
-          status: "scheduled",
-        },
-      },
+      where: { isDeleted: false, NOT: { status: "scheduled" } },
       select: {
         orderDate: true,
         orderNumber: true,
@@ -8855,6 +8799,7 @@ const dashBoardData = async (req, res) => {
     }));
 
     const totalOpenQty = openOrders.reduce((sum, o) => sum + (o.qty || 0), 0);
+
     const fulfilledOrdersData = await prisma.stockOrderSchedule.findMany({
       where: { isDeleted: false, status: "completed" },
       include: {
@@ -8866,7 +8811,6 @@ const dashBoardData = async (req, res) => {
     });
 
     const fulfilledOrders = fulfilledOrdersData.map((o) => {
-      console.log("**************9999999999999********************", o);
       const nameParts = o.completedByEmployee?.fullName?.split(" ") || [];
       const type = o.order_type ? o.order_type.toLowerCase() : "";
 
@@ -8887,6 +8831,8 @@ const dashBoardData = async (req, res) => {
       (sum, o) => sum + (o.qty || 0),
       0
     );
+
+    // === Final response ===
     res.status(200).json({
       suppliers,
       productivityData,
@@ -8903,8 +8849,8 @@ const dashBoardData = async (req, res) => {
         inventoryIndicator,
       },
       production: {
-        currentProductionTotal,
-        lastProductionTotal,
+        currentProductionTotal: currentProductionTotal,
+        lastProductionTotal: lastProductionTotal,
         productionChangePercent: productionChangePercent.toFixed(2),
         productionIndicator,
       },

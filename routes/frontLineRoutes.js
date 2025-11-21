@@ -14,6 +14,9 @@ const validateToken = require("../middlewares/validateTokenHandler");
 const {
   stockOrderValidation,
   supplierValidation,
+  forgotPass,
+  otpVerify,
+  resetPass,
 } = require("../validations/validations");
 const {
   createStockOrder,
@@ -47,6 +50,17 @@ const {
   supplierOrderDetail,
   deleteSupplierOrder,
   validateStockQty,
+  dashBoardData,
+  getLiveProduction,
+  productionOverview,
+  processHourly,
+  currentStatusOverview,
+  currentQualityStatusOverview,
+  monitorChartsData,
+  getDiveApi,
+  cycleTimeComparisionData,
+  deleteFixedCost,
+  getParts,
 } = require("../controllers/adminController");
 const {
   stationSendNotification,
@@ -70,6 +84,9 @@ const {
   selectScheudleProductNumber,
   getScrapEntryById,
   updateScrapEntry,
+  qualityPerformance,
+  costingApi,
+  fixedCost,
 } = require("../controllers/productionResponseController");
 const {
   workInstructionProcess,
@@ -89,9 +106,9 @@ const {
 } = require("../controllers/workInstructionController");
 const router = express.Router();
 router.post("/login", login);
-router.post("/send-OTP", sendForgotPasswordOTP);
-router.post("/validate-otp", validOtp);
-router.post("/reset-Password", resetPassword);
+router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
+router.post("/validate-otp", otpVerify, validOtp);
+router.post("/reset-password", resetPass, resetPassword);
 router.post(
   "/create-stock-order",
   validateToken,
@@ -249,7 +266,7 @@ router.put("/complete-traning/:id", validateToken, completeTraning);
 router.put("/scrap-order/:id", validateToken, scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
 router.post("/validate-stock-quantity", validateStockQty);
-router.patch("/delete-schedule-order/:id", deleteScheduleOrder);
+router.delete("/delete-schedule-order/:id", deleteScheduleOrder);
 router.get("/scan-complete", completeScheduleOrderViaGet);
 router.post("/add-scrap-entry", validateToken, scrapEntry);
 router.get("/all-scrap-entry", allScrapEntires);
@@ -257,8 +274,22 @@ router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.get("/select-schedule-product-number", selectScheudleProductNumber);
 router.get("/scrap-entry-detail/:id", getScrapEntryById);
 router.put("/update-scrap-entry/:id", updateScrapEntry);
-
 router.get("/profile-detail", validateToken, profileDetail);
 router.put("/profile-update", validateToken, updateProfileApi);
 router.patch("/delete-profile-image", validateToken, deleteProfileImage);
+router.get("/dashboard-data", dashBoardData);
+router.get("/live-production", getLiveProduction);
+router.get("/production/overview", productionOverview);
+router.get("/production/processes/hourly", processHourly);
+router.get("/current-status-overview", currentStatusOverview);
+router.get("/current-quality-status-overview", currentQualityStatusOverview);
+router.get("/quality-performance-data", qualityPerformance);
+router.get("/monitor-chart-data", monitorChartsData);
+router.get("/dive-chart-data", getDiveApi);
+router.get("/cycle-time-comparision-data", cycleTimeComparisionData);
+router.get("/costing-data", costingApi);
+router.get("/fixed-cost-data", fixedCost);
+router.delete("/fixed-cost-delete/:id", deleteFixedCost);
+router.get("/get-parts", getParts);
+
 module.exports = router;

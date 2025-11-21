@@ -560,7 +560,7 @@ const vacationReq = async (req, res) => {
       },
     });
     return res.status(201).json({
-      message: "vacationReq added successfully!",
+      message: "vacation request send successfully!",
     });
   } catch (error) {
     return res.status(500).send({
