@@ -1706,25 +1706,18 @@ const createStockOrder = async (req, res) => {
         });
       }
 
-      // 2. Create the new customer since no duplicate was found.
       const newCustomer = await prisma.customers.create({
         data: {
-          // Note: Handle names carefully. If customerName can be a single word, this logic is needed.
           firstName: customerName.split(" ")[0],
-          lastName: customerName.split(" ").slice(1).join(" ") || "", // Provide empty string if no last name
+          lastName: customerName.split(" ").slice(1).join(" ") || "",
           email: customerEmail,
           customerPhone: customerPhone,
-          createdBy: req.user?.id, // Assuming req.user is populated by authentication middleware
+          createdBy: req.user?.id,
         },
       });
-
-      // 3. Use the newly created customer's ID for the order.
       finalCustomerId = newCustomer.id;
     }
 
-    // --- CONTINUE WITH ORDER CREATION USING finalCustomerId ---
-
-    // Validate Product and Stock
     const product = await prisma.partNumber.findUnique({
       where: { part_id: productId },
     });
@@ -1734,35 +1727,33 @@ const createStockOrder = async (req, res) => {
     }
     const available = product.availStock || 0;
 
-    if (parseInt(productQuantity, 10) > available) {
-      const message =
-        available === 0
-          ? "This product is currently out of stock."
-          : `Not enough stock available. Only ${available} unit${
-              available === 1 ? "" : "s"
-            } can be ordered at this time.`;
+    // if (parseInt(productQuantity, 10) > available) {
+    //   const message =
+    //     available === 0
+    //       ? "This product is currently out of stock."
+    //       : `Not enough stock available. Only ${available} unit${
+    //           available === 1 ? "" : "s"
+    //         } can be ordered at this time.`;
 
-      return res.status(400).json({ message });
-    }
+    //   return res.status(400).json({ message });
+    // }
 
-    // Check for duplicate order (optional but good practice)
-    const existingOrder = await prisma.stockOrder.findFirst({
-      where: {
-        customerId: finalCustomerId,
-        partId: productId,
-        shipDate,
-        isDeleted: false,
-      },
-    });
+    // const existingOrder = await prisma.stockOrder.findFirst({
+    //   where: {
+    //     customerId: finalCustomerId,
+    //     partId: productId,
+    //     shipDate,
+    //     isDeleted: false,
+    //   },
+    // });
 
-    if (existingOrder && existingOrder.status !== "completed") {
-      return res.status(400).json({
-        message:
-          "This product is already added for the selected customer on this date.",
-      });
-    }
+    // if (existingOrder && existingOrder.status !== "completed") {
+    //   return res.status(400).json({
+    //     message:
+    //       "This product is already added for the selected customer on this date.",
+    //   });
+    // }
 
-    // Create the Stock Order
     await prisma.stockOrder.create({
       data: {
         orderNumber,
@@ -1773,10 +1764,10 @@ const createStockOrder = async (req, res) => {
         productDescription,
         cost,
         totalCost,
-        customerName, // Storing these might be redundant if you join tables, but can be useful for historical data
+        customerName,
         customerEmail,
         customerPhone,
-        customerId: finalCustomerId, // This ID is now guaranteed to be a valid one
+        customerId: finalCustomerId,
         partId: productId,
         status: "Pending",
       },
@@ -1801,7 +1792,7 @@ const addCustomOrder = async (req, res) => {
       customerEmail,
       customerPhone,
       productId,
-      part_id, // This can be an empty string ""
+      part_id,
       cost,
       totalCost,
       productQuantity,
@@ -1815,7 +1806,6 @@ const addCustomOrder = async (req, res) => {
     }
 
     const newCustomOrder = await prisma.$transaction(async (tx) => {
-      // --- CUSTOMER LOGIC (This part is correct) ---
       let customer;
       if (customerId) {
         customer = await tx.customers.findUnique({
@@ -1839,10 +1829,6 @@ const addCustomOrder = async (req, res) => {
           },
         });
       }
-      // --- CUSTOMER LOGIC ENDS ---
-
-      // --- SOLUTION IS HERE ---
-      // Create the custom order using the final customer's ID.
       const createdOrder = await tx.customOrder.create({
         data: {
           orderNumber,
@@ -1853,8 +1839,6 @@ const addCustomOrder = async (req, res) => {
           customerEmail,
           customerPhone,
           productId,
-          // Conditionally add partId only if it has a valid value.
-          // If part_id is "" or null, this line will not be added to the data object.
           ...(part_id && { partId: part_id }),
           cost: parseFloat(cost),
           totalCost: parseFloat(totalCost),
@@ -1869,7 +1853,6 @@ const addCustomOrder = async (req, res) => {
         },
       });
 
-      // The rest of your logic for handling parts and product tree remains the same.
       for (const processItem of newParts) {
         let partRecord = await tx.partNumber.findUnique({
           where: { partNumber: processItem.part },
@@ -5481,16 +5464,12 @@ const updateSupplierOrderStatus = async (req, res) => {
     const record = await prisma.partNumber.findUnique({
       where: { part_id },
     });
-
-    console.log("Record found:", record);
     if (!record) {
       return res.status(404).json({ message: "Part/Product record not found" });
     }
-
     if (!existingOrder) {
       return res.status(404).json({ message: "Order not found" });
     }
-
     const oldStatus = existingOrder.status;
 
     await prisma.supplier_orders.update({

@@ -29139,26 +29139,28 @@ const selectScheduleProcess = async (req, res) => {
   try {
     const stationUser = req.user;
 
-    const findNextJobForProcess = async (processId) => {
-      return await prisma.stockOrderSchedule.findFirst({
+    // ---------- Helper: Find part job ----------
+    const findNextJobForPartProcess = (processId) => {
+      return prisma.stockOrderSchedule.findFirst({
         where: {
           isDeleted: false,
           status: { in: ["new", "progress"] },
           type: "part",
-          part: { processId: processId },
+          part: { processId },
         },
         include: { StockOrder: true, part: true },
         orderBy: { createdAt: "asc" },
       });
     };
 
-    const findNextJobForProduct = async (processId, orderId) => {
-      return await prisma.stockOrderSchedule.findFirst({
+    // ---------- Helper: Find product job ----------
+    const findNextJobForProductProcess = (processId, orderId) => {
+      return prisma.stockOrderSchedule.findFirst({
         where: {
           isDeleted: false,
           status: { in: ["new", "progress"] },
           type: "product",
-          processId: processId,
+          processId,
           order_id: orderId,
         },
         include: { StockOrder: true, part: true },
@@ -29166,103 +29168,92 @@ const selectScheduleProcess = async (req, res) => {
       });
     };
 
-    const allSchedules = await prisma.stockOrderSchedule.findMany({
-      where: {
-        isDeleted: false,
-        status: { in: ["new", "progress", "completed"] },
-      },
-      include: {
-        StockOrder: true,
-        part: {
-          include: { process: { select: { id: true, processName: true } } },
-        },
-        process: { select: { id: true, processName: true } },
-      },
+    // ---------- Fetch all processes ----------
+    const allProcesses = await prisma.process.findMany({
+      where: { isDeleted: false },
+      select: { id: true, processName: true, type: true },
     });
 
-    if (!allSchedules || allSchedules.length === 0) {
-      return res.status(404).json({ message: "No schedules found." });
+    if (!allProcesses.length) {
+      return res.status(404).json({ message: "No processes found." });
     }
 
-    const activeSchedules = allSchedules.filter((s) =>
-      ["new", "progress"].includes(s.status)
-    );
-
-    const processMap = new Map();
-
-    activeSchedules.forEach((schedule) => {
-      if (schedule.type === "part" && schedule.part?.process?.id) {
-        const process = schedule.part.process;
-        processMap.set(process.id, {
-          id: process.id,
-          name: process.processName,
-          nextJobType: "part",
-        });
-      } else if (
-        schedule.type === "product" &&
-        schedule.process?.id &&
-        schedule.order_id
-      ) {
-        const process = schedule.process;
-        processMap.set(process.id, {
-          id: process.id,
-          name: process.processName,
-          nextJobType: "product",
-          orderId: schedule.order_id,
-        });
-      }
+    // ---------- Fetch active schedules once ----------
+    const activeSchedules = await prisma.stockOrderSchedule.findMany({
+      where: { isDeleted: false, status: { in: ["new", "progress"] } },
+      include: { part: true },
     });
 
-    const uniqueProcesses = Array.from(processMap.values());
+    // ---------- Build process overview ----------
+    const processOverviews = await Promise.all(
+      allProcesses.map(async (process) => {
+        let nextJob = null;
 
-    if (uniqueProcesses.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No unique processes found for active schedules." });
-    }
+        // --------- PART PROCESS ----------
+        if (process.type === "part") {
+          const hasActivePart = activeSchedules.some(
+            (s) => s.type === "part" && s.part?.processId === process.id
+          );
 
-    const processOverviewsPromises = uniqueProcesses.map(async (process) => {
-      let nextJob = null;
-
-      if (process.nextJobType === "part") {
-        nextJob = await findNextJobForProcess(process.id);
-      } else if (process.nextJobType === "product" && process.orderId) {
-        // ✅ Only show product if all parts are completed
-        const partSchedules = await prisma.stockOrderSchedule.findMany({
-          where: { order_id: process.orderId, type: "part", isDeleted: false },
-          select: { status: true },
-        });
-
-        const allPartsCompleted = partSchedules.every(
-          (p) => p.status === "completed"
-        );
-        if (!allPartsCompleted) {
-          // Skip this product process
-          return null;
+          if (hasActivePart) {
+            nextJob = await findNextJobForPartProcess(process.id);
+          }
         }
 
-        nextJob = await findNextJobForProduct(process.id, process.orderId);
-      }
+        // --------- PRODUCT PROCESS ----------
+        if (process.type === "product") {
+          const productSchedules = activeSchedules.filter(
+            (s) => s.type === "product" && s.processId === process.id
+          );
 
-      return {
-        processId: process.id,
-        processName: process.name,
-        nextJob: nextJob || null,
-      };
-    });
+          if (productSchedules.length) {
+            const orderId = productSchedules[0].order_id;
 
-    let processOverviews = await Promise.all(processOverviewsPromises);
+            // check part statuses
+            const partSchedules = await prisma.stockOrderSchedule.findMany({
+              where: {
+                order_id: orderId,
+                type: "part",
+                isDeleted: false,
+              },
+              select: { status: true },
+            });
 
-    // Remove nulls (product processes not ready)
-    processOverviews = processOverviews.filter((p) => p !== null);
+            const allPartsDone = partSchedules.every(
+              (p) => p.status === "completed"
+            );
 
-    // Employee info
+            if (allPartsDone) {
+              nextJob = await findNextJobForProductProcess(process.id, orderId);
+            }
+          }
+        }
+
+        return {
+          processId: process.id,
+          processName: process.processName,
+          nextJob: nextJob || null,
+        };
+      })
+    );
+
+    // ---------- Station Users ----------
     let stationUsers = [];
+
     if (stationUser.role === "Shop_Floor") {
       const employee = await prisma.employee.findUnique({
-        where: { email: stationUser.email, isDeleted: false },
-        select: { id: true, employeeId: true, email: true, fullName: true },
+        where: {
+          email: stationUser.email,
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          email: true,
+          fullName: true,
+        },
       });
+
       if (employee) {
         stationUsers.push({
           id: employee.id,
@@ -29274,8 +29265,14 @@ const selectScheduleProcess = async (req, res) => {
     } else {
       const employees = await prisma.employee.findMany({
         where: { isDeleted: false },
-        select: { id: true, employeeId: true, email: true, fullName: true },
+        select: {
+          id: true,
+          employeeId: true,
+          email: true,
+          fullName: true,
+        },
       });
+
       stationUsers = employees.map((e) => ({
         id: e.id,
         name: e.fullName,
