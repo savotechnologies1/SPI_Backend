@@ -310,7 +310,7 @@ model ProcessDetail {
   id            Int         @id @default(autoincrement())
   process       String
   assignTo      String
-  totalTime     Int
+  totalTime     Int?
   customOrderId String      @db.Char(36)
   customOrder   CustomOrder @relation(fields: [customOrderId], references: [id], onDelete: Cascade)
 
@@ -324,7 +324,7 @@ model PartNumber {
   partDescription                                 String?                @db.VarChar(255)
   type                                            String                 @db.VarChar(100)
   cost                                            Float
-  leadTime                                        Int
+  leadTime                                        Int?
   minStock                                        Int?                   @default(0)
   availStock                                      Int?                   @default(0)
   supplierOrderQty                                Int?                   @default(0)

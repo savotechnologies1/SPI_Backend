@@ -1781,6 +1781,152 @@ const createStockOrder = async (req, res) => {
       .json({ error: "Something went wrong. Please try again later." });
   }
 };
+
+// const addCustomOrder = async (req, res) => {
+//   try {
+//     const {
+//       orderNumber,
+//       orderDate,
+//       shipDate,
+//       customerId,
+//       customerName,
+//       customerEmail,
+//       customerPhone,
+//       productId,
+//       part_id,
+//       cost,
+//       totalCost,
+//       productQuantity,
+//       newParts,
+//     } = req.body;
+
+//     if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
+//       return res.status(400).send({ message: "At least one process detail must be added." });
+//     }
+
+//     const newCustomOrder = await prisma.$transaction(async (tx) => {
+//       let customer;
+//       if (customerId) {
+//         customer = await tx.customers.findUnique({ where: { id: customerId } });
+//       }
+
+//       if (!customer) {
+//         if (!customerName || !customerEmail) {
+//           throw new Error("Customer name and email are required to create a new customer.");
+//         }
+//         customer = await tx.customers.create({
+//           data: {
+//             firstName: customerName.split(" ")[0],
+//             lastName: customerName.split(" ").slice(1).join(" ") || "",
+//             email: customerEmail,
+//             customerPhone: customerPhone,
+//             createdBy: req.user?.id,
+//           },
+//         });
+//       }
+
+//       const createdOrder = await tx.customOrder.create({
+//         data: {
+//           orderNumber,
+//           orderDate: new Date(orderDate),
+//           shipDate: new Date(shipDate),
+//           customerId: customer.id,
+//           customerName,
+//           customerEmail,
+//           customerPhone,
+//           productId,
+//           ...(part_id && { partId: part_id }),
+//           cost: parseFloat(cost),
+//           totalCost: parseFloat(totalCost),
+//           productQuantity: parseInt(productQuantity, 10),
+//           processDetails: {
+//             create: newParts.map((item) => ({
+//               totalTime: parseInt(item.totalTime, 10),
+//               process: item.processId,
+//               assignTo: item.part,
+//             })),
+//           },
+//         },
+//       });
+
+//       for (const processItem of newParts) {
+//         // Fetch process details
+//         const processRecord = await tx.process.findUnique({
+//           where: { id: processItem.processId },
+//         });
+
+//         if (!processRecord) {
+//           throw new Error(`Process with ID ${processItem.processId} not found.`);
+//         }
+
+//         // Check or create PartNumber
+//         let partRecord = await tx.partNumber.findUnique({
+//           where: { partNumber: processItem.part },
+//         });
+
+//         const partData = {
+//           partNumber: processItem.part,
+//           partFamily: `${processItem.part} Family`,
+//           type: "part",
+//           cost: parseFloat(cost),
+//           leadTime: parseInt(processItem.totalTime, 10) || 0,
+//           minStock: 0,
+//           companyName: "SPI Custom",
+//           processId: processItem.processId,
+//           processDesc: processRecord.processDesc,
+//           cycleTime: processItem.totalTime.toString(),
+//           machineName: processRecord.machineName,
+//           ratePerHour: processRecord.ratePerHour,
+//           orderNeeded: processRecord.orderNeeded,
+//           partFamily: processRecord.partFamily || `${processItem.part}`,
+//         };
+
+//         if (!partRecord) {
+//           partRecord = await tx.partNumber.create({ data: partData });
+//         } else {
+//           partRecord = await tx.partNumber.update({
+//             where: { part_id: partRecord.part_id },
+//             data: partData,
+//           });
+//         }
+
+//         await tx.productTree.upsert({
+//           where: {
+//             product_part_unique: {
+//               product_id: productId,
+//               part_id: partRecord.part_id,
+//             },
+//           },
+//           update: {
+//             processId: processItem.processId,
+//             partQuantity: { increment: 1 },
+//           },
+//           create: {
+//             product_id: productId,
+//             part_id: partRecord.part_id,
+//             partQuantity: 1,
+//             processId: processItem.processId,
+//             createdBy: customer.id,
+//           },
+//         });
+//       }
+
+//       return createdOrder;
+//     });
+
+//     return res.status(201).json({
+//       message: "Custom order created successfully!",
+//       data: newCustomOrder,
+//     });
+//   } catch (error) {
+//     console.error("Error during custom order transaction:", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. The operation was rolled back.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const addCustomOrder = async (req, res) => {
   try {
     const {
@@ -1799,42 +1945,51 @@ const addCustomOrder = async (req, res) => {
       newParts,
     } = req.body;
 
-    if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
-      return res
-        .status(400)
-        .send({ message: "At least one process detail must be added." });
-    }
+    // if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
+    //   return res
+    //     .status(400)
+    //     .send({ message: "At least one process detail must be added." });
+    // }
 
     const newCustomOrder = await prisma.$transaction(async (tx) => {
       let customer;
       if (customerId) {
-        customer = await tx.customers.findUnique({
-          where: { id: customerId },
-        });
+        customer = await tx.customers.findUnique({ where: { id: customerId } });
       }
 
       if (!customer) {
         if (!customerName || !customerEmail) {
-          throw new Error(
-            "Customer name and email are required to create a new customer."
-          );
+          throw new Error("Customer name and email are required.");
         }
+
         customer = await tx.customers.create({
           data: {
             firstName: customerName.split(" ")[0],
             lastName: customerName.split(" ").slice(1).join(" ") || "",
             email: customerEmail,
-            customerPhone: customerPhone,
+            customerPhone,
             createdBy: req.user?.id,
           },
         });
       }
+
+      // const checkIsPartPresent = await prisma.product.find({
+      //   where: {
+      //     product_id: productId,
+      //     part_id: part_id,
+      //   },
+      // });
+      // console.log(
+      //   "checkIsPartPresentcheckIsPartPresentcheckIsPartPresent",
+      //   checkIsPartPresent
+      // );
+
       const createdOrder = await tx.customOrder.create({
         data: {
           orderNumber,
           orderDate: new Date(orderDate),
           shipDate: new Date(shipDate),
-          customerId: customer.id,
+          customerId: customer?.id,
           customerName,
           customerEmail,
           customerPhone,
@@ -1843,61 +1998,71 @@ const addCustomOrder = async (req, res) => {
           cost: parseFloat(cost),
           totalCost: parseFloat(totalCost),
           productQuantity: parseInt(productQuantity, 10),
+
           processDetails: {
             create: newParts.map((item) => ({
-              totalTime: parseInt(item.totalTime, 10),
-              process: item.processId,
-              assignTo: item.part,
+              totalTime: item?.totalTime ? parseInt(item.totalTime, 10) : null,
+
+              process: item?.processId,
+              assignTo: item?.part,
             })),
           },
         },
       });
 
-      for (const processItem of newParts) {
-        let partRecord = await tx.partNumber.findUnique({
-          where: { partNumber: processItem.part },
-        });
-
-        if (!partRecord) {
-          partRecord = await tx.partNumber.create({
-            data: {
-              partNumber: processItem.part,
-              partFamily: `${processItem.part} Family`,
-              type: "part",
-              cost: parseFloat(cost),
-              leadTime: parseInt(processItem.totalTime, 10) || 0,
-              minStock: 0,
-              companyName: "SPI Custom",
-              processId: processItem.processId,
-            },
+      if (Array.isArray(newParts) && newParts.length > 0) {
+        for (const processItem of newParts) {
+          const processRecord = await tx.process.findUnique({
+            where: { id: processItem.processId },
           });
-        } else {
-          partRecord = await tx.partNumber.update({
-            where: { part_id: partRecord.part_id },
-            data: { processId: processItem.processId },
+
+          // Find part
+          let partRecord = await tx.partNumber.findUnique({
+            where: { partNumber: processItem?.part },
+          });
+
+          const partData = {
+            partNumber: processItem.part,
+            partFamily: processRecord?.partFamily || `${processItem?.part}`,
+            type: "part",
+            cost: parseFloat(cost),
+            processId: processItem?.processId,
+            processDesc: processRecord?.processDesc || null,
+            cycleTime: processItem?.totalTime?.toString(),
+            companyName: " ",
+          };
+
+          if (!partRecord) {
+            partRecord = await tx.partNumber.create({ data: partData });
+          } else {
+            partRecord = await tx.partNumber.update({
+              where: { part_id: partRecord?.part_id },
+              data: partData,
+            });
+          }
+
+          await tx.productTree.upsert({
+            where: {
+              product_part_unique: {
+                product_id: productId,
+                part_id: partRecord?.part_id,
+              },
+            },
+            update: {
+              processId: processItem.processId,
+              partQuantity: { increment: 1 },
+            },
+            create: {
+              product_id: productId,
+              part_id: partRecord?.part_id,
+              partQuantity: 1,
+              processId: processItem?.processId,
+              createdBy: customer?.id,
+            },
           });
         }
-
-        await tx.productTree.upsert({
-          where: {
-            product_part_unique: {
-              product_id: productId,
-              part_id: partRecord.part_id,
-            },
-          },
-          update: {
-            processId: processItem.processId,
-            partQuantity: { increment: 1 },
-          },
-          create: {
-            product_id: productId,
-            part_id: partRecord.part_id,
-            partQuantity: 1,
-            processId: processItem.processId,
-            createdBy: customer.id,
-          },
-        });
       }
+
       return createdOrder;
     });
 
@@ -1913,6 +2078,139 @@ const addCustomOrder = async (req, res) => {
     });
   }
 };
+
+// const addCustomOrder = async (req, res) => {
+//   try {
+//     const {
+//       orderNumber,
+//       orderDate,
+//       shipDate,
+//       customerId,
+//       customerName,
+//       customerEmail,
+//       customerPhone,
+//       productId,
+//       part_id,
+//       cost,
+//       totalCost,
+//       productQuantity,
+//       newParts,
+//     } = req.body;
+
+//     if (!newParts || !Array.isArray(newParts) || newParts.length === 0) {
+//       return res
+//         .status(400)
+//         .send({ message: "At least one process detail must be added." });
+//     }
+
+//     const newCustomOrder = await prisma.$transaction(async (tx) => {
+//       let customer;
+//       if (customerId) {
+//         customer = await tx.customers.findUnique({
+//           where: { id: customerId },
+//         });
+//       }
+
+//       if (!customer) {
+//         if (!customerName || !customerEmail) {
+//           throw new Error(
+//             "Customer name and email are required to create a new customer."
+//           );
+//         }
+//         customer = await tx.customers.create({
+//           data: {
+//             firstName: customerName.split(" ")[0],
+//             lastName: customerName.split(" ").slice(1).join(" ") || "",
+//             email: customerEmail,
+//             customerPhone: customerPhone,
+//             createdBy: req.user?.id,
+//           },
+//         });
+//       }
+//       const createdOrder = await tx.customOrder.create({
+//         data: {
+//           orderNumber,
+//           orderDate: new Date(orderDate),
+//           shipDate: new Date(shipDate),
+//           customerId: customer.id,
+//           customerName,
+//           customerEmail,
+//           customerPhone,
+//           productId,
+//           ...(part_id && { partId: part_id }),
+//           cost: parseFloat(cost),
+//           totalCost: parseFloat(totalCost),
+//           productQuantity: parseInt(productQuantity, 10),
+//           processDetails: {
+//             create: newParts.map((item) => ({
+//               totalTime: parseInt(item.totalTime, 10),
+//               process: item.processId,
+//               assignTo: item.part,
+//             })),
+//           },
+//         },
+//       });
+
+//       for (const processItem of newParts) {
+//         let partRecord = await tx.partNumber.findUnique({
+//           where: { partNumber: processItem.part },
+//         });
+
+//         if (!partRecord) {
+//           partRecord = await tx.partNumber.create({
+//             data: {
+//               partNumber: processItem.part,
+//               partFamily: `${processItem.part} Family`,
+//               type: "part",
+//               cost: parseFloat(cost),
+//               leadTime: parseInt(processItem.totalTime, 10) || 0,
+//               minStock: 0,
+//               companyName: "SPI Custom",
+//               processId: processItem.processId,
+//             },
+//           });
+//         } else {
+//           partRecord = await tx.partNumber.update({
+//             where: { part_id: partRecord.part_id },
+//             data: { processId: processItem.processId },
+//           });
+//         }
+
+//         await tx.productTree.upsert({
+//           where: {
+//             product_part_unique: {
+//               product_id: productId,
+//               part_id: partRecord.part_id,
+//             },
+//           },
+//           update: {
+//             processId: processItem.processId,
+//             partQuantity: { increment: 1 },
+//           },
+//           create: {
+//             product_id: productId,
+//             part_id: partRecord.part_id,
+//             partQuantity: 1,
+//             processId: processItem.processId,
+//             createdBy: customer.id,
+//           },
+//         });
+//       }
+//       return createdOrder;
+//     });
+
+//     return res.status(201).json({
+//       message: "Custom order created successfully!",
+//       data: newCustomOrder,
+//     });
+//   } catch (error) {
+//     console.error("Error during custom order transaction:", error);
+//     return res.status(500).send({
+//       message: "Something went wrong. The operation was rolled back.",
+//       error: error.message,
+//     });
+//   }
+// };
 const selectCustomer = async (req, res) => {
   try {
     const customer = await prisma.customers.findMany({
