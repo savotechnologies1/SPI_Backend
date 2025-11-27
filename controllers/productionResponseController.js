@@ -27845,19 +27845,16 @@ const stationLogin = async (req, res) => {
         },
       });
     };
-    console.log("findNextJobfindNextJob", findNextJob);
-
-    // Find a job in 'progress' first, then look for 'new'
     let nextJob = await findNextJob("progress");
     if (!nextJob) {
       nextJob = await findNextJob("new");
     }
 
-    if (!nextJob) {
-      return res.status(404).json({
-        message: "No available jobs found for this station at the moment.",
-      });
-    }
+    // if (!nextJob) {
+    //   return res.status(404).json({
+    //     message: "No available jobs found for this station at the moment.",
+    //   });
+    // }
 
     // --- FIX 2: Dynamically build the data for the create operation ---
     // Dynamically build the data for the create operation
@@ -27870,7 +27867,7 @@ const stationLogin = async (req, res) => {
       cycleTimeStart: new Date(),
       cycleTimeEnd: null,
       createdBy: stationUserId,
-      scheduleQuantity: nextJob.scheduleQuantity,
+      scheduleQuantity: nextJob?.scheduleQuantity,
     };
 
     // ✅ Only connect PartNumber if partId exists
@@ -27879,10 +27876,10 @@ const stationLogin = async (req, res) => {
     }
 
     // Connect to correct order
-    if (nextJob.order_type === "StockOrder") {
-      createData.StockOrder = { connect: { id: nextJob.order_id } };
-    } else if (nextJob.order_type === "CustomOrder") {
-      createData.CustomOrder = { connect: { id: nextJob.order_id } };
+    if (nextJob?.order_type === "StockOrder") {
+      createData.StockOrder = { connect: { id: nextJob?.order_id } };
+    } else if (nextJob?.order_type === "CustomOrder") {
+      createData.CustomOrder = { connect: { id: nextJob?.order_id } };
     }
 
     // Now, create the production response with the correctly built data
@@ -27899,7 +27896,7 @@ const stationLogin = async (req, res) => {
         where: {
           stationUserId: stationUserId,
           processId: processId,
-          partId: nextJob.part_id,
+          partId: nextJob?.part_id,
           traniningStatus: true,
         },
       });
@@ -27927,8 +27924,8 @@ const stationLogin = async (req, res) => {
 
     // --- FIX 3: Get the orderNumber from whichever relation is not null ---
     const orderNumber =
-      nextJob.StockOrder?.orderNumber ||
-      nextJob.CustomOrder?.orderNumber ||
+      nextJob?.StockOrder?.orderNumber ||
+      nextJob?.CustomOrder?.orderNumber ||
       "N/A";
 
     return res.status(200).json({
@@ -28388,11 +28385,11 @@ const getNextJobDetails = async (req, res) => {
     });
     // =======================================================================
 
-    if (!nextJob) {
-      return res.status(404).json({
-        message: "No available jobs found for this station.",
-      });
-    }
+    // if (!nextJob) {
+    //   return res.status(404).json({
+    //     message: "No available jobs found for this station.",
+    //   });
+    // }
 
     // ==================> CHANGE 2: DYNAMIC ORDER FETCHING <==================
     let orderDetailsPromise;
@@ -29422,13 +29419,13 @@ const getScheduleProcessInformation = async (req, res) => {
       }
     }
 
-    if (!nextJob || !nextJob.order) {
-      return res
-        .status(404)
-        .json({ message: "No jobs found for this station." });
-    }
+    // if (!nextJob || !nextJob.order) {
+    //   return res
+    //     .status(404)
+    //     .json({ message: "No jobs found for this station." });
+    // }
 
-    const { order_id, part_id } = nextJob;
+    let { order_id, part_id } = nextJob;
 
     const [lastUserProductionCycle, userProductionStats, upcomingOrder] =
       await Promise.all([
