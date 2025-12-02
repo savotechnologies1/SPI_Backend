@@ -152,6 +152,7 @@ model process {
   WorkInstructionSteps WorkInstructionSteps[]
   processLogin         processLogin[]
   scapEntries          scapEntries[]
+  customParts          CustomPart[]
 }
 
 model suppliers {
@@ -300,10 +301,30 @@ model CustomOrder {
   processDetails     ProcessDetail[]
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
+  customPart         CustomPart[]
 
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
   @@index([partId], map: "CustomOrder_partId_fkey")
+}
+
+model CustomPart {
+  id              String      @id @default(uuid()) @db.Char(36)
+  partNumber      String      @db.VarChar(150)
+  quantity        Int
+  processId       String?     @db.VarChar(10) // To link with existing Process table
+  processName     String? // In case they type a manual process
+  cycleTime       String?     @db.VarChar(50)
+  workInstruction String?     @db.VarChar(255) // or Enum if strictly selecting
+  customOrderId   String      @db.Char(36) // ✅ Yahan @unique NAHI hona chahiye
+  CustomOrder     CustomOrder @relation(fields: [customOrderId], references: [id])
+
+  // Relations
+  process             process?             @relation(fields: [processId], references: [id])
+  StockOrderSchedules StockOrderSchedule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProcessDetail {
@@ -562,6 +583,8 @@ model StockOrderSchedule {
   StockOrder            StockOrder?  @relation(fields: [stockOrderId], references: [id])
   submittedByAdmin      admin?       @relation("AdminSchedules", fields: [submittedByAdminId], references: [id])
   submittedByEmployee   employee?    @relation("SubmittedByEmployee", fields: [submittedByEmployeeId], references: [id])
+  customPart            CustomPart?  @relation(fields: [customPartId], references: [id])
+  customPartId          String?      @db.Char(36)
 
   @@unique([order_id, part_id, order_type])
   @@index([adminId], map: "StockOrderSchedule_adminId_fkey")

@@ -29419,7 +29419,7 @@ const getScheduleProcessInformation = async (req, res) => {
       }
     }
 
-    // if (!nextJob || !nextJob.order) {
+    // if (!nextJob || !nextJob.order)
     //   return res
     //     .status(404)
     //     .json({ message: "No jobs found for this station." });
@@ -29445,7 +29445,6 @@ const getScheduleProcessInformation = async (req, res) => {
           },
         }),
 
-        // <<< THIS IS THE CALCULATION FOR THE USER-SPECIFIC COMPLETED QUANTITY
         prisma.productionResponse.aggregate({
           where: {
             orderId: order_id,
@@ -29455,12 +29454,11 @@ const getScheduleProcessInformation = async (req, res) => {
             isDeleted: false,
           },
           _sum: {
-            completedQuantity: true, // Sum up their produced quantity
+            completedQuantity: true,
           },
         }),
 
         (async () => {
-          // ... (upcoming order logic is unchanged)
           const upcomingSchedule = await prisma.stockOrderSchedule.findFirst({
             where: {
               processId,
