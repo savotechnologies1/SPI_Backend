@@ -2140,16 +2140,10 @@ const addCustomOrder = async (req, res) => {
         },
       });
 
-      // ---------------------------------------------------------
-      // 3. Process BOM List (EXISTING PARTS) - LOOP FIXED
-      // ---------------------------------------------------------
       if (Array.isArray(bomList) && bomList.length > 0) {
-        // Loop through each item in BOM List
         for (const item of bomList) {
-          // Skip if no partId provided
           if (!item.partId) continue;
 
-          // A. Fetch Existing Part Details from DB
           const existingPart = await tx.partNumber.findUnique({
             where: { part_id: item.partId },
             include: { process: true },
@@ -2160,7 +2154,6 @@ const addCustomOrder = async (req, res) => {
             continue;
           }
 
-          // B. Prepare Data (Merge Payload & DB)
           const finalCycleTime =
             (item.totalTime ? item.totalTime.toString() : null) ||
             (item.cycleTime ? item.cycleTime.toString() : null) ||
@@ -2179,9 +2172,6 @@ const addCustomOrder = async (req, res) => {
           const qtyPerUnit = parseInt(item.qty || 1, 10);
           const orderQty = parseInt(productQuantity, 10);
           const totalRequiredQty = qtyPerUnit * orderQty;
-
-          // C. Create Entry in CustomPart Table
-          // FIX: Used 'create' instead of 'createMany' to get the ID back
           const createdCustomPart = await tx.customPart.create({
             data: {
               partNumber: existingPart.partNumber,
@@ -4748,7 +4738,6 @@ const searchCustomOrders = async (req, res) => {
           },
         },
       },
-      // ✅ NEW: Include the BOM list created in the previous step
       customPart: true,
     };
 
