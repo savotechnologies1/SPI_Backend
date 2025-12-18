@@ -105,6 +105,7 @@ const {
   scheudleInventory,
   getLabourForcast,
   deleteFixedCost,
+  businessAnalysisApi,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -485,5 +486,6 @@ router.post("/supp/import", adminValidateToken, importSupp);
 router.get("/revenue-api", revenueApi);
 router.get("/schedule-inventory", scheudleInventory);
 router.get("/get-labour-forcast", getLabourForcast);
+router.get("/business-analysis", businessAnalysisApi);
 
 module.exports = router;

@@ -29317,6 +29317,11 @@ const getScheduleProcessInformation = async (req, res) => {
                   },
                 },
               },
+              process: {
+                select: {
+                  processName: true,
+                },
+              },
             },
           },
           process: { select: { processName: true } },
@@ -29510,12 +29515,12 @@ const getScheduleProcessInformation = async (req, res) => {
           if (upcomingSchedule.order_type === "StockOrder") {
             upcomingOrderData = await prisma.stockOrder.findUnique({
               where: { id: upcomingSchedule.order_id },
-              select: { shipDate: true },
+              select: { shipDate: true, part: true, orderDate: true },
             });
           } else if (upcomingSchedule.order_type === "CustomOrder") {
             upcomingOrderData = await prisma.customOrder.findUnique({
               where: { id: upcomingSchedule.order_id },
-              select: { shipDate: true },
+              select: { shipDate: true, part: true },
             });
           }
 
@@ -29539,11 +29544,13 @@ const getScheduleProcessInformation = async (req, res) => {
     const employeeScrapQty = employeeScheduleStats._sum.scrapQuantity || 0;
     const userCompletedQty = userProductionStats._sum.completedQuantity || 0;
 
+    console.log("upcomingOrderupcomingOrderupcomingOrder", upcomingOrder);
     const responseData = {
       ...nextJob,
       productionId: lastUserProductionCycle?.id || null,
       productId: nextJob.order?.partId || null,
-      upcommingOrder: upcomingOrder?.order?.shipDate || null,
+      upcommingOrder: upcomingOrder?.order?.orderDate || null,
+      upcommingParts: upcomingOrder?.order?.part?.partNumber || null,
       employeeInfo: lastUserProductionCycle?.employeeInfo || null,
       cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
       employeeCompletedQty,
@@ -32498,98 +32505,57 @@ const getInventory = async (req, res) => {
   try {
     const { period, year, month } = req.query;
 
+    // Fetch all parts
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
-      include: {
-        process: { select: { ratePerHour: true } },
-        StockOrder_StockOrder_productNumberToPartNumber: {
-          select: { productQuantity: true, status: true, createdAt: true },
-        },
-      },
+      include: { process: { select: { ratePerHour: true } } },
     });
 
     const inventoryData = {};
     let totalInventoryCost = 0;
 
     parts.forEach((part) => {
-      const partCost = part.cost || 0;
-      const cycleTimeHours = parseCycleTime(part.cycleTime || "0");
-      const ratePerHour = part.process?.ratePerHour || 0;
+      const partCost = parseFloat(part.cost) || 0;
+      const cycleTimeMinutes = parseFloat(part.cycleTime) || 0;
+      const cycleTimeHours = cycleTimeMinutes / 60;
+      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
 
-      const costPerPart = partCost + cycleTimeHours * ratePerHour;
+      const costPerUnit = partCost + cycleTimeHours * ratePerHour;
+      const availableStock = Number(part.availStock || 0);
+      const minStock = Number(part.minStock || 0);
 
-      part.StockOrder_StockOrder_productNumberToPartNumber.forEach((order) => {
-        const orderDate = new Date(order.createdAt);
+      const inventoryLevel = Math.max(availableStock - minStock, 0);
+      const inventoryCost = inventoryLevel * costPerUnit;
 
-        // 🔹 filter by year / month
-        if (year && orderDate.getFullYear() !== parseInt(year)) return;
-        if (month && orderDate.getMonth() + 1 !== parseInt(month)) return;
+      totalInventoryCost += inventoryCost;
 
-        let key = "";
-        if (period === "day") {
-          key = orderDate.toISOString().split("T")[0];
-        } else if (period === "week") {
-          key = orderDate.toLocaleDateString("en-US", { weekday: "long" });
-        } else if (period === "month") {
-          key = orderDate.toLocaleDateString("en-US", { day: "numeric" }); // 🔹 date number
-        } else if (period === "year") {
-          key = orderDate.toLocaleDateString("en-US", { month: "short" }); // 🔹 month name
-        } else {
-          key = orderDate.toISOString().split("T")[0];
-        }
+      let key = "total";
+      const now = new Date();
+      if (period === "day") key = now.toISOString().split("T")[0];
+      else if (period === "week")
+        key = now.toLocaleDateString("en-US", { weekday: "long" });
+      else if (period === "month")
+        key = now.toLocaleDateString("en-US", { day: "numeric" });
+      else if (period === "year")
+        key = now.toLocaleDateString("en-US", { month: "short" });
 
-        if (!inventoryData[key]) inventoryData[key] = [];
+      if (!inventoryData[key]) inventoryData[key] = [];
 
-        const availableStock = part.availStock || 0;
-        const inventoryLevel = availableStock - (part.minStock || 0);
-        const inventoryCost = inventoryLevel * costPerPart;
-
-        totalInventoryCost += inventoryCost;
-
-        inventoryData[key].push({
-          partNumber: part.partNumber,
-          availableStock,
-          minStock: part.minStock || 0,
-          inventoryLevel,
-          costPerPart,
-          inventoryCost,
-        });
+      inventoryData[key].push({
+        partNumber: part.partNumber,
+        availableStock,
+        minStock,
+        inventoryLevel,
+        costPerUnit,
+        inventoryCost,
       });
     });
 
-    // 🔹 Normalize data for year & month
-    if (period === "year") {
-      const months = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
-      months.forEach((m) => {
-        if (!inventoryData[m]) inventoryData[m] = [];
-      });
-    }
-
-    if (period === "month") {
-      const y = year ? parseInt(year) : new Date().getFullYear();
-      const m = month ? parseInt(month) : new Date().getMonth() + 1;
-      const daysInMonth = new Date(y, m, 0).getDate();
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const key = d.toString();
-        if (!inventoryData[key]) inventoryData[key] = [];
-      }
-    }
-
-    res.json({ inventoryData, totalInventoryCost });
+    // 🔹 Keep data format same for frontend
+    res.json({
+      inventoryData,
+      totalInventoryCost: totalInventoryCost.toFixed(2),
+    });
   } catch (error) {
     console.error(error);
     res
@@ -32611,6 +32577,7 @@ const getInventory = async (req, res) => {
 
 //   return time;
 // }
+
 const customerRelation = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
@@ -32661,18 +32628,19 @@ const customerRelation = async (req, res) => {
         },
       },
       select: {
-        PartNumber: { select: { partNumber: true } },
+        PartNumber: { select: { partNumber: true, process: true } },
         process: { select: { processName: true } },
         returnQuantity: true,
         type: true,
         supplier: { select: { firstName: true, lastName: true } },
       },
     });
+    console.log("scapEntriesscapEntries", scapEntries);
 
     // Supplier full name format
     const formattedEntries = scapEntries.map((entry) => ({
       "Part Number": entry.PartNumber?.partNumber || null,
-      "Process Name": entry.process?.processName || null,
+      "Process Name": entry.PartNumber?.process.processName || null,
       "Return Quantity": entry.returnQuantity,
       Type: entry.type,
       "Supplier Name": `${entry.supplier?.firstName ?? ""} ${

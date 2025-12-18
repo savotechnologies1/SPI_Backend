@@ -661,6 +661,18 @@ model ProductionStepTracking {
   @@map("production_step_tracking")
 }
 
+model FixedCost {
+  id           String   @id @default(uuid()) @db.Char(36)
+  category     String   @db.VarChar(255)
+  expenseName  String   @db.VarChar(255)
+  expenseCost  Decimal
+  depreciation Decimal?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String?  @db.Char(36)
+  isDeleted    Boolean  @default(false)
+}
+
 model ProcessOrderTable {
   id                String      @id @default(uuid()) @db.Char(36)
   partId            String?     @db.Char(36)

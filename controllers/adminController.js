@@ -4709,10 +4709,6 @@ const formatOrders = (orders) => {
   });
 };
 
-// ===================================================================
-//                      SEARCH CUSTOM ORDERS
-// ===================================================================
-
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber } = req.query;
@@ -5670,6 +5666,7 @@ const scheduleStockOrdersList = async (req, res) => {
           })
         : Promise.resolve([]),
     ]);
+    console.log("customOrderscustomOrders", customOrders);
     const stockOrderMap = new Map(
       stockOrders.map((order) => [order.id, order])
     );
@@ -5854,6 +5851,7 @@ const getAllSupplierOrder = async (req, res) => {
     // Step 2: Manually fetch relations for each order
     const enrichedOrders = await Promise.all(
       orders.map(async (order) => {
+        console.log("orderorderorder", order);
         const [supplier, part] = await Promise.all([
           prisma.suppliers.findUnique({
             where: { id: order.supplier_id },
@@ -5862,7 +5860,7 @@ const getAllSupplierOrder = async (req, res) => {
               lastName: true,
             },
           }),
-          prisma.partNumber.findUnique({
+          prisma.partNumber.findFirst({
             where: { part_id: order.part_id },
             select: {
               partNumber: true,
@@ -7830,7 +7828,7 @@ const monitorChartsData = async (req, res) => {
         },
       },
       include: {
-        PartNumber: { select: { partNumber: true } },
+        PartNumber: { select: { partNumber: true, partDescription: true } },
         process: {
           select: { processName: true, processDesc: true, cycleTime: true },
         },
@@ -7840,7 +7838,7 @@ const monitorChartsData = async (req, res) => {
     const monitorGrouped = {};
     partToMonitor.forEach((item) => {
       const key = `${item.process?.processName || "N/A"}-${
-        item.PartNumber?.partNumber || "N/A"
+        item.PartNumber?.partDescription || "N/A"
       }`;
 
       if (!monitorGrouped[key]) {
@@ -7878,13 +7876,13 @@ const monitorChartsData = async (req, res) => {
     const scrapGrouped = {};
     partToMonitor.forEach((item) => {
       const key = `${item.process?.processName || "N/A"}-${
-        item.PartNumber?.partNumber || "N/A"
+        item.PartNumber?.partDescription || "N/A"
       }`;
 
       if (!scrapGrouped[key]) {
         scrapGrouped[key] = {
           processName: item.process?.processName || "N/A",
-          part: item.PartNumber?.partNumber || "N/A",
+          part: item.PartNumber?.partDescription || "N/A",
           scrap: 0,
         };
       }
@@ -7918,11 +7916,13 @@ const monitorChartsData = async (req, res) => {
     });
   }
 };
-
 const getDiveApi = async (req, res) => {
   try {
     const { processId, startDate, endDate } = req.query;
 
+    // ===============================
+    // Filters
+    // ===============================
     const filterCondition = {
       isDeleted: false,
       ...(processId && { processId }),
@@ -7935,6 +7935,9 @@ const getDiveApi = async (req, res) => {
         }),
     };
 
+    // ===============================
+    // 1️⃣ Fetch schedules
+    // ===============================
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
@@ -7946,7 +7949,12 @@ const getDiveApi = async (req, res) => {
             ratePerHour: true,
           },
         },
-        part: { select: { part_id: true, partNumber: true } },
+        part: {
+          select: {
+            part_id: true,
+            partNumber: true,
+          },
+        },
         completedByEmployee: {
           select: {
             id: true,
@@ -7957,109 +7965,106 @@ const getDiveApi = async (req, res) => {
       },
     });
 
-    const result = schedules.map((order) => {
-      const process = order.process;
-      const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+    // ===============================
+    // 2️⃣ Employee-wise aggregation
+    // ===============================
+    const employeeMap = {};
 
-      const targetPerHour = process?.ratePerHour;
-      const actual = order.completedQuantity || 0;
-      const scrap = order.scrapQuantity || 0;
-      const scheduled = order.scheduleQuantity || 0;
+    schedules.forEach((order) => {
+      if (!order.completedByEmployee) return;
 
-      const efficiency =
-        targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+      const emp = order.completedByEmployee;
+      const empKey = `${emp.id}_${order.process?.id}`;
 
-      const productivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+      if (!employeeMap[empKey]) {
+        employeeMap[empKey] = {
+          employeeId: emp.id,
+          employeeName: `${emp.firstName} ${emp.lastName}`,
+          processId: order.process?.id,
+          processName: order.process?.processName,
+          totalScheduled: 0,
+          totalCompleted: 0,
+          totalScrap: 0,
+        };
+      }
+
+      employeeMap[empKey].totalScheduled += Number(order.scheduleQuantity || 0);
+      employeeMap[empKey].totalCompleted += Number(
+        order.completedQuantity || 0
+      );
+      employeeMap[empKey].totalScrap += Number(order.scrapQuantity || 0);
+    });
+
+    // ===============================
+    // 3️⃣ Employee productivity result
+    // ===============================
+    const productivity = Object.values(employeeMap).map((emp) => {
+      const netQty = emp.totalCompleted - emp.totalScrap;
+
+      const prod =
+        emp.totalScheduled > 0
+          ? ((netQty / emp.totalScheduled) * 100).toFixed(1)
+          : "0.0";
+
+      const eff =
+        emp.totalScheduled > 0
+          ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1)
+          : "0.0";
+
+      return {
+        processName: emp.processName,
+        employeeName: emp.employeeName,
+        Qty: emp.totalCompleted,
+        Scrap: emp.totalScrap,
+        Eff: eff + "%",
+        Prod: prod + "%",
+      };
+    });
+
+    // ===============================
+    // 4️⃣ Order-wise data
+    // ===============================
+    const orderData = schedules.map((order) => {
+      const scheduled = Number(order.scheduleQuantity || 0);
+      const actual = Number(order.completedQuantity || 0);
+      const scrap = Number(order.scrapQuantity || 0);
+
+      const productivity =
+        scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
+
+      const efficiency = scheduled > 0 ? (actual / scheduled) * 100 : 0;
 
       return {
         orderType: order.order_type,
-        processId: process?.id || null,
-        processName: process?.processName || null,
-        partId: order.part_id,
-        partNumber: order.part?.partNumber || null,
+        processName: order.process?.processName,
+        partNumber: order.part?.partNumber,
         scheduled,
         actual,
         scrap,
-        remaining: order.remainingQty,
-        targetPerHour,
-        efficiency: efficiency + "%",
-        productivity: productivity + "%",
-        avgCycleTime: process?.cycleTime || null,
-        startDate: order.order_date,
-        deliveryDate: order.delivery_date,
-        currentDate: new Date(),
-        employeeInfo: order.completedByEmployee
-          ? {
-              id: order.completedByEmployee.id,
-              firstName: order.completedByEmployee.firstName,
-              lastName: order.completedByEmployee.lastName,
-            }
+        productivity: productivity.toFixed(1) + "%",
+        efficiency: efficiency.toFixed(1) + "%",
+        employee: order.completedByEmployee
+          ? `${order.completedByEmployee.firstName} ${order.completedByEmployee.lastName}`
           : null,
       };
     });
 
-    const responses = await prisma.productionResponse.findMany({
-      where: filterCondition,
-      include: {
-        process: {
-          select: {
-            id: true,
-            processName: true,
-            cycleTime: true,
-            ratePerHour: true,
-          },
-        },
-        PartNumber: { select: { part_id: true, partNumber: true } },
-        employeeInfo: { select: { id: true, firstName: true, lastName: true } },
-      },
-    });
-
-    const result1 = responses.map((resp) => {
-      console.log("099999999999999999999999respresp", resp);
-
-      const process = resp.process;
-      const employee = resp.employeeInfo;
-
-      // Find the matching schedule for this process and part
-      const matchingSchedule = result.find(
-        (r) => r.processId === process?.id && r.partId === resp.partId
-      );
-
-      const scheduled = Number(matchingSchedule?.scheduled || 0);
-      const actualQty = Number(matchingSchedule?.actual || 0);
-      const scrapQty = Number(matchingSchedule?.scrap || 0);
-
-      const targetPerHour = process?.ratePerHour;
-      const efficiency =
-        targetPerHour > 0 ? ((actualQty / targetPerHour) * 100).toFixed(1) : 0;
-      const productivity =
-        scheduled > 0 ? ((actualQty - scrapQty) / scheduled) * 100 : 0;
-
-      return {
-        processName: process?.processName || null,
-        employeeName: employee
-          ? `${employee.firstName} ${employee.lastName}`
-          : null,
-        CT: (parseFloat(process?.cycleTime) || 0).toFixed(2),
-        Qty: actualQty,
-        Scrap: scrapQty,
-        Eff: efficiency + "%",
-        Prod: productivity.toFixed(1) + "%",
-      };
-    });
-
+    // ===============================
+    // 5️⃣ Final response
+    // ===============================
     res.json({
-      message: "Current status overview fetched successfully",
+      message: "Employee wise productivity fetched successfully",
       processId: processId || "All",
-      totalRecords: result.length,
-      data: result,
-      productivity: result1,
+      totalRecords: orderData.length,
+      data: orderData, // order-wise
+      productivity, // employee-wise
     });
   } catch (error) {
-    console.error("Error fetching current status overview:", error);
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    console.error("Error fetching productivity:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
 
@@ -9115,36 +9120,40 @@ const dashBoardData = async (req, res) => {
       include: { process: { select: { ratePerHour: true } } },
     });
 
-    let currentInventoryCost = 0;
-    let currentInventoryCount = 0;
+    let totalInventoryCost = 0;
+    let totalInventoryCount = 0;
 
     parts.forEach((part) => {
-      const partCost = parseFloat(part.cost) || 0;
-      // treat cycleTime as minutes in DB; convert to hours
-      const cycleTimeMinutes = parseFloat(part.cycleTime) || 0;
-      const cycleTimeHours = cycleTimeMinutes / 60;
-      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
+      const availableStock = Number(part.availStock || 0);
+      const minStock = Number(part.minStock || 0);
 
-      // cost per unit = partCost + (cycleTimeHours * ratePerHour)
-      const costPerUnit = partCost + cycleTimeHours * ratePerHour;
+      const extraStock = availableStock - minStock;
 
-      const available = Number(part.availStock || 0);
-      const minimum = Number(part.minStock || 0);
-      const inventoryLevel = available - minimum;
+      // ignore shortage & zero stock
+      if (extraStock <= 0) return;
 
-      if (inventoryLevel > 0) {
-        currentInventoryCount += inventoryLevel;
-        currentInventoryCost += inventoryLevel * costPerUnit;
-      }
+      const partCost = Number(part.cost || 0);
+
+      // cycleTime assumed in MINUTES → convert to HOURS
+      const cycleTime = Number(part.cycleTime || 0) / 60;
+
+      const ratePerHour = Number(part.process?.ratePerHour || 0);
+
+      const costPerUnit = partCost + cycleTime * ratePerHour;
+
+      const inventoryCost = extraStock * costPerUnit;
+
+      totalInventoryCount += extraStock;
+      totalInventoryCost += inventoryCost;
     });
 
     // For previous month we don't have real snapshot -> keep dummy or replace with real logic if available
     // (if you have historical inventory table, replace this)
-    const lastInventoryCost = currentInventoryCost * 0.8;
-    const lastInventoryCount = Math.round(currentInventoryCount * 0.8);
+    const lastInventoryCost = totalInventoryCost * 0.8;
+    const lastInventoryCount = Math.round(totalInventoryCount * 0.8);
 
     const inventoryChangePercent = calculatePercentageChange(
-      currentInventoryCost,
+      totalInventoryCost,
       lastInventoryCost
     );
     const inventoryIndicator = inventoryChangePercent >= 0 ? "green" : "red";
@@ -9308,8 +9317,8 @@ const dashBoardData = async (req, res) => {
       revenueChangePercent: revenueChangePercent.toFixed(2),
       revenueIndicator,
       inventory: {
-        totalInventoryCount: currentInventoryCount,
-        totalInventoryCost: currentInventoryCost.toFixed(2),
+        totalInventoryCount,
+        totalInventoryCost: totalInventoryCost.toFixed(2),
         lastInventoryCost: lastInventoryCost.toFixed(2),
         inventoryChangePercent: inventoryChangePercent.toFixed(2),
         inventoryIndicator,
@@ -10427,7 +10436,6 @@ const revenueApi = async (req, res) => {
   try {
     const year = parseInt(req.query.year);
 
-    // ✅ StockOrderSchedule fetch with all necessary relations
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: { isDeleted: false },
       include: {
@@ -10469,8 +10477,6 @@ const revenueApi = async (req, res) => {
       const productCost = parseFloat(
         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
       );
-      console.log("orderorder", order);
-
       const cycleTimeMinutes = order.part?.cycleTime || 0;
       const cycleTimeHours = cycleTimeMinutes / 60;
       const ratePerHour = order.process.ratePerHour || 0;
@@ -10643,6 +10649,124 @@ const getLabourForcast = async (req, res) => {
   }
 };
 
+const businessAnalysisApi = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // 1. Calculate Days for Fixed Cost (Client Formula: Time period selected)
+    const timeDifference = end.getTime() - start.getTime();
+    const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
+
+    // --- FETCH DATA (Strictly Date Filtered) ---
+    const schedules = await prisma.stockOrderSchedule.findMany({
+      where: {
+        isDeleted: false,
+        // Yahi main filter hai jo client maang raha hai "For the period selected"
+        order_date: { gte: start, lte: end },
+      },
+      include: {
+        part: true,
+        process: true,
+        StockOrder: true,
+        CustomOrder: true,
+      },
+    });
+
+    // Fixed Costs (Annual)
+    const fixedCostsData = await prisma.fixedCost.findMany({
+      select: { expenseCost: true },
+    });
+    const sumFixedCosts = fixedCostsData.reduce(
+      (sum, item) => sum + parseFloat(item.expenseCost || 0),
+      0
+    );
+    // Formula: (Fixed Cost / 365) * Days Selected
+    const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
+
+    // --- CALCULATIONS ---
+    let totalRevenue = 0;
+    let bomCost = 0;
+    let laborCost = 0;
+    let scrapCost = 0;
+    let supplierReturn = 0;
+    let inventoryCost = 0;
+
+    schedules.forEach((order) => {
+      // Quantities
+      const qtyFulfilled = parseFloat(order.completedQuantity || 0);
+      const qtyRemaining = parseFloat(order.remainingQty || 0); // Yeh hai Inventory (Pending Work)
+      const scrapQty = parseFloat(order.scrapQuantity || 0);
+
+      // Unit Costs
+      const partCost = parseFloat(order.part?.cost || 0);
+      const productCost = parseFloat(
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+      );
+
+      // Labor Calculation
+      const cycleTimeHours = parseFloat(order.part?.cycleTime || 0) / 60;
+      const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
+      const laborUnitCost = cycleTimeHours * ratePerHour;
+
+      // 1. REVENUE (For period selected)
+      const revenuePerUnit = partCost + productCost;
+      totalRevenue += revenuePerUnit * qtyFulfilled;
+
+      // 2. COGS (For period selected)
+      // BOM Cost
+      bomCost += partCost * qtyFulfilled;
+      // Labor Cost
+      laborCost += laborUnitCost * qtyFulfilled;
+
+      // 3. SCRAP (For period selected)
+      scrapCost += scrapQty * partCost;
+
+      // 4. INVENTORY COST (At the end of period / Pending for this period)
+      // Client Image logic: Is period ka bacha hua maal/pending value
+      inventoryCost += qtyRemaining * (partCost + laborUnitCost);
+
+      // 5. SUPPLIER RETURN (Optional logic)
+      if (order.scrapQuantity > 0) {
+        supplierReturn += order.scrapQuantity * partCost;
+      }
+    });
+
+    // --- FINAL TOTALS ---
+    const totalCOGS = bomCost + laborCost;
+
+    // Client Formula: Op Exp = Total COGS + Fixed Cost (Prorated)
+    const operatingExpenses = totalCOGS + proratedFixedCost;
+
+    // Client Formula: Profit = Revenue - Op Exp
+    const profit = totalRevenue - operatingExpenses;
+
+    const cashFlow = profit;
+
+    res.status(200).json({
+      totalRevenue,
+      totalCOGS,
+      bomCost,
+      laborCost,
+      totalFixedCost: proratedFixedCost,
+      operatingExpenses,
+      Profit: profit,
+      InventoryCost: inventoryCost, // Ab ye Dashboard se alag hai, strictly order dates par based hai
+      scrapCost,
+      supplierReturn,
+      cashFlow,
+    });
+  } catch (error) {
+    console.error("Analysis Error:", error);
+    res.status(500).json({
+      message: "Error fetching business analysis data",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -10748,4 +10872,5 @@ module.exports = {
   revenueApi,
   scheudleInventory,
   getLabourForcast,
+  businessAnalysisApi,
 };
