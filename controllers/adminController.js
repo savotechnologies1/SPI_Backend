@@ -2622,7 +2622,6 @@ const createPartNumber = async (req, res) => {
       });
     }
 
-    // If part exists but deleted, update it instead of creating
     if (existingPart && existingPart.isDeleted) {
       await prisma.partNumber.update({
         where: { part_id: existingPart.part_id },
@@ -2909,6 +2908,8 @@ const getProductTree = async (req, res) => {
 
           type: "product",
           isDeleted: false,
+        }, orderBy: {
+          createdAt: "desc",
         },
         skip: paginationData.skip,
         take: paginationData.pageSize,

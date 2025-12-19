@@ -290,133 +290,141 @@ const importProcess = async (req, res) => {
 const importParts = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    if (fileData.type === "fileNotFound" || fileData.data === undefined) {
+
+    if (fileData.type === "fileNotFound" || !fileData.data) {
       return res.status(400).json({
         success: false,
-        error: "CSV file is required with product tree fields",
+        message: "CSV file is required",
       });
     }
 
-    const getCsvFile = fileData?.data?.filter(
+    const csvFile = fileData.data.find(
       (file) => file.fieldname === "ImportFile"
     );
-    const filePath = getCsvFile[0].path;
+
+    if (!csvFile) {
+      return res.status(400).json({
+        success: false,
+        message: "ImportFile not found",
+      });
+    }
+
+    const filePath = csvFile.path;
     const csvData = [];
     const errors = [];
 
     fs.createReadStream(filePath)
       .pipe(csv())
-      .on("data", (data) => {
-        csvData.push(data);
+      .on("data", (row) => {
+        csvData.push(row);
       })
       .on("end", async () => {
-        // Validate file type
+        // 🔹 File type validation
         if (
           !csvData[0]?.fileName ||
-          csvData[0]?.fileName.toLowerCase() !== "part"
+          csvData[0].fileName.toLowerCase() !== "part"
         ) {
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
-            message: `Invalid file type. Expected 'part', but got '${
-              csvData[0]?.fileName || "undefined"
-            }'`,
+            message: "Invalid file type. Expected 'part'",
           });
         }
 
         const validatedData = [];
 
-        // Validate each row
+        // 🔹 Row validations
         for (let index = 0; index < csvData.length; index++) {
           const row = csvData[index];
           const rowErrors = [];
 
           // Type validation
-          if (row?.type !== "part" && row?.type !== "product") {
-            rowErrors.push("Part type is not correct.");
+          if (!["part", "product"].includes(row.type)) {
+            rowErrors.push("Invalid type (must be part or product)");
           }
 
-          // Existing part number check
-          const existingActivePart = await prisma.partNumber.findFirst({
+          // Duplicate partNumber check
+          const existingPart = await prisma.partNumber.findFirst({
             where: {
               partNumber: row.partNumber,
               isDeleted: false,
             },
           });
-          if (existingActivePart) {
-            rowErrors.push(`Part Number already exists: ${row.partNumber}`);
+
+          if (existingPart) {
+            rowErrors.push(`PartNumber already exists: ${row.partNumber}`);
           }
 
-          // Process name validation from process table (not processId)
-          const matchedProcess = await prisma.process.findFirst({
+          // 🔹 Process validation (BY NAME)
+          const process = await prisma.process.findFirst({
             where: {
               processName: row.processName?.trim(),
               isDeleted: false,
             },
           });
 
-          if (!matchedProcess) {
-            rowErrors.push(
-              `Process name not found or deleted: ${row.processName}`
-            );
+          if (!process) {
+            rowErrors.push(`Process not found: ${row.processName}`);
           }
 
-          // Collect row errors
           if (rowErrors.length > 0) {
             errors.push(`Row ${index + 2}: ${rowErrors.join(", ")}`);
           } else {
             validatedData.push({
               ...row,
-              matchedProcessId: matchedProcess?.id,
+              processId: process.id,
             });
           }
         }
 
-        // If any error found, abort the import
+        // ❌ Abort if errors
         if (errors.length > 0) {
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
-            message: "CSV import failed due to errors.",
+            message: "CSV import failed",
             errors,
           });
         }
 
-        // All rows are valid — proceed with insert
+        // ✅ Insert records
         for (const row of validatedData) {
-          const getId = uuidv4().slice(0, 8);
           await prisma.partNumber.create({
             data: {
-              part_id: getId,
+              part_id: uuidv4(),
               partFamily: row.partFamily,
               partNumber: row.partNumber,
               partDescription: row.partDescription,
+              type: row.type,
               cost: parseFloat(row.cost),
               leadTime: parseInt(row.leadTime),
-              supplierOrderQty: parseInt(row.supplierOrderQty),
-              companyName: row.companyName,
-              minStock: parseInt(row?.minStock),
-              availStock: parseInt(row?.availStock),
-              cycleTime: row?.cycleTime,
+              minStock: parseInt(row.minStock) || 0,
+              availStock: parseInt(row.availStock) || 0,
+              supplierOrderQty: parseInt(row.supplierOrderQty) || 0,
+              cycleTime: row.cycleTime,
               processOrderRequired: row.processOrderRequired === "TRUE",
-              processId: row.matchedProcessId,
-              processName: row.processName,
               processDesc: row.processDesc,
-              type: row.type,
-              submittedBy: req?.user?.id,
-              createdBy: req?.user?.id,
+              companyName: row.companyName,
+
+              // ✅ FK saved here
+              processId: row.processId,
+
+              submittedBy: req.user?.id,
+              createdBy: req.user?.id,
             },
           });
         }
 
         fs.unlinkSync(filePath);
+
         return res.status(201).json({
           success: true,
-          message: "All parts imported successfully.",
+          message: "Parts imported successfully",
           totalImported: validatedData.length,
         });
       });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -424,158 +432,138 @@ const importParts = async (req, res) => {
     });
   }
 };
+
 const importProductTree = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
-    if (fileData.type === "fileNotFound" || fileData.data === undefined) {
+
+    if (fileData.type === "fileNotFound" || !fileData.data) {
       return res.status(400).json({
         success: false,
-        error: "CSV file is required with product/part fields",
+        message: "CSV file is required",
       });
     }
 
-    const getCsvFile = fileData?.data?.filter(
+    const csvFile = fileData.data.find(
       (file) => file.fieldname === "ImportFile"
     );
-    const filePath = getCsvFile[0].path;
 
+    if (!csvFile) {
+      return res.status(400).json({
+        success: false,
+        message: "ImportFile not found",
+      });
+    }
+
+    const filePath = csvFile.path;
     const csvData = [];
-    let successCount = 0;
-    let errorCount = 0;
     const errors = [];
+    let successCount = 0;
 
     fs.createReadStream(filePath)
       .pipe(csv())
-      .on("data", (data) => {
-        csvData.push(data);
+      .on("data", (row) => {
+        csvData.push(row);
       })
       .on("end", async () => {
+        // 🔹 File type check
         if (
           !csvData[0]?.fileName ||
-          csvData[0]?.fileName.toLowerCase().trim() !== "product"
+          csvData[0].fileName.toLowerCase().trim() !== "product"
         ) {
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
-            message: `Invalid file type. Expected 'product', but got '${
-              csvData[0]?.fileName || "undefined"
-            }'`,
+            message: "Invalid file type. Expected 'product'",
           });
         }
 
         for (let index = 0; index < csvData.length; index++) {
           const row = csvData[index];
 
+          // 🔹 Find PRODUCT
           const product = await prisma.partNumber.findFirst({
             where: {
               partNumber: row.product_number?.trim(),
-              isDeleted: false,
               type: "product",
+              isDeleted: false,
             },
           });
 
+          if (!product) {
+            errors.push(
+              `Row ${index + 2}: Product not found (${row.product_number})`
+            );
+            continue;
+          }
+
+          // 🔹 Find PART
           const part = await prisma.partNumber.findFirst({
             where: {
               partNumber: row.part_number?.trim(),
-              isDeleted: false,
               type: "part",
+              isDeleted: false,
             },
           });
 
           if (!part) {
-            errorCount++;
             errors.push(
               `Row ${index + 2}: Part not found (${row.part_number})`
             );
             continue;
           }
-          let getId = uuidv4().slice(0, 6);
+
+          // 🔹 Check if tree already exists
           const existingTree = await prisma.productTree.findFirst({
             where: {
-              part_id: getId,
+              product_id: product.part_id,
+              part_id: part.part_id,
             },
           });
 
-          console.log(")))))wwwwwwwww))))))))))", row);
-          console.log("existingTreeexistingTree", existingTree);
           if (existingTree) {
-            errorCount++;
             errors.push(
-              `Row ${index + 2}: Product/Part tree already exists (${
+              `Row ${index + 2}: ProductTree already exists (${
                 row.product_number
-              }/${row.part_number})`
+              } → ${row.part_number})`
             );
             continue;
           }
-          console.log(")))))))))))))))", row);
 
-          const data = await prisma.partNumber.create({
-            data: {
-              part_id: getId,
-              partNumber: row.product_number,
-              partFamily: row.partFamily,
-              partDescription: row.partDescription,
-              processOrderRequired: part.processOrderRequired,
-              cost: part.cost,
-              minStock: part.minStock,
-              leadTime: part.leadTime,
-              availStock: part.availStock,
-              cycleTime: part.cycleTime,
-              processName: part.processName,
-              processDesc: part.processDesc,
-              companyName: part.companyName,
-              instructionRequired:
-                row.instructionRequired?.trim().toUpperCase() === "TRUE",
-              type: "product",
-
-              // ✅ Correct way to link to existing process by ID
-              ...(part?.processId && {
-                process: {
-                  connect: {
-                    id: part.processId,
-                  },
-                },
-              }),
-            },
-          });
-          console.log(")datadatadatadata))))))))", data);
-
+          // 🔹 Create ProductTree
           await prisma.productTree.create({
             data: {
-              product_id: getId,
+              id: uuidv4(),
+              product_id: product.part_id,
               part_id: part.part_id,
-
-              partQuantity: part.availStock,
+              partQuantity: Number(row.partQuantity) || 1,
               processOrderRequired: part.processOrderRequired,
               instructionRequired:
                 row.instructionRequired?.trim().toUpperCase() === "TRUE",
 
-              // ✅ Only connect process if processId is available
-              ...(part?.processId && {
-                process: {
-                  connect: {
-                    id: part.processId,
-                  },
-                },
-              }),
+              // ✅ Correct way
+              processId: part.processId || null,
             },
           });
+
+          successCount++;
         }
 
         fs.unlinkSync(filePath);
 
         return res.status(200).json({
           success: true,
-          message: "CSV import completed.",
+          message: "Product Tree CSV import completed",
           summary: {
             totalRows: csvData.length,
             successCount,
-            errorCount,
+            errorCount: errors.length,
             errors: errors.length > 0 ? errors : undefined,
           },
         });
       });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
       success: false,
       message: "Server error",
