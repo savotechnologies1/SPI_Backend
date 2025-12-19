@@ -5583,13 +5583,132 @@ const customOrderSchedule = async (req, res) => {
   }
 };
 
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = {
+//       isDeleted: false,
+//     };
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     if (search) {
+//       whereClause.OR = [{ part: { partNumber: { contains: search } } }];
+//     }
+//     // if (req.user?.role === "Frontline_Manager") {
+//     //   whereClause.submittedByEmployeeId = req.user.id;
+//     // }
+
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: {
+//           createdAt: "desc",
+//         },
+//         include: {
+//           part: {
+//             select: {
+//               partNumber: true,
+//               process: true,
+//             },
+//           },
+//           completedByEmployee: {
+//             select: {
+//               firstName: true,
+//               lastName: true,
+//             },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({
+//         where: whereClause,
+//       }),
+//     ]);
+
+//     if (filteredSchedules.length === 0) {
+//       return res.status(200).json({
+//         message: "No scheduled orders found.",
+//         data: [],
+//         pagination: await pagination({
+//           page: paginationData.page,
+//           pageSize: paginationData.pageSize,
+//           total: 0,
+//         }),
+//       });
+//     }
+//     const stockOrderIds = [];
+//     const customOrderIds = [];
+
+//     for (const schedule of filteredSchedules) {
+//       if (schedule.order_type === "StockOrder" && schedule.order_id) {
+//         stockOrderIds.push(schedule.order_id);
+//       } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
+//         customOrderIds.push(schedule.order_id);
+//       }
+//     }
+
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({
+//             where: { id: { in: stockOrderIds } },
+//             include: { part: { select: { partNumber: true } } },
+//           })
+//         : Promise.resolve([]),
+
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : Promise.resolve([]),
+//     ]);
+//     console.log("customOrderscustomOrders", customOrders);
+//     const stockOrderMap = new Map(
+//       stockOrders.map((order) => [order.id, order])
+//     );
+//     const customOrderMap = new Map(
+//       customOrders.map((order) => [order.id, order])
+//     );
+//     const schedulesWithOrders = filteredSchedules.map((schedule) => {
+//       let orderData = null;
+//       if (schedule.order_type === "StockOrder") {
+//         orderData = stockOrderMap.get(schedule.order_id) || null;
+//       } else if (schedule.order_type === "CustomOrder") {
+//         orderData = customOrderMap.get(schedule.order_id) || null;
+//       }
+//       return { ...schedule, order: orderData };
+//     });
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Scheduled orders retrieved successfully!",
+//       data: schedulesWithOrders,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Error retrieving scheduled orders:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
     const paginationData = await paginationQuery(req.query);
-    const whereClause = {
-      isDeleted: false,
-    };
+    const whereClause = { isDeleted: false };
+
     if (order_type && order_type !== "all") {
       whereClause.order_type = order_type;
     }
@@ -5597,36 +5716,19 @@ const scheduleStockOrdersList = async (req, res) => {
     if (search) {
       whereClause.OR = [{ part: { partNumber: { contains: search } } }];
     }
-    // if (req.user?.role === "Frontline_Manager") {
-    //   whereClause.submittedByEmployeeId = req.user.id;
-    // }
 
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: whereClause,
         skip: paginationData.skip,
         take: paginationData.pageSize,
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
         include: {
-          part: {
-            select: {
-              partNumber: true,
-              process: true,
-            },
-          },
-          completedByEmployee: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
-          },
+          part: { select: { partNumber: true, process: true } },
+          completedByEmployee: { select: { firstName: true, lastName: true } },
         },
       }),
-      prisma.stockOrderSchedule.count({
-        where: whereClause,
-      }),
+      prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
 
     if (filteredSchedules.length === 0) {
@@ -5640,46 +5742,74 @@ const scheduleStockOrdersList = async (req, res) => {
         }),
       });
     }
+
     const stockOrderIds = [];
     const customOrderIds = [];
+    const customPartIds = [];
 
     for (const schedule of filteredSchedules) {
-      if (schedule.order_type === "StockOrder" && schedule.order_id) {
+      // String normalize: "Custom Order" -> "CustomOrder"
+      const type = schedule.order_type?.replace(/\s/g, "");
+
+      if (type === "StockOrder" && schedule.order_id) {
         stockOrderIds.push(schedule.order_id);
-      } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
-        customOrderIds.push(schedule.order_id);
+      } else if (type === "CustomOrder") {
+        if (schedule.order_id) customOrderIds.push(schedule.order_id);
+        if (schedule.customPartId) customPartIds.push(schedule.customPartId);
       }
     }
 
-    const [stockOrders, customOrders] = await Promise.all([
+    const [stockOrders, customOrders, customPartDetails] = await Promise.all([
       stockOrderIds.length > 0
         ? prisma.stockOrder.findMany({
             where: { id: { in: stockOrderIds } },
             include: { part: { select: { partNumber: true } } },
           })
-        : Promise.resolve([]),
+        : [],
 
       customOrderIds.length > 0
         ? prisma.customOrder.findMany({
             where: { id: { in: customOrderIds } },
             include: { product: { select: { partNumber: true } } },
           })
-        : Promise.resolve([]),
+        : [],
+
+      customPartIds.length > 0
+        ? prisma.customPart.findMany({
+            where: { id: { in: customPartIds } },
+            include: {
+              CustomOrder: {
+                // Capital 'C' as per your schema
+                include: { product: { select: { partNumber: true } } },
+              },
+            },
+          })
+        : [],
     ]);
-    console.log("customOrderscustomOrders", customOrders);
-    const stockOrderMap = new Map(
-      stockOrders.map((order) => [order.id, order])
+
+    // Maps creation
+    const stockOrderMap = new Map(stockOrders.map((o) => [o.id, o]));
+    const customOrderMap = new Map(customOrders.map((o) => [o.id, o]));
+
+    // Yahan fix kiya: cp.CustomOrder (Capital C)
+    const customPartMap = new Map(
+      customPartDetails.map((cp) => [cp.id, cp.CustomOrder])
     );
-    const customOrderMap = new Map(
-      customOrders.map((order) => [order.id, order])
-    );
+
     const schedulesWithOrders = filteredSchedules.map((schedule) => {
       let orderData = null;
-      if (schedule.order_type === "StockOrder") {
+      const type = schedule.order_type?.replace(/\s/g, "");
+
+      if (type === "StockOrder") {
         orderData = stockOrderMap.get(schedule.order_id) || null;
-      } else if (schedule.order_type === "CustomOrder") {
-        orderData = customOrderMap.get(schedule.order_id) || null;
+      } else if (type === "CustomOrder") {
+        // First try via order_id, if null try via customPartId
+        orderData =
+          customOrderMap.get(schedule.order_id) ||
+          customPartMap.get(schedule.customPartId) ||
+          null;
       }
+
       return { ...schedule, order: orderData };
     });
 
@@ -5697,7 +5827,7 @@ const scheduleStockOrdersList = async (req, res) => {
   } catch (error) {
     console.error("Error retrieving scheduled orders:", error);
     return res.status(500).json({
-      message: "Something went wrong. Please try again later.",
+      message: "Something went wrong.",
       error: error.message,
     });
   }
