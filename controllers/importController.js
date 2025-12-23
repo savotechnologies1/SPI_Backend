@@ -438,21 +438,18 @@ const importProductTree = async (req, res) => {
     const fileData = await fileUploadFunc(req, res);
 
     if (fileData.type === "fileNotFound" || !fileData.data) {
-      return res.status(400).json({
-        success: false,
-        message: "CSV file is required",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "CSV file is required" });
     }
 
     const csvFile = fileData.data.find(
       (file) => file.fieldname === "ImportFile"
     );
-
     if (!csvFile) {
-      return res.status(400).json({
-        success: false,
-        message: "ImportFile not found",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "ImportFile not found" });
     }
 
     const filePath = csvFile.path;
@@ -460,118 +457,148 @@ const importProductTree = async (req, res) => {
     const errors = [];
     let successCount = 0;
 
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on("data", (row) => {
-        csvData.push(row);
-      })
-      .on("end", async () => {
-        // 🔹 File type check
-        if (
-          !csvData[0]?.fileName ||
-          csvData[0].fileName.toLowerCase().trim() !== "product"
-        ) {
-          fs.unlinkSync(filePath);
-          return res.status(400).json({
-            success: false,
-            message: "Invalid file type. Expected 'product'",
-          });
+    // CSV Read karna
+    const stream = fs.createReadStream(filePath).pipe(csv());
+    for await (const row of stream) {
+      csvData.push(row);
+    }
+
+    // Validation: Check if it's a product file
+    if (
+      !csvData[0]?.fileName ||
+      csvData[0].fileName.toLowerCase().trim() !== "product"
+    ) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid file type. Expected 'product'",
+      });
+    }
+
+    // 1. Grouping: Product Number ke hisab se data ko group karna
+    const groupedProducts = csvData.reduce((acc, row) => {
+      const pNum = row.product_number?.trim();
+      if (pNum) {
+        if (!acc[pNum]) {
+          acc[pNum] = { details: row, parts: [] };
+        }
+        acc[pNum].parts.push(row);
+      }
+      return acc;
+    }, {});
+
+    // 2. Processing Each Product (Jese createProductNumber me hota hai)
+    for (const [productNumber, group] of Object.entries(groupedProducts)) {
+      try {
+        const { details, parts } = group;
+
+        // Check if Product already exists
+        const existingProduct = await prisma.partNumber.findUnique({
+          where: { partNumber: productNumber },
+        });
+
+        if (existingProduct) {
+          errors.push(`Product ${productNumber} already exists. Skipping.`);
+          continue;
         }
 
-        for (let index = 0; index < csvData.length; index++) {
-          const row = csvData[index];
+        const newProductId = uuidv4().slice(0, 6);
 
-          // 🔹 Find PRODUCT
-          const product = await prisma.partNumber.findFirst({
-            where: {
-              partNumber: row.product_number?.trim(),
-              type: "product",
-              isDeleted: false,
-            },
-          });
-
-          if (!product) {
-            errors.push(
-              `Row ${index + 2}: Product not found (${row.product_number})`
-            );
-            continue;
-          }
-
-          // 🔹 Find PART
-          const part = await prisma.partNumber.findFirst({
-            where: {
-              partNumber: row.part_number?.trim(),
-              type: "part",
-              isDeleted: false,
-            },
-          });
-
-          if (!part) {
-            errors.push(
-              `Row ${index + 2}: Part not found (${row.part_number})`
-            );
-            continue;
-          }
-
-          // 🔹 Check if tree already exists
-          const existingTree = await prisma.productTree.findFirst({
-            where: {
-              product_id: product.part_id,
-              part_id: part.part_id,
-            },
-          });
-
-          if (existingTree) {
-            errors.push(
-              `Row ${index + 2}: ProductTree already exists (${
-                row.product_number
-              } → ${row.part_number})`
-            );
-            continue;
-          }
-
-          // 🔹 Create ProductTree
-          await prisma.productTree.create({
-            data: {
-              id: uuidv4(),
-              product_id: product.part_id,
-              part_id: part.part_id,
-              partQuantity: Number(row.partQuantity) || 1,
-              processOrderRequired: part.processOrderRequired,
-              instructionRequired:
-                row.instructionRequired?.trim().toUpperCase() === "TRUE",
-
-              // ✅ Correct way
-              processId: part.processId || null,
-            },
-          });
-
-          successCount++;
-        }
-
-        fs.unlinkSync(filePath);
-
-        return res.status(200).json({
-          success: true,
-          message: "Product Tree CSV import completed",
-          summary: {
-            totalRows: csvData.length,
-            successCount,
-            errorCount: errors.length,
-            errors: errors.length > 0 ? errors : undefined,
+        // STEP A: Create NEW PRODUCT in PartNumber Table
+        await prisma.partNumber.create({
+          data: {
+            part_id: newProductId,
+            partNumber: productNumber.trim(),
+            partFamily: details.partFamily || "",
+            partDescription: details.partDescription || "",
+            // CSV me ye fields nahi hain to default 0/null rakha hai
+            cost: parseFloat(details.cost) || 0,
+            leadTime: parseInt(details.leadTime) || 0,
+            supplierOrderQty: parseInt(details.supplierOrderQty) || 0,
+            companyName: details.companyName || "Default", // Mandatory field handle
+            minStock: parseInt(details.minStock) || 0,
+            availStock: parseInt(details.availStock) || 0,
+            cycleTime: details.cycleTime || null,
+            processOrderRequired: details.processOrderRequired === "true",
+            processId: details.processId || null,
+            processDesc: details.processDesc || null,
+            type: "product",
+            submittedBy: req.user.id,
           },
         });
-      });
+
+        // STEP B: Link EXISTING PARTS in ProductTree
+        for (const partRow of parts) {
+          const partNumInCsv = partRow.part_number?.trim();
+
+          // Database me existing part ko dhundna
+          const existingPartInDb = await prisma.partNumber.findFirst({
+            where: {
+              partNumber: partNumInCsv,
+              type: "part", // Ye component part hai
+              isDeleted: false,
+            },
+          });
+
+          if (!existingPartInDb) {
+            errors.push(
+              `Row ${productNumber}: Part ${partNumInCsv} not found in database.`
+            );
+            continue;
+          }
+
+          // Create Product Tree entry (Link Product + Part)
+          await prisma.productTree.create({
+            data: {
+              id: uuidv4().slice(0, 6),
+              product_id: newProductId, // Naya create kiya hua product
+              part_id: existingPartInDb.part_id, // Purana existing part
+              partQuantity: Number(partRow.partQuantity) || 1,
+              processOrderRequired: details.processOrderRequired === "true",
+              instructionRequired:
+                partRow.instructionRequired?.trim().toUpperCase() === "TRUE",
+              processId:
+                details.processId || existingPartInDb.processId || null,
+            },
+          });
+
+          // Optional: Update Product according to your createProductNumber logic
+          await prisma.partNumber.update({
+            where: { part_id: newProductId },
+            data: {
+              processId: details.processId || existingPartInDb.processId,
+              processOrderRequired: details.processOrderRequired === "true",
+              instructionRequired:
+                partRow.instructionRequired?.trim().toUpperCase() === "TRUE",
+            },
+          });
+        }
+
+        successCount++;
+      } catch (err) {
+        errors.push(`Error creating Product ${productNumber}: ${err.message}`);
+      }
+    }
+
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    return res.status(200).json({
+      success: true,
+      message: "Product creation and mapping completed via CSV",
+      summary: {
+        totalProductsInCsv: Object.keys(groupedProducts).length,
+        successfullyCreated: successCount,
+        errorCount: errors.length,
+        errors: errors,
+      },
+    });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 };
-
 const importEmp = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);

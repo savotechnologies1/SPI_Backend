@@ -11,7 +11,7 @@ const { validationResult } = require("express-validator");
 const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
-const moment = require("moment"); // For date/time manipulation
+const moment = require("moment");
 const {
   startOfMonth,
   endOfMonth,
@@ -2908,7 +2908,8 @@ const getProductTree = async (req, res) => {
 
           type: "product",
           isDeleted: false,
-        }, orderBy: {
+        },
+        orderBy: {
           createdAt: "desc",
         },
         skip: paginationData.skip,

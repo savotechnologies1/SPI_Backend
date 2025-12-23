@@ -29136,7 +29136,6 @@ const selectScheduleProcess = async (req, res) => {
   try {
     const stationUser = req.user;
 
-    // ---------- Helper: Find part job ----------
     const findNextJobForPartProcess = (processId) => {
       return prisma.stockOrderSchedule.findFirst({
         where: {
@@ -29150,7 +29149,6 @@ const selectScheduleProcess = async (req, res) => {
       });
     };
 
-    // ---------- Helper: Find product job ----------
     const findNextJobForProductProcess = (processId, orderId) => {
       return prisma.stockOrderSchedule.findFirst({
         where: {
