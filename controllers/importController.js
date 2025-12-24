@@ -912,7 +912,7 @@ const importCust = async (req, res) => {
                 isError = true;
                 reject({
                   status: "rejected",
-                  reason: `Customer with this email(${row.email}) or phone number(${row.customerPhone}) already exists `,
+                  reason: `Customer with this email(${row.email}) or phone number(${row.customerPhone}) already exists. `,
                   index,
                 });
               }

@@ -2095,23 +2095,30 @@ const addCustomOrder = async (req, res) => {
       cost,
       totalCost,
       productQuantity,
-      bomList, // Existing Parts List from Payload
-      newParts, // New Parts List (Manual Entry)
+      bomList = [],
+      newParts = [],
     } = req.body;
 
     console.log("Payload Received - BOM:", bomList);
+    console.log("Payload Received - newParts:", newParts);
 
-    const newCustomOrder = await prisma.$transaction(async (tx) => {
-      // ---------------------------------------------------------
-      // 1. Customer Management
-      // ---------------------------------------------------------
-      let customer;
+    const result = await prisma.$transaction(async (tx) => {
+      // =====================================================
+      // 1️⃣ CUSTOMER CREATE / FETCH
+      // =====================================================
+      let customer = null;
+
       if (customerId && customerId !== "new") {
-        customer = await tx.customers.findUnique({ where: { id: customerId } });
+        customer = await tx.customers.findUnique({
+          where: { id: customerId },
+        });
       }
 
       if (!customer) {
-        if (!customerName) throw new Error("Customer name is required.");
+        if (!customerName) {
+          throw new Error("Customer name is required");
+        }
+
         customer = await tx.customers.create({
           data: {
             firstName: customerName.split(" ")[0],
@@ -2122,6 +2129,10 @@ const addCustomOrder = async (req, res) => {
           },
         });
       }
+
+      // =====================================================
+      // 2️⃣ CREATE CUSTOM ORDER
+      // =====================================================
       const createdOrder = await tx.customOrder.create({
         data: {
           orderNumber,
@@ -2135,133 +2146,140 @@ const addCustomOrder = async (req, res) => {
           partId: part_id || null,
           cost: parseFloat(cost || 0),
           totalCost: parseFloat(totalCost || 0),
-          productQuantity: parseInt(productQuantity, 10),
+          productQuantity: parseInt(productQuantity || 1, 10),
           status: "Pending",
         },
       });
 
+      // =====================================================
+      // 3️⃣ PROCESS BOM LIST (NO PART CREATION)
+      // =====================================================
       if (Array.isArray(bomList) && bomList.length > 0) {
         for (const item of bomList) {
-          if (!item.partId) continue;
+          if (!item.partId && !item.partNumber) continue;
 
-          const existingPart = await tx.partNumber.findUnique({
-            where: { part_id: item.partId },
-            include: { process: true },
-          });
-
-          if (!existingPart) {
-            console.warn(`Part ID ${item.partId} not found. Skipping.`);
-            continue;
-          }
-
-          const finalCycleTime =
-            (item.totalTime ? item.totalTime.toString() : null) ||
-            (item.cycleTime ? item.cycleTime.toString() : null) ||
-            existingPart.cycleTime ||
-            "0";
-
-          const finalProcessId =
-            item.processId || existingPart.processId || null;
-
-          const finalProcessName =
-            item.process ||
-            existingPart.process?.processName ||
-            existingPart.processDesc ||
-            "";
+          const existingPart = item.partId
+            ? await tx.partNumber.findUnique({
+                where: { part_id: item.partId },
+                include: { process: true },
+              })
+            : null;
 
           const qtyPerUnit = parseInt(item.qty || 1, 10);
-          const orderQty = parseInt(productQuantity, 10);
-          const totalRequiredQty = qtyPerUnit * orderQty;
+          const orderQty = parseInt(productQuantity || 1, 10);
+          const totalQty = qtyPerUnit * orderQty;
+
           const createdCustomPart = await tx.customPart.create({
             data: {
-              partNumber: existingPart.partNumber,
+              partNumber: item.partNumber || existingPart?.partNumber,
               quantity: qtyPerUnit,
-              processId: finalProcessId,
-              processName: finalProcessName,
-              cycleTime: finalCycleTime,
-              workInstruction: existingPart.instructionRequired ? "Yes" : "No",
+              processId: item.processId || existingPart?.processId || null,
+              processName:
+                item.process || existingPart?.process?.processName || "",
+              cycleTime:
+                item.totalTime?.toString() || existingPart?.cycleTime || "0",
+              workInstruction: existingPart?.instructionRequired ? "Yes" : "No",
               customOrderId: createdOrder.id,
             },
           });
 
-          // D. Create Schedule Entry (Linked to CustomPart)
           await tx.stockOrderSchedule.create({
             data: {
               order_id: createdOrder.id,
               order_type: "Custom Order",
-              part_id: existingPart.part_id,
-              quantity: totalRequiredQty,
-              scheduleQuantity: totalRequiredQty,
-              remainingQty: totalRequiredQty,
-              processId: finalProcessId,
+              part_id: existingPart?.part_id || null,
+              quantity: totalQty,
+              scheduleQuantity: totalQty,
+              remainingQty: totalQty,
+              processId: item.processId || existingPart?.processId || null,
               status: "new",
               order_date: new Date(orderDate),
               delivery_date: new Date(shipDate),
-
-              // LINKING ID HERE (This works now because we used .create())
               customPartId: createdCustomPart.id,
             },
           });
         }
       }
 
-      // ---------------------------------------------------------
-      // 4. Process New Parts (MANUAL ENTRY)
-      // ---------------------------------------------------------
-      if (Array.isArray(newParts) && newParts.length > 0) {
-        const validNewParts = newParts.filter(
-          (p) => p.part && p.part.trim() !== ""
-        );
+      // =====================================================
+      // 4️⃣ PROCESS NEW PARTS (CREATE ONLY VALID PARTS)
+      // =====================================================
+      const validNewParts = Array.isArray(newParts)
+        ? newParts.filter((p) => p?.part && p.part.trim() !== "")
+        : [];
 
-        for (const partItem of validNewParts) {
-          // ✅ CHECK: Kya ye Part Number pehle se DB me exist karta hai?
-          // Hum assume kar rahe hain ki 'partItem.part' me Part Number ka naam hai
-          const duplicateCheck = await tx.partNumber.findFirst({
-            where: {
-              partNumber: partItem.part, // Check exact match
-            },
-          });
+      for (const partItem of validNewParts) {
+        // 🔎 Duplicate check
+        const duplicatePart = await tx.partNumber.findFirst({
+          where: { partNumber: partItem.part.trim() },
+        });
 
-          if (duplicateCheck) {
-            // Agar part mil gaya, toh Error throw karo.
-            // Transaction rollback ho jayega aur catch block me chala jayega.
-            return res.status(400).json({
-              message: "This new part already exist .",
-            });
-          }
-
-          // Agar exist nahi karta, toh aage ka logic (Save to CustomPart or create new PartNumber)
-          console.log("Processing verified new manual part:", partItem.part);
-
-          // Example: Save this new manual part into CustomPart table
-          // Note: Since it's a manual part, we might not have a processId or part_id yet
-          await tx.customPart.create({
-            data: {
-              partNumber: partItem?.part,
-              quantity: parseInt(partItem?.qty || 1, 10),
-              processName: partItem?.process,
-              customOrderId: createdOrder.id,
-              // Other fields as needed
-            },
-          });
+        if (duplicatePart) {
+          throw new Error(`Part "${partItem.part}" already exists`);
         }
+
+        // 🆕 Create Part Number
+        const createdPart = await tx.partNumber.create({
+          data: {
+            partNumber: partItem.part.trim(),
+            cycleTime: partItem.totalTime?.toString() || "0",
+            processId: partItem.processId || null,
+            cost: 0,
+            instructionRequired: false,
+            partFamily: "",
+            type: "part",
+            companyName: "",
+            createdBy: req.user?.id,
+          },
+        });
+
+        // 🔗 Custom Part
+        const createdCustomPart = await tx.customPart.create({
+          data: {
+            partNumber: createdPart.partNumber,
+            quantity: parseInt(partItem.qty || 1, 10),
+            processId: createdPart.processId,
+            cycleTime: createdPart.cycleTime,
+            customOrderId: createdOrder.id,
+          },
+        });
+
+        // 📅 Schedule
+        await tx.stockOrderSchedule.create({
+          data: {
+            order_id: createdOrder.id,
+            order_type: "Custom Order",
+            part_id: createdPart.part_id,
+            quantity: parseInt(partItem.qty || 1, 10),
+            scheduleQuantity: parseInt(partItem.qty || 1, 10),
+            remainingQty: parseInt(partItem.qty || 1, 10),
+            processId: createdPart.processId,
+            status: "new",
+            order_date: new Date(orderDate),
+            delivery_date: new Date(shipDate),
+            customPartId: createdCustomPart.id,
+          },
+        });
       }
 
       return createdOrder;
     });
 
     return res.status(201).json({
-      message: "Custom order created successfully!",
-      data: newCustomOrder,
+      success: true,
+      message: "Custom order created successfully",
+      data: result,
     });
   } catch (error) {
     console.error("Error creating custom order:", error);
-    return res.status(500).send({
-      message: "Transaction failed.",
+    return res.status(500).json({
+      success: false,
+      message: "Transaction failed",
       error: error.message,
     });
   }
 };
+
 // const addCustomOrder = async (req, res) => {
 //   try {
 //     const {
@@ -10885,7 +10903,7 @@ const businessAnalysisApi = async (req, res) => {
       totalFixedCost: proratedFixedCost,
       operatingExpenses,
       Profit: profit,
-      InventoryCost: inventoryCost, // Ab ye Dashboard se alag hai, strictly order dates par based hai
+      InventoryCost: inventoryCost,
       scrapCost,
       supplierReturn,
       cashFlow,
