@@ -5032,8 +5032,149 @@ const searchCustomOrders = async (req, res) => {
 //   }
 // };
 
+// const stockOrderSchedule = async (req, res) => {
+//   const ordersToSchedule = req.body;
+//   try {
+//     const allPrismaPromises = [];
+//     const orderIdsToUpdate = new Set();
+
+//     for (const order of ordersToSchedule) {
+//       const { order_id, product_id, quantity, delivery_date, status, type } =
+//         order;
+
+//       if (!order_id || !product_id) {
+//         console.warn(
+//           "Skipping order due to missing order_id or product_id",
+//           order
+//         );
+//         continue;
+//       }
+
+//       orderIdsToUpdate.add(order_id);
+
+//       const productPart = await prisma.partNumber.findUnique({
+//         where: { part_id: product_id },
+//         include: { process: true },
+//       });
+
+//       // 🟢 Helper: decide whether user is admin or employee
+//       const submittedBy =
+//         req.user.role === "superAdmin"
+//           ? { submittedByAdmin: { connect: { id: req.user.id } } }
+//           : { submittedByEmployee: { connect: { id: req.user.id } } };
+// if (!productPart?.part_id) {
+//   console.warn("Skipping productSchedule, part_id missing", product_id);
+// } else {
+//   const productSchedule = prisma.stockOrderSchedule.upsert({ ... });
+//   allPrismaPromises.push(productSchedule);
+// }
+
+//       if (productPart) {
+//         const productSchedule = prisma.stockOrderSchedule.upsert({
+//           where: {
+//             order_id_part_id_order_type: {
+//               order_id: order_id,
+//               part_id: product_id,
+//               order_type: "StockOrder",
+//             },
+//           },
+//           update: {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             type: type,
+//           },
+//           create: {
+//             order_id: order_id,
+//             order_type: "StockOrder",
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             ...submittedBy, // 🟢 dynamic relation
+//             part: { connect: { part_id: product_id } },
+//             process: productPart.processId
+//               ? { connect: { id: productPart.processId } }
+//               : undefined,
+//             scheduleQuantity: quantity,
+//             remainingQty: quantity,
+//           },
+//         });
+//         allPrismaPromises.push(productSchedule);
+//       }
+
+//       const bomEntries = await prisma.productTree.findMany({
+//         where: { product_id: product_id },
+//         include: { part: { include: { process: true } } },
+//       });
+
+//       const componentSchedulePromises = bomEntries.map((entry) => {
+//         const scheduleQty = quantity * (entry?.part?.minStock || 1);
+
+//         return prisma.stockOrderSchedule.upsert({
+//           where: {
+//             order_id_part_id_order_type: {
+//               order_id: order_id,
+//               part_id: entry?.part?.part_id,
+//               order_type: "StockOrder",
+//             },
+//           },
+//           update: {
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//           },
+//           create: {
+//             order_id: order_id,
+//             order_type: "StockOrder",
+//             delivery_date: new Date(delivery_date),
+//             quantity: quantity,
+//             status: status,
+//             completed_date: null,
+//             ...submittedBy, // 🟢 dynamic relation
+//             part: { connect: { part_id: entry?.part?.part_id } },
+//             process: entry?.part?.processId
+//               ? { connect: { id: entry?.part?.processId } }
+//               : undefined,
+//             type: type,
+//             scheduleQuantity: scheduleQty,
+//             remainingQty: scheduleQty,
+//           },
+//         });
+//       });
+
+//       allPrismaPromises.push(...componentSchedulePromises);
+//     }
+
+//     if (allPrismaPromises.length > 0) {
+//       const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+//       await prisma.stockOrder.updateMany({
+//         where: {
+//           id: { in: Array.from(orderIdsToUpdate) },
+//           isDeleted: false,
+//         },
+//         data: { status: "scheduled" },
+//       });
+
+//       return res.status(201).json({
+//         message: `Successfully scheduled or updated items.`,
+//         data: newSchedules,
+//       });
+//     }
+//   } catch (error) {
+//     console.error("Error during batch scheduling:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong during scheduling.",
+//       error: error.message,
+//     });
+//   }
+// };
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
+
   try {
     const allPrismaPromises = [];
     const orderIdsToUpdate = new Set();
@@ -5042,106 +5183,131 @@ const stockOrderSchedule = async (req, res) => {
       const { order_id, product_id, quantity, delivery_date, status, type } =
         order;
 
+      // 🔒 HARD VALIDATION
       if (!order_id || !product_id) {
-        console.warn(
-          "Skipping order due to missing order_id or product_id",
-          order
-        );
+        console.warn("Skipping order: order_id or product_id missing", order);
         continue;
       }
 
       orderIdsToUpdate.add(order_id);
 
+      // 🔍 Find product as part
       const productPart = await prisma.partNumber.findUnique({
         where: { part_id: product_id },
         include: { process: true },
       });
 
-      // 🟢 Helper: decide whether user is admin or employee
+      // 🟢 Decide submitter
       const submittedBy =
         req.user.role === "superAdmin"
           ? { submittedByAdmin: { connect: { id: req.user.id } } }
           : { submittedByEmployee: { connect: { id: req.user.id } } };
 
-      if (productPart) {
+      // =========================================================
+      // 🟢 PRODUCT LEVEL SCHEDULING (ONLY IF PRODUCT IS A PART)
+      // =========================================================
+      if (productPart?.part_id) {
         const productSchedule = prisma.stockOrderSchedule.upsert({
           where: {
             order_id_part_id_order_type: {
-              order_id: order_id,
-              part_id: product_id,
+              order_id,
+              part_id: productPart.part_id, // 🔥 NEVER undefined
               order_type: "StockOrder",
             },
           },
           update: {
             delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
+            quantity,
+            status,
             completed_date: null,
-            type: type,
+            type,
           },
           create: {
-            order_id: order_id,
+            order_id,
             order_type: "StockOrder",
             delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
+            quantity,
+            status,
             completed_date: null,
-            ...submittedBy, // 🟢 dynamic relation
-            part: { connect: { part_id: product_id } },
+            ...submittedBy,
+            part: {
+              connect: { part_id: productPart.part_id },
+            },
             process: productPart.processId
               ? { connect: { id: productPart.processId } }
               : undefined,
+            type,
             scheduleQuantity: quantity,
             remainingQty: quantity,
           },
         });
+
         allPrismaPromises.push(productSchedule);
+      } else {
+        console.warn(
+          "Product is not a part, skipping product-level scheduling",
+          product_id
+        );
       }
 
+      // =========================================================
+      // 🟢 BOM / COMPONENT LEVEL SCHEDULING
+      // =========================================================
       const bomEntries = await prisma.productTree.findMany({
-        where: { product_id: product_id },
-        include: { part: { include: { process: true } } },
+        where: { product_id },
+        include: {
+          part: {
+            include: { process: true },
+          },
+        },
       });
 
-      const componentSchedulePromises = bomEntries.map((entry) => {
-        const scheduleQty = quantity * (entry?.part?.minStock || 1);
+      const componentSchedulePromises = bomEntries
+        .filter((entry) => entry?.part?.part_id) // 🔒 SAFETY FILTER
+        .map((entry) => {
+          const scheduleQty = quantity * (entry.part.minStock || 1);
 
-        return prisma.stockOrderSchedule.upsert({
-          where: {
-            order_id_part_id_order_type: {
-              order_id: order_id,
-              part_id: entry?.part?.part_id,
-              order_type: "StockOrder",
+          return prisma.stockOrderSchedule.upsert({
+            where: {
+              order_id_part_id_order_type: {
+                order_id,
+                part_id: entry.part.part_id, // 🔥 SAFE
+                order_type: "StockOrder",
+              },
             },
-          },
-          update: {
-            delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
-            completed_date: null,
-          },
-          create: {
-            order_id: order_id,
-            order_type: "StockOrder",
-            delivery_date: new Date(delivery_date),
-            quantity: quantity,
-            status: status,
-            completed_date: null,
-            ...submittedBy, // 🟢 dynamic relation
-            part: { connect: { part_id: entry?.part?.part_id } },
-            process: entry?.part?.processId
-              ? { connect: { id: entry?.part?.processId } }
-              : undefined,
-            type: type,
-            scheduleQuantity: scheduleQty,
-            remainingQty: scheduleQty,
-          },
+            update: {
+              delivery_date: new Date(delivery_date),
+              quantity,
+              status,
+              completed_date: null,
+            },
+            create: {
+              order_id,
+              order_type: "StockOrder",
+              delivery_date: new Date(delivery_date),
+              quantity,
+              status,
+              completed_date: null,
+              ...submittedBy,
+              part: {
+                connect: { part_id: entry.part.part_id },
+              },
+              process: entry.part.processId
+                ? { connect: { id: entry.part.processId } }
+                : undefined,
+              type,
+              scheduleQuantity: scheduleQty,
+              remainingQty: scheduleQty,
+            },
+          });
         });
-      });
 
       allPrismaPromises.push(...componentSchedulePromises);
     }
 
+    // =========================================================
+    // 🟢 EXECUTE TRANSACTION
+    // =========================================================
     if (allPrismaPromises.length > 0) {
       const newSchedules = await prisma.$transaction(allPrismaPromises);
 
@@ -5154,10 +5320,14 @@ const stockOrderSchedule = async (req, res) => {
       });
 
       return res.status(201).json({
-        message: `Successfully scheduled or updated items.`,
+        message: "Successfully scheduled or updated stock orders.",
         data: newSchedules,
       });
     }
+
+    return res.status(200).json({
+      message: "No valid orders found to schedule.",
+    });
   } catch (error) {
     console.error("Error during batch scheduling:", error);
     return res.status(500).json({
