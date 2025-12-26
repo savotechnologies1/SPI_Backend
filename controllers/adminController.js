@@ -1130,12 +1130,22 @@ const editProcess = async (req, res) => {
         message: "Process name already exists.",
       });
     }
+    const existingProcess = await prisma.process.findFirst({
+      where: {
+        id,
+        isDeleted: false,
+      },
+    });
+
+    if (!existingProcess) {
+      return res.status(404).json({
+        message: "Process not found",
+      });
+    }
 
     await prisma.process.update({
       where: {
         id: id,
-        isDeleted: false,
-        createdBy: req.user.id,
       },
       data: {
         processName: trimmedProcessName,
