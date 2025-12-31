@@ -2455,7 +2455,6 @@ const selectProcess = async (req, res) => {
         processDesc: true,
       },
       where: {
-        isProcessReq: true,
         isDeleted: false,
       },
     });
@@ -2797,7 +2796,7 @@ const createProductNumber = async (req, res) => {
       processDesc,
       parts = [],
     } = req.body;
-
+    console.log("req.bodyreq.body", req.body);
     const existingPart = await prisma.partNumber.findUnique({
       where: {
         partNumber: productNumber?.trim(),
@@ -2986,11 +2985,11 @@ const bomDataList = async (req, res) => {
         contains: search.trim(),
       };
     }
-    if (type && type !== "all") {
-      filterConditions.type = {
-        contains: type,
-      };
-    }
+    // if (type && type !== "all") {
+    filterConditions.type = {
+      contains: "part",
+    };
+    // }
 
     const [allProcess, totalCount] = await Promise.all([
       prisma.PartNumber.findMany({
@@ -9447,30 +9446,25 @@ const dashBoardData = async (req, res) => {
     // inventoryCost = (availableStock - minStock) × (partCost + cycleTime_hours × ratePerHour)
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
-      include: { process: { select: { ratePerHour: true } } },
+      include: { process: { select: { ratePerHour: true, cycleTime: true } } },
     });
 
     let totalInventoryCost = 0;
     let totalInventoryCount = 0;
 
     parts.forEach((part) => {
-      const availableStock = Number(part.availStock || 0);
-      const minStock = Number(part.minStock || 0);
+      const availableStock = Number(part.availStock) || 0;
+      const minStock = Number(part.minStock) || 0;
 
       const extraStock = availableStock - minStock;
-
-      // ignore shortage & zero stock
       if (extraStock <= 0) return;
 
-      const partCost = Number(part.cost || 0);
-
-      // cycleTime assumed in MINUTES → convert to HOURS
-      const cycleTime = Number(part.cycleTime || 0) / 60;
-
-      const ratePerHour = Number(part.process?.ratePerHour || 0);
+      const partCost = parseFloat(part.cost) || 0;
+      const cycleTimeMinutes = parseFloat(part.cycleTime) || 0;
+      const cycleTime = cycleTimeMinutes / 60;
+      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
 
       const costPerUnit = partCost + cycleTime * ratePerHour;
-
       const inventoryCost = extraStock * costPerUnit;
 
       totalInventoryCount += extraStock;
@@ -10809,7 +10803,7 @@ const revenueApi = async (req, res) => {
       );
       const cycleTimeMinutes = order.part?.cycleTime || 0;
       const cycleTimeHours = cycleTimeMinutes / 60;
-      const ratePerHour = order.process.ratePerHour || 0;
+      const ratePerHour = order?.process?.ratePerHour || 0;
 
       const orderCOGS =
         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;

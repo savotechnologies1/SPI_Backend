@@ -29284,21 +29284,20 @@ const selectScheduleProcess = async (req, res) => {
       .json({ message: "Something went wrong.", error: error.message });
   }
 };
+
 const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
     const { stationUserId } = req.query;
 
-    if (!processId) {
-      return res.status(400).json({ message: "processId is required." });
-    }
-    if (!stationUserId) {
+    if (!processId || !stationUserId) {
       return res
         .status(400)
-        .json({ message: "stationUserId is required as a query parameter." });
+        .json({ message: "processId and stationUserId are required." });
     }
 
     const findAndStitchJob = async (findOptions) => {
+      console.log("findOptionsfindOptions", findOptions);
       const schedule = await prisma.stockOrderSchedule.findFirst({
         ...findOptions,
         include: {
@@ -29315,17 +29314,13 @@ const getScheduleProcessInformation = async (req, res) => {
                   },
                 },
               },
-              process: {
-                select: {
-                  processName: true,
-                },
-              },
+              process: { select: { id: true, processName: true } },
             },
           },
           process: { select: { processName: true } },
         },
       });
-
+      console.log("schedulescheduleschedule", schedule);
       if (!schedule) return null;
 
       let orderData = null;
@@ -29346,15 +29341,7 @@ const getScheduleProcessInformation = async (req, res) => {
       } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
         orderData = await prisma.customOrder.findUnique({
           where: { id: schedule.order_id },
-          select: {
-            id: true,
-            orderNumber: true,
-            shipDate: true,
-            createdAt: true,
-            productQuantity: true,
-            partId: true,
-            productId: true,
-          },
+          select: { ...orderSelectFields, productId: true },
         });
       }
 
@@ -29362,16 +29349,22 @@ const getScheduleProcessInformation = async (req, res) => {
     };
 
     let nextJob = null;
+    let skipIds = []; // To avoid picking the same invalid job again in the loop
 
     while (true) {
       let potentialJob = null;
 
       // 1️⃣ Check in-progress jobs
       potentialJob = await findAndStitchJob({
-        where: { processId, status: "progress", isDeleted: false },
+        where: {
+          processId,
+          status: "progress",
+          isDeleted: false,
+          id: { notIn: skipIds },
+        },
       });
-
-      // 2️⃣ Check last completed part to pick pending product job
+      console.log("potentialJobpotentialJob", potentialJob);
+      // 2️⃣ Check product job if all parts are done
       if (!potentialJob) {
         const lastCompletedPartJob = await prisma.stockOrderSchedule.findFirst({
           where: {
@@ -29402,62 +29395,56 @@ const getScheduleProcessInformation = async (req, res) => {
                 type: "product",
                 status: { in: ["new", "progress"] },
                 isDeleted: false,
+                id: { notIn: skipIds },
               },
             });
           }
         }
       }
 
-      // 3️⃣ Check new jobs if nothing found
+      // 3️⃣ Check new jobs
       if (!potentialJob) {
         potentialJob = await findAndStitchJob({
-          where: { processId, status: "new", isDeleted: false },
+          where: {
+            processId,
+            status: "new",
+            isDeleted: false,
+            id: { notIn: skipIds },
+          },
           orderBy: [{ type: "asc" }, { createdAt: "asc" }],
         });
       }
+      console.log("potentialJobpotentialJob", potentialJob);
+      if (!potentialJob) break; // No more jobs found
 
-      if (!potentialJob) break; // No jobs left
+      // --- FIX STARTS HERE ---
 
-      const partDetails = await prisma.partNumber.findUnique({
-        where: { part_id: potentialJob.part_id },
-        select: { availStock: true },
-      });
+      // Stock check logic:
+      // Agar "part" hai toh stock check karo, agar "product" hai toh shuru kar sakte hain
+      if (potentialJob.type === "part") {
+        const partDetails = await prisma.partNumber.findUnique({
+          where: { part_id: potentialJob.part_id },
+          select: { availStock: true },
+        });
 
-      if (!partDetails || partDetails.availStock <= 0) {
-        // If quantity not available, mark completed if needed and continue loop
-        if (potentialJob.status !== "completed") {
-          await prisma.stockOrderSchedule.update({
-            where: {
-              order_id_part_id_order_type: {
-                order_id: potentialJob.order_id,
-                part_id: potentialJob.part_id,
-                order_type: potentialJob.order_type,
-              },
-            },
-            data: { status: "completed", completed_date: new Date() },
-          });
+        if (!partDetails || partDetails.availStock <= 0) {
+          console.log(`Skipping job ${potentialJob.id} due to 0 availStock`);
+          skipIds.push(potentialJob.id);
+          continue;
         }
-        continue; // Skip to next job
       }
 
-      // Remaining quantity check
+      // Quantity check
       if (potentialJob.remainingQty > 0) {
         nextJob = potentialJob;
-        break; // Found job with available quantity
-      }
-
-      // Mark completed if remainingQty is 0
-      if (potentialJob.status !== "completed") {
+        break;
+      } else {
+        // If remaining qty is actually 0, then only mark as completed
         await prisma.stockOrderSchedule.update({
-          where: {
-            order_id_part_id_order_type: {
-              order_id: potentialJob.order_id,
-              part_id: potentialJob.part_id,
-              order_type: potentialJob.order_type,
-            },
-          },
+          where: { id: potentialJob.id },
           data: { status: "completed", completed_date: new Date() },
         });
+        skipIds.push(potentialJob.id);
       }
     }
 
@@ -29467,16 +29454,14 @@ const getScheduleProcessInformation = async (req, res) => {
         .json({ message: "No jobs with available quantity found." });
     }
 
+    // --- Baki ka logic (stats calculate karna) same rahega ---
+    // ...
     const { order_id, part_id } = nextJob;
 
     const [lastUserProductionCycle, userProductionStats, upcomingOrder] =
       await Promise.all([
         prisma.productionResponse.findFirst({
-          where: {
-            processId,
-            employeeInfo: { id: stationUserId },
-            isDeleted: false,
-          },
+          where: { processId, stationUserId: stationUserId, isDeleted: false },
           orderBy: { cycleTimeStart: "desc" },
           include: {
             employeeInfo: {
@@ -29484,52 +29469,31 @@ const getScheduleProcessInformation = async (req, res) => {
             },
           },
         }),
-
         prisma.productionResponse.aggregate({
           where: {
             orderId: order_id,
             partId: part_id,
             processId,
-            stationUserId: stationUserId,
+            stationUserId,
             isDeleted: false,
           },
           _sum: { completedQuantity: true },
         }),
-
-        (async () => {
-          const upcomingSchedule = await prisma.stockOrderSchedule.findFirst({
-            where: {
-              processId,
-              id: { not: nextJob.id },
-              status: { in: ["new", "progress"] },
-              createdAt: { gte: nextJob.createdAt },
-            },
-            orderBy: [{ createdAt: "asc" }, { type: "asc" }],
-          });
-
-          if (!upcomingSchedule) return null;
-
-          let upcomingOrderData = null;
-          if (upcomingSchedule.order_type === "StockOrder") {
-            upcomingOrderData = await prisma.stockOrder.findUnique({
-              where: { id: upcomingSchedule.order_id },
-              select: { shipDate: true, part: true, orderDate: true },
-            });
-          } else if (upcomingSchedule.order_type === "CustomOrder") {
-            upcomingOrderData = await prisma.customOrder.findUnique({
-              where: { id: upcomingSchedule.order_id },
-              select: { shipDate: true, part: true },
-            });
-          }
-
-          return { ...upcomingSchedule, order: upcomingOrderData };
-        })(),
+        findAndStitchJob({
+          where: {
+            processId,
+            id: { not: nextJob.id },
+            status: { in: ["new", "progress"] },
+            isDeleted: false,
+          },
+          orderBy: [{ createdAt: "asc" }],
+        }),
       ]);
 
     const employeeScheduleStats = await prisma.stockOrderSchedule.aggregate({
       where: {
-        order_id: order_id,
-        part_id: part_id,
+        order_id,
+        part_id,
         processId,
         isDeleted: false,
         completed_EmpId: stationUserId,
@@ -29537,31 +29501,22 @@ const getScheduleProcessInformation = async (req, res) => {
       _sum: { completedQuantity: true, scrapQuantity: true },
     });
 
-    const employeeCompletedQty =
-      employeeScheduleStats._sum.completedQuantity || 0;
-    const employeeScrapQty = employeeScheduleStats._sum.scrapQuantity || 0;
-    const userCompletedQty = userProductionStats._sum.completedQuantity || 0;
-
-    console.log("upcomingOrderupcomingOrderupcomingOrder", upcomingOrder);
     const responseData = {
       ...nextJob,
       productionId: lastUserProductionCycle?.id || null,
       productId: nextJob.order?.partId || null,
-      upcommingOrder: upcomingOrder?.order?.orderDate || null,
-      upcommingParts: upcomingOrder?.order?.part?.partNumber || null,
+      upcommingOrder: upcomingOrder?.order?.shipDate || null,
+      upcommingParts: upcomingOrder?.part?.partNumber || null,
       employeeInfo: lastUserProductionCycle?.employeeInfo || null,
       cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
-      employeeCompletedQty,
-      employeeScrapQty,
-      scheduleQuantity: nextJob.scheduleQuantity || 0,
-      scrapQty: lastUserProductionCycle?.scrapQuantity || 0,
+      employeeCompletedQty: employeeScheduleStats._sum.completedQuantity || 0,
+      employeeScrapQty: employeeScheduleStats._sum.scrapQuantity || 0,
       remainingQty: nextJob.remainingQty,
     };
 
-    res.status(200).json({
-      message: "Next job found successfully.",
-      data: responseData,
-    });
+    res
+      .status(200)
+      .json({ message: "Next job found successfully.", data: responseData });
   } catch (error) {
     console.error("Error finding next job:", error);
     res
@@ -29569,6 +29524,293 @@ const getScheduleProcessInformation = async (req, res) => {
       .json({ message: "Something went wrong.", error: error.message });
   }
 };
+
+// const getScheduleProcessInformation = async (req, res) => {
+//   try {
+//     const { id: processId } = req.params;
+//     const { stationUserId } = req.query;
+
+//     if (!processId) {
+//       return res.status(400).json({ message: "processId is required." });
+//     }
+//     if (!stationUserId) {
+//       return res
+//         .status(400)
+//         .json({ message: "stationUserId is required as a query parameter." });
+//     }
+
+//     const findAndStitchJob = async (findOptions) => {
+//       console.log("222", findOptions);
+//       const schedule = await prisma.stockOrderSchedule.findFirst({
+//         ...findOptions,
+//         include: {
+//           part: {
+//             include: {
+//               WorkInstruction: {
+//                 include: {
+//                   steps: {
+//                     orderBy: { stepNumber: "asc" },
+//                     include: {
+//                       images: { select: { id: true, imagePath: true } },
+//                       videos: { select: { id: true, videoPath: true } },
+//                     },
+//                   },
+//                 },
+//               },
+//               process: {
+//                 select: {
+//                   processName: true,
+//                 },
+//               },
+//             },
+//           },
+//           process: { select: { processName: true } },
+//         },
+//       });
+
+//       if (!schedule) return null;
+
+//       let orderData = null;
+//       const orderSelectFields = {
+//         id: true,
+//         orderNumber: true,
+//         productQuantity: true,
+//         partId: true,
+//         shipDate: true,
+//         createdAt: true,
+//       };
+
+//       if (schedule.order_type === "StockOrder" && schedule.order_id) {
+//         orderData = await prisma.stockOrder.findUnique({
+//           where: { id: schedule.order_id },
+//           select: orderSelectFields,
+//         });
+//       } else if (schedule.order_type === "CustomOrder" && schedule.order_id) {
+//         orderData = await prisma.customOrder.findUnique({
+//           where: { id: schedule.order_id },
+//           select: {
+//             id: true,
+//             orderNumber: true,
+//             shipDate: true,
+//             createdAt: true,
+//             productQuantity: true,
+//             partId: true,
+//             productId: true,
+//           },
+//         });
+//       }
+
+//       return { ...schedule, order: orderData };
+//     };
+
+//     let nextJob = null;
+
+//     while (true) {
+//       let potentialJob = null;
+
+//       // 1️⃣ Check in-progress jobs
+//       potentialJob = await findAndStitchJob({
+//         where: { processId, status: "progress", isDeleted: false },
+//       });
+
+//       // 2️⃣ Check last completed part to pick pending product job
+//       if (!potentialJob) {
+//         const lastCompletedPartJob = await prisma.stockOrderSchedule.findFirst({
+//           where: {
+//             processId,
+//             status: "completed",
+//             type: "part",
+//             isDeleted: false,
+//           },
+//           orderBy: { updatedAt: "desc" },
+//         });
+
+//         if (lastCompletedPartJob) {
+//           const pendingPartsCount = await prisma.stockOrderSchedule.count({
+//             where: {
+//               order_id: lastCompletedPartJob.order_id,
+//               order_type: lastCompletedPartJob.order_type,
+//               type: "part",
+//               status: { not: "completed" },
+//               isDeleted: false,
+//             },
+//           });
+
+//           if (pendingPartsCount === 0) {
+//             potentialJob = await findAndStitchJob({
+//               where: {
+//                 order_id: lastCompletedPartJob.order_id,
+//                 order_type: lastCompletedPartJob.order_type,
+//                 type: "product",
+//                 status: { in: ["new", "progress"] },
+//                 isDeleted: false,
+//               },
+//             });
+//           }
+//         }
+//       }
+
+//       // 3️⃣ Check new jobs if nothing found
+//       if (!potentialJob) {
+//         potentialJob = await findAndStitchJob({
+//           where: { processId, status: "new", isDeleted: false },
+//           orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+//         });
+//       }
+
+//       if (!potentialJob) break; // No jobs left
+
+//       const partDetails = await prisma.partNumber.findUnique({
+//         where: { part_id: potentialJob.part_id },
+//         select: { availStock: true },
+//       });
+
+//       if (!partDetails || partDetails.availStock <= 0) {
+//         // If quantity not available, mark completed if needed and continue loop
+//         if (potentialJob.status !== "completed") {
+//           await prisma.stockOrderSchedule.update({
+//             where: {
+//               order_id_part_id_order_type: {
+//                 order_id: potentialJob.order_id,
+//                 part_id: potentialJob.part_id,
+//                 order_type: potentialJob.order_type,
+//               },
+//             },
+//             data: { status: "completed", completed_date: new Date() },
+//           });
+//         }
+//         continue; // Skip to next job
+//       }
+
+//       // Remaining quantity check
+//       if (potentialJob.remainingQty > 0) {
+//         nextJob = potentialJob;
+//         break; // Found job with available quantity
+//       }
+
+//       // Mark completed if remainingQty is 0
+//       if (potentialJob.status !== "completed") {
+//         await prisma.stockOrderSchedule.update({
+//           where: {
+//             order_id_part_id_order_type: {
+//               order_id: potentialJob.order_id,
+//               part_id: potentialJob.part_id,
+//               order_type: potentialJob.order_type,
+//             },
+//           },
+//           data: { status: "completed", completed_date: new Date() },
+//         });
+//       }
+//     }
+
+//     if (!nextJob) {
+//       return res
+//         .status(404)
+//         .json({ message: "No jobs with available quantity found." });
+//     }
+
+//     const { order_id, part_id } = nextJob;
+
+//     const [lastUserProductionCycle, userProductionStats, upcomingOrder] =
+//       await Promise.all([
+//         prisma.productionResponse.findFirst({
+//           where: {
+//             processId,
+//             employeeInfo: { id: stationUserId },
+//             isDeleted: false,
+//           },
+//           orderBy: { cycleTimeStart: "desc" },
+//           include: {
+//             employeeInfo: {
+//               select: { firstName: true, lastName: true, id: true },
+//             },
+//           },
+//         }),
+
+//         prisma.productionResponse.aggregate({
+//           where: {
+//             orderId: order_id,
+//             partId: part_id,
+//             processId,
+//             stationUserId: stationUserId,
+//             isDeleted: false,
+//           },
+//           _sum: { completedQuantity: true },
+//         }),
+
+//         (async () => {
+//           const upcomingSchedule = await prisma.stockOrderSchedule.findFirst({
+//             where: {
+//               processId,
+//               id: { not: nextJob.id },
+//               status: { in: ["new", "progress"] },
+//               createdAt: { gte: nextJob.createdAt },
+//             },
+//             orderBy: [{ createdAt: "asc" }, { type: "asc" }],
+//           });
+
+//           if (!upcomingSchedule) return null;
+
+//           let upcomingOrderData = null;
+//           if (upcomingSchedule.order_type === "StockOrder") {
+//             upcomingOrderData = await prisma.stockOrder.findUnique({
+//               where: { id: upcomingSchedule.order_id },
+//               select: { shipDate: true, part: true, orderDate: true },
+//             });
+//           } else if (upcomingSchedule.order_type === "CustomOrder") {
+//             upcomingOrderData = await prisma.customOrder.findUnique({
+//               where: { id: upcomingSchedule.order_id },
+//               select: { shipDate: true, part: true },
+//             });
+//           }
+
+//           return { ...upcomingSchedule, order: upcomingOrderData };
+//         })(),
+//       ]);
+
+//     const employeeScheduleStats = await prisma.stockOrderSchedule.aggregate({
+//       where: {
+//         order_id: order_id,
+//         part_id: part_id,
+//         processId,
+//         isDeleted: false,
+//         completed_EmpId: stationUserId,
+//       },
+//       _sum: { completedQuantity: true, scrapQuantity: true },
+//     });
+
+//     const employeeCompletedQty =
+//       employeeScheduleStats._sum.completedQuantity || 0;
+//     const employeeScrapQty = employeeScheduleStats._sum.scrapQuantity || 0;
+//     const userCompletedQty = userProductionStats._sum.completedQuantity || 0;
+
+//     console.log("upcomingOrderupcomingOrderupcomingOrder", upcomingOrder);
+//     const responseData = {
+//       ...nextJob,
+//       productionId: lastUserProductionCycle?.id || null,
+//       productId: nextJob.order?.partId || null,
+//       upcommingOrder: upcomingOrder?.order?.orderDate || null,
+//       upcommingParts: upcomingOrder?.order?.part?.partNumber || null,
+//       employeeInfo: lastUserProductionCycle?.employeeInfo || null,
+//       cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
+//       employeeCompletedQty,
+//       employeeScrapQty,
+//       scheduleQuantity: nextJob.scheduleQuantity || 0,
+//       scrapQty: lastUserProductionCycle?.scrapQuantity || 0,
+//       remainingQty: nextJob.remainingQty,
+//     };
+
+//     res.status(200).json({
+//       message: "Next job found successfully.",
+//       data: responseData,
+//     });
+//   } catch (error) {
+//     console.error("Error finding next job:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Something went wrong.", error: error.message });
+//   }
+// };
 
 // const getScheduleProcessInformation = async (req, res) => {
 //   try {
