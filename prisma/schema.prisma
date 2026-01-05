@@ -142,6 +142,7 @@ model process {
   isProcessReq         Boolean                @default(false)
   processDesc          String?                @db.VarChar(255)
   type                 String                 @default("") @db.VarChar(50)
+  customParts          CustomPart[]
   PartNumber           PartNumber[]
   ProcessOrderTable    ProcessOrderTable[]
   ProductTree          ProductTree[]
@@ -152,7 +153,6 @@ model process {
   WorkInstructionSteps WorkInstructionSteps[]
   processLogin         processLogin[]
   scapEntries          scapEntries[]
-  customParts          CustomPart[]
 }
 
 model suppliers {
@@ -298,10 +298,10 @@ model CustomOrder {
   customer           customers            @relation(fields: [customerId], references: [id])
   part               PartNumber?          @relation(fields: [partId], references: [part_id])
   product            PartNumber?          @relation("ProductForOrder", fields: [productId], references: [part_id])
+  customPart         CustomPart[]
   processDetails     ProcessDetail[]
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
-  customPart         CustomPart[]
 
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
@@ -309,22 +309,22 @@ model CustomOrder {
 }
 
 model CustomPart {
-  id              String      @id @default(uuid()) @db.Char(36)
-  partNumber      String      @db.VarChar(150)
-  quantity        Int
-  processId       String?     @db.VarChar(10) // To link with existing Process table
-  processName     String? // In case they type a manual process
-  cycleTime       String?     @db.VarChar(50)
-  workInstruction String?     @db.VarChar(255) // or Enum if strictly selecting
-  customOrderId   String      @db.Char(36) // ✅ Yahan @unique NAHI hona chahiye
-  CustomOrder     CustomOrder @relation(fields: [customOrderId], references: [id])
-
-  // Relations
+  id                  String               @id @default(uuid()) @db.Char(36)
+  partNumber          String               @db.VarChar(150)
+  quantity            Int
+  processId           String?              @db.VarChar(10)
+  processName         String?
+  cycleTime           String?              @db.VarChar(50)
+  workInstruction     String?              @db.VarChar(255)
+  customOrderId       String               @db.Char(36)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  CustomOrder         CustomOrder          @relation(fields: [customOrderId], references: [id])
   process             process?             @relation(fields: [processId], references: [id])
   StockOrderSchedules StockOrderSchedule[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@index([customOrderId], map: "CustomPart_customOrderId_fkey")
+  @@index([processId], map: "CustomPart_processId_fkey")
 }
 
 model ProcessDetail {
@@ -352,6 +352,7 @@ model PartNumber {
   cycleTime                                       String?                @db.VarChar(255)
   processId                                       String?                @db.VarChar(10)
   processDesc                                     String?                @db.VarChar(255)
+  isProductSchedule                               Boolean?               @default(false)
   processOrderRequired                            Boolean                @default(false)
   instructionRequired                             Boolean                @default(false)
   companyName                                     String                 @db.VarChar(100)
@@ -406,7 +407,7 @@ model ProductTree {
   processOrderRequired Boolean                @default(false)
   instructionRequired  Boolean                @default(false)
   processId            String?                @db.VarChar(10)
-  processDesc          String?                @db.VarChar(255)
+  isProductSchedule    Boolean?               @default(false)
   createdBy            String?                @db.Char(36)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
@@ -574,17 +575,17 @@ model StockOrderSchedule {
   adminId               String?      @db.Char(36)
   submittedByAdminId    String?
   submittedByEmployeeId String?
+  customPartId          String?      @db.Char(36)
   admin                 admin?       @relation(fields: [adminId], references: [id])
   completedByEmployee   employee?    @relation("CompletedByEmployee", fields: [completed_EmpId], references: [id])
   CustomOrder           CustomOrder? @relation(fields: [customOrderId], references: [id])
+  customPart            CustomPart?  @relation(fields: [customPartId], references: [id])
   PartNumber            PartNumber?  @relation(fields: [partNumberPart_id], references: [part_id])
   part                  PartNumber?  @relation("PartRelation", fields: [part_id], references: [part_id])
   process               process?     @relation(fields: [processId], references: [id])
   StockOrder            StockOrder?  @relation(fields: [stockOrderId], references: [id])
   submittedByAdmin      admin?       @relation("AdminSchedules", fields: [submittedByAdminId], references: [id])
   submittedByEmployee   employee?    @relation("SubmittedByEmployee", fields: [submittedByEmployeeId], references: [id])
-  customPart            CustomPart?  @relation(fields: [customPartId], references: [id])
-  customPartId          String?      @db.Char(36)
 
   @@unique([order_id, part_id, order_type])
   @@index([adminId], map: "StockOrderSchedule_adminId_fkey")
@@ -596,6 +597,7 @@ model StockOrderSchedule {
   @@index([stockOrderId], map: "StockOrderSchedule_stockOrderId_fkey")
   @@index([submittedByAdminId], map: "StockOrderSchedule_submittedByAdminId_fkey")
   @@index([submittedByEmployeeId], map: "StockOrderSchedule_submittedByEmployeeId_fkey")
+  @@index([customPartId], map: "StockOrderSchedule_customPartId_fkey")
 }
 
 model ProductionResponse {

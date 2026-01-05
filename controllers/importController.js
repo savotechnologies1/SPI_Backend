@@ -880,6 +880,870 @@ const importParts = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+// const importProductTree = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     if (!fileData.data) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "CSV file missing" });
+//     }
+
+//     // Frontend se confirmation flag check karna
+//     const isConfirmed = req.body.confirmChanges === "true";
+
+//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
+//     const filePath = csvFile.path;
+//     const csvData = [];
+//     const stream = fs.createReadStream(filePath).pipe(csv());
+//     for await (const row of stream) {
+//       csvData.push(row);
+//     }
+//     console.log("csvDatacsvData", csvData);
+//     // 1. Grouping Products (CSV se data nikalna)
+//     const groupedProducts = csvData.reduce((acc, row) => {
+//       // NOTE: CSV Header ka naam 'product_number' hona chahiye
+//       const pNum = row.product_number?.trim();
+//       if (pNum) {
+//         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
+//         acc[pNum].bomItems.push(row);
+//       }
+//       return acc;
+//     }, {});
+
+//     const conflicts = [];
+//     console.log("groupedProductsgroupedProducts", groupedProducts);
+//     // --- STEP 2: Existence and Comparison Logic ---
+//     if (!isConfirmed) {
+//       for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//         const d = group.details;
+
+//         // Database mein check karein
+//         const existing = await prisma.partNumber.findUnique({
+//           where: { partNumber: pNumber },
+//         });
+
+//         if (existing) {
+//           let changes = [];
+
+//           // Helper function to compare values (CSV string vs DB number)
+//           const checkChange = (csvVal, dbVal, label) => {
+//             const parsedCsv = parseInt(csvVal);
+//             if (!isNaN(parsedCsv) && parsedCsv !== dbVal) {
+//               return `${label} (Old: ${dbVal} -> New: ${parsedCsv})`;
+//             }
+//             return null;
+//           };
+
+//           const minStockChange = checkChange(
+//             d.minStock,
+//             existing.minStock,
+//             "Minimum Stock"
+//           );
+//           const leadTimeChange = checkChange(
+//             d.leadTime,
+//             existing.leadTime,
+//             "Lead Days"
+//           );
+//           const availStockChange = checkChange(
+//             d.availStock,
+//             existing.availStock,
+//             "Available Stock"
+//           );
+//           // CSV mein header 'supplierOrderQty' ya jo bhi ho use yahan check karein
+//           const supplierQtyChange = checkChange(
+//             d.supplierOrderQty,
+//             existing.supplierOrderQty,
+//             "Supplier Order Qty"
+//           );
+
+//           if (minStockChange) changes.push(minStockChange);
+//           if (leadTimeChange) changes.push(leadTimeChange);
+//           if (availStockChange) changes.push(availStockChange);
+//           if (supplierQtyChange) changes.push(supplierQtyChange);
+
+//           // Agar product exist karta hai AUR values change ho rahi hain
+//           if (changes.length > 0) {
+//             conflicts.push({
+//               productNumber: pNumber,
+//               message: ` Product "${pNumber}" is ALREADY AVAILABLE. You are changing: ${changes.join(
+//                 ", "
+//               )}.`,
+//             });
+//           }
+//         }
+//       }
+//     }
+
+//     // --- STEP 3: Agar confirmation chahiye toh 409 bhejien ---
+//     if (conflicts.length > 0 && !isConfirmed) {
+//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//       return res.status(409).json({
+//         success: false,
+//         requiresConfirmation: true,
+//         conflicts: conflicts,
+//         message:
+//           "Some products already exist with different values. Confirmation needed.",
+//       });
+//     }
+
+//     // --- STEP 4: Saving Logic (Agar No conflicts ya Confirmed hai) ---
+//     let successCount = 0;
+//     const errors = [];
+
+//     for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//       try {
+//         const d = group.details;
+
+//         let mainProcId = null;
+//         if (d.processName) {
+//           const p = await prisma.process.findFirst({
+//             where: { processName: d.processName.trim(), isDeleted: false },
+//           });
+//           mainProcId = p?.id || null;
+//         }
+
+//         const product = await prisma.partNumber.upsert({
+//           where: { partNumber: pNumber },
+//           update: {
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName,
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             cycleTime: d.cycleTime?.toString(),
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//           },
+//           create: {
+//             part_id: uuidv4().slice(0, 6),
+//             partNumber: pNumber,
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName || "Default",
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             cycleTime: d.cycleTime?.toString(),
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//             submittedBy: req.user.id,
+//           },
+//         });
+//         console.log(" d", d);
+//         await prisma.productTree.deleteMany({
+//           where: { product_id: product.part_id },
+//         });
+//         const bomDataToInsert = [];
+
+//         for (const item of group.bomItems) {
+//           const bomPartNum = item.part_number?.trim();
+//           const partInDb = await prisma.partNumber.findFirst({
+//             where: { partNumber: bomPartNum, type: "part", isDeleted: false },
+//           });
+
+//           if (partInDb) {
+//             bomDataToInsert.push({
+//               id: uuidv4().slice(0, 6),
+//               product_id: product.part_id,
+//               part_id: partInDb.part_id,
+//               quantity: parseFloat(item.part_qty) || 1,
+//               processId: partInDb.processId || mainProcId,
+//             });
+//           }
+//         }
+
+//         if (bomDataToInsert.length > 0) {
+//           await prisma.productTree.createMany({ data: bomDataToInsert });
+//         }
+//         successCount++;
+//       } catch (err) {
+//         errors.push(`Error in ${pNumber}: ${err.message}`);
+//       }
+//     }
+
+//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//     return res
+//       .status(200)
+//       .json({ success: true, summary: { success: successCount, errors } });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// const importProductTree = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     if (!fileData.data) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "CSV file missing" });
+//     }
+
+//     const isConfirmed = req.body.confirmChanges === "true";
+//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
+//     const filePath = csvFile.path;
+//     const csvData = [];
+//     const stream = fs.createReadStream(filePath).pipe(csv());
+
+//     for await (const row of stream) {
+//       csvData.push(row);
+//     }
+
+//     // 1. Grouping Products
+//     const groupedProducts = csvData.reduce((acc, row) => {
+//       const pNum = row.product_number?.trim();
+//       if (pNum) {
+//         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
+//         acc[pNum].bomItems.push(row);
+//       }
+//       return acc;
+//     }, {});
+//     console.log("groupedProductsgroupedProducts", groupedProducts);
+//     const conflicts = [];
+
+//     // --- STEP 2: Existence and Comparison Logic (Keeping it as requested) ---
+//     if (!isConfirmed) {
+//       for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//         const d = group.details;
+//         const existing = await prisma.partNumber.findUnique({
+//           where: { partNumber: pNumber },
+//         });
+
+//         if (existing) {
+//           let changes = [];
+//           const checkChange = (csvVal, dbVal, label) => {
+//             const parsedCsv = parseInt(csvVal);
+//             if (!isNaN(parsedCsv) && parsedCsv !== dbVal) {
+//               return `${label} (Old: ${dbVal} -> New: ${parsedCsv})`;
+//             }
+//             return null;
+//           };
+
+//           const minStockChange = checkChange(
+//             d.minStock,
+//             existing.minStock,
+//             "Minimum Stock"
+//           );
+//           const leadTimeChange = checkChange(
+//             d.leadTime,
+//             existing.leadTime,
+//             "Lead Days"
+//           );
+//           const availStockChange = checkChange(
+//             d.availStock,
+//             existing.availStock,
+//             "Available Stock"
+//           );
+//           const supplierQtyChange = checkChange(
+//             d.supplierOrderQty,
+//             existing.supplierOrderQty,
+//             "Supplier Order Qty"
+//           );
+
+//           if (minStockChange) changes.push(minStockChange);
+//           if (leadTimeChange) changes.push(leadTimeChange);
+//           if (availStockChange) changes.push(availStockChange);
+//           if (supplierQtyChange) changes.push(supplierQtyChange);
+
+//           if (changes.length > 0) {
+//             conflicts.push({
+//               productNumber: pNumber,
+//               message: ` Product "${pNumber}" is ALREADY AVAILABLE. You are changing: ${changes.join(
+//                 ", "
+//               )}.`,
+//             });
+//           }
+//         }
+//       }
+//     }
+
+//     if (conflicts.length > 0 && !isConfirmed) {
+//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//       return res.status(409).json({
+//         success: false,
+//         requiresConfirmation: true,
+//         conflicts: conflicts,
+//         message:
+//           "Some products already exist with different values. Confirmation needed.",
+//       });
+//     }
+
+//     // --- STEP 3: Saving Logic (Mirroring createProductNumber style) ---
+//     let successCount = 0;
+//     const errors = [];
+
+//     for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//       try {
+//         const d = group.details;
+//         console.log("ths is d,,,,,", d);
+//         // Process ID find karna (CSV mein processName hona chahiye)
+//         let mainProcId = null;
+//         if (d.processName) {
+//           const p = await prisma.process.findFirst({
+//             where: { processName: d.processName.trim(), isDeleted: false },
+//           });
+//           mainProcId = p?.id || null;
+//         }
+
+//         // Parent Product ko Upsert karna
+//         const product = await prisma.partNumber.upsert({
+//           where: { partNumber: pNumber },
+//           update: {
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName,
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             cycleTime: d.cycleTime?.toString(),
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//           },
+//           create: {
+//             part_id: uuidv4().slice(0, 6),
+//             partNumber: pNumber,
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName || "Default",
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             cycleTime: d.cycleTime?.toString(),
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//             submittedBy: req.user.id,
+//           },
+//         });
+
+//         // Purane BOM items delete karna
+//         await prisma.productTree.deleteMany({
+//           where: { product_id: product.part_id },
+//         });
+
+//         // --- BOM Items Loop (Adding parts as per create API) ---
+//         for (const item of group.bomItems) {
+//           const bomPartNum = item.part_number?.trim();
+//           if (!bomPartNum) continue;
+
+//           // Part Table se part find karna (Jaise create API mein ho raha hai)
+//           const partInDb = await prisma.partNumber.findFirst({
+//             where: {
+//               partNumber: bomPartNum,
+//               type: "part",
+//               isDeleted: false,
+//             },
+//           });
+
+//           if (partInDb) {
+//             // 1. Create Product Tree entry
+//             await prisma.productTree.create({
+//               data: {
+//                 id: uuidv4().slice(0, 6),
+//                 product_id: product.part_id,
+//                 part_id: partInDb.part_id,
+//                 processId: mainProcId,
+
+//                 partQuantity: parseFloat(item.part_qty) || 1, // field name matched with your create API
+//                 processOrderRequired:
+//                   item.processOrderRequired?.toUpperCase() === "TRUE",
+//                 instructionRequired:
+//                   item.instructionRequired?.toUpperCase() === "TRUE",
+//               },
+//             });
+
+//             // 2. Update Parent Product flags (Jaise aapki create API loop ke andar karti hai)
+//             await prisma.partNumber.update({
+//               where: { part_id: product.part_id },
+//               data: {
+//                 processId: mainProcId,
+//                 processOrderRequired:
+//                   item.processOrderRequired?.toUpperCase() === "TRUE",
+//                 instructionRequired:
+//                   item.instructionRequired?.toUpperCase() === "TRUE",
+//               },
+//             });
+//           } else {
+//             console.log(`Part ${bomPartNum} not found for product ${pNumber}`);
+//           }
+//         }
+//         successCount++;
+//       } catch (err) {
+//         errors.push(`Error in ${pNumber}: ${err.message}`);
+//       }
+//     }
+
+//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//     return res.status(200).json({
+//       success: true,
+//       summary: { success: successCount, errors },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+// const importProductTree = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     if (!fileData.data) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "CSV file missing" });
+//     }
+
+//     const isConfirmed = req.body.confirmChanges === "true";
+//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
+//     const filePath = csvFile.path;
+//     const csvData = [];
+//     const stream = fs.createReadStream(filePath).pipe(csv());
+
+//     for await (const row of stream) {
+//       csvData.push(row);
+//     }
+
+//     // 1. Grouping Products (CSV se data nikalna)
+//     const groupedProducts = csvData.reduce((acc, row) => {
+//       const pNum = row.product_number?.trim();
+//       if (pNum) {
+//         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
+//         acc[pNum].bomItems.push(row);
+//       }
+//       return acc;
+//     }, {});
+
+//     const conflicts = [];
+
+//     // --- STEP 2: Existence and Comparison Logic (Quantity Check Added) ---
+//     if (!isConfirmed) {
+//       for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//         // Database mein product aur uske existing parts (BOM) ko fetch karein
+//         const existing = await prisma.partNumber.findUnique({
+//           where: { partNumber: pNumber },
+//           include: {
+//             ProductTree: {
+//               include: { part: true }, // Part ki details bhi chahiye comparison ke liye
+//             },
+//           },
+//         });
+
+//         if (existing) {
+//           let changes = [];
+//           const checkChange = (csvVal, dbVal, label) => {
+//             const parsedCsv = parseInt(csvVal);
+//             if (!isNaN(parsedCsv) && parsedCsv !== dbVal) {
+//               return `${label} (Old: ${dbVal} -> New: ${parsedCsv})`;
+//             }
+//             return null;
+//           };
+
+//           // Basic fields check
+//           const fields = [
+//             {
+//               csv: group.details.minStock,
+//               db: existing.minStock,
+//               lbl: "Min Stock",
+//             },
+//             {
+//               csv: group.details.leadTime,
+//               db: existing.leadTime,
+//               lbl: "Lead Days",
+//             },
+//             {
+//               csv: group.details.availStock,
+//               db: existing.availStock,
+//               lbl: "Avail Stock",
+//             },
+//             {
+//               csv: group.details.supplierOrderQty,
+//               db: existing.supplierOrderQty,
+//               lbl: "Supplier Qty",
+//             },
+//           ];
+
+//           fields.forEach((f) => {
+//             const msg = checkChange(f.csv, f.db, f.lbl);
+//             if (msg) changes.push(msg);
+//           });
+
+//           // --- Part Quantity Change Detection ---
+//           for (const csvItem of group.bomItems) {
+//             const csvPartNum = csvItem.part_number?.trim();
+//             const csvQty = parseInt(csvItem.part_qty) || 0;
+
+//             // Database mein check karein ki kya ye part is product mein pehle se hai
+//             const existingBOMEntry = existing.ProductTree.find(
+//               (pt) => pt.part?.partNumber === csvPartNum
+//             );
+
+//             if (existingBOMEntry) {
+//               if (existingBOMEntry.partQuantity !== csvQty) {
+//                 changes.push(
+//                   `Qty for ${csvPartNum} (Old: ${existingBOMEntry.partQuantity} -> New: ${csvQty})`
+//                 );
+//               }
+//             }
+//           }
+
+//           if (changes.length > 0) {
+//             conflicts.push({
+//               productNumber: pNumber,
+//               message: `Product "${pNumber}" changes detected: ${changes.join(
+//                 ", "
+//               )}`,
+//             });
+//           }
+//         }
+//       }
+//     }
+
+//     if (conflicts.length > 0 && !isConfirmed) {
+//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//       return res.status(409).json({
+//         success: false,
+//         requiresConfirmation: true,
+//         conflicts: conflicts,
+//         message: "Some quantities or values have changed. Confirmation needed.",
+//       });
+//     }
+
+//     // --- STEP 3: Saving Logic (Creating Product and updating BOM Qty) ---
+//     let successCount = 0;
+//     const errors = [];
+
+//     for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//       try {
+//         const d = group.details;
+//         let mainProcId = null;
+//         if (d.processName) {
+//           const p = await prisma.process.findFirst({
+//             where: { processName: d.processName.trim(), isDeleted: false },
+//           });
+//           mainProcId = p?.id || null;
+//         }
+
+//         // 1. Parent Product ko Upsert karein
+//         const product = await prisma.partNumber.upsert({
+//           where: { partNumber: pNumber },
+//           update: {
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName,
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//           },
+//           create: {
+//             part_id: uuidv4().slice(0, 6),
+//             partNumber: pNumber,
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             cost: parseFloat(d.cost) || 0,
+//             leadTime: parseInt(d.leadTime) || 0,
+//             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
+//             companyName: d.companyName || "Default",
+//             minStock: parseInt(d.minStock) || 0,
+//             availStock: parseInt(d.availStock) || 0,
+//             processId: mainProcId,
+//             processDesc: d.processDesc,
+//             type: "product",
+//             submittedBy: req.user.id,
+//             processOrderRequired:
+//               d.processOrderRequired?.toUpperCase() === "TRUE",
+//             instructionRequired:
+//               d.instructionRequired?.toUpperCase() === "TRUE",
+//           },
+//         });
+
+//         // 2. Purane Product Tree (BOM) ko delete karein taaki nayi qty replace ho sake
+//         await prisma.ProductTree.deleteMany({
+//           where: { product_id: product.part_id },
+//         });
+
+//         // 3. Naye BOM items add karein
+//         for (const item of group.bomItems) {
+//           const bomPartNum = item.part_number?.trim();
+//           if (!bomPartNum) continue;
+
+//           // Part Table se part find karein uski part_id nikalne ke liye
+//           const partInDb = await prisma.partNumber.findFirst({
+//             where: { partNumber: bomPartNum, type: "part", isDeleted: false },
+//           });
+
+//           if (partInDb) {
+//             await prisma.ProductTree.create({
+//               data: {
+//                 id: uuidv4().slice(0, 6),
+//                 product_id: product.part_id,
+//                 part_id: partInDb.part_id,
+//                 partQuantity: parseInt(item.part_qty) || 1, // Yahan replace ho rahi hai qty
+//                 processId: mainProcId,
+//                 processOrderRequired:
+//                   item.processOrderRequired?.toUpperCase() === "TRUE",
+//                 instructionRequired:
+//                   item.instructionRequired?.toUpperCase() === "TRUE",
+//               },
+//             });
+
+//             // Parent Product ko update karein flags ke liye (Jaise create API mein tha)
+//             await prisma.partNumber.update({
+//               where: { part_id: product.part_id },
+//               data: {
+//                 processOrderRequired:
+//                   item.processOrderRequired?.toUpperCase() === "TRUE",
+//                 instructionRequired:
+//                   item.instructionRequired?.toUpperCase() === "TRUE",
+//               },
+//             });
+//           }
+//         }
+//         successCount++;
+//       } catch (err) {
+//         errors.push(`Error in ${pNumber}: ${err.message}`);
+//       }
+//     }
+
+//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//     return res
+//       .status(200)
+//       .json({ success: true, summary: { success: successCount, errors } });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+// const importProductTree = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     if (!fileData.data) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "CSV file missing" });
+//     }
+
+//     const isConfirmed = req.body.confirmChanges === "true";
+//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
+//     const filePath = csvFile.path;
+//     const csvData = [];
+//     const stream = fs.createReadStream(filePath).pipe(csv());
+
+//     for await (const row of stream) {
+//       csvData.push(row);
+//     }
+
+//     // 1. Grouping Products
+//     const groupedProducts = csvData.reduce((acc, row) => {
+//       const pNum = row.product_number?.trim();
+//       if (pNum) {
+//         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
+//         acc[pNum].bomItems.push(row);
+//       }
+//       return acc;
+//     }, {});
+
+//     const conflicts = [];
+
+//     // --- STEP 2: Conflict Check (Ab isme Part ka minStock comparison bhi hai) ---
+//     if (!isConfirmed) {
+//       for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//         const d = group.details;
+//         const existingProduct = await prisma.partNumber.findUnique({
+//           where: { partNumber: pNumber },
+//         });
+
+//         let changes = [];
+
+//         // Product Level Check (Min Stock, Lead Time etc.)
+//         if (existingProduct) {
+//           const checkChange = (csvVal, dbVal, label) => {
+//             const parsedCsv = parseInt(csvVal);
+//             if (!isNaN(parsedCsv) && parsedCsv !== dbVal) {
+//               return `${label} (Old: ${dbVal} -> New: ${parsedCsv})`;
+//             }
+//             return null;
+//           };
+
+//           const pMinStock = checkChange(
+//             d.minStock,
+//             existingProduct.minStock,
+//             "Product Min Stock"
+//           );
+//           if (pMinStock) changes.push(pMinStock);
+//         }
+
+//         // --- Part Level Check: Kya part_qty purane part ke minStock se alag hai? ---
+//         for (const item of group.bomItems) {
+//           const partInDb = await prisma.partNumber.findFirst({
+//             where: {
+//               partNumber: item.part_number?.trim(),
+//               type: "part",
+//               isDeleted: false,
+//             },
+//           });
+
+//           if (partInDb) {
+//             const csvPartQty = parseInt(item.part_qty) || 0;
+//             if (partInDb.minStock !== csvPartQty) {
+//               changes.push(
+//                 `Part ${item.part_number} MinStock (Old: ${partInDb.minStock} -> New: ${csvPartQty})`
+//               );
+//             }
+//           }
+//         }
+
+//         if (changes.length > 0) {
+//           conflicts.push({
+//             productNumber: pNumber,
+//             message: `Changes: ${changes.join(", ")}`,
+//           });
+//         }
+//       }
+//     }
+
+//     if (conflicts.length > 0 && !isConfirmed) {
+//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//       return res
+//         .status(409)
+//         .json({ success: false, requiresConfirmation: true, conflicts });
+//     }
+
+//     // --- STEP 3: Saving Logic ---
+//     let successCount = 0;
+//     const errors = [];
+
+//     for (const [pNumber, group] of Object.entries(groupedProducts)) {
+//       try {
+//         const d = group.details;
+//         let mainProcId = null;
+//         if (d.processName) {
+//           const p = await prisma.process.findFirst({
+//             where: { processName: d.processName.trim(), isDeleted: false },
+//           });
+//           mainProcId = p?.id || null;
+//         }
+
+//         // 1. Upsert Parent Product
+//         const product = await prisma.partNumber.upsert({
+//           where: { partNumber: pNumber },
+//           update: {
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             minStock: parseInt(d.minStock) || 0, // Product ka minStock CSV ke minStock column se
+//             cost: parseFloat(d.cost) || 0,
+//             processId: mainProcId,
+//             isProductSchedule: d.isProductSchedule,
+//             type: "product",
+//           },
+//           create: {
+//             part_id: uuidv4().slice(0, 6),
+//             partNumber: pNumber,
+//             partFamily: d.partFamily,
+//             partDescription: d.product_description,
+//             minStock: parseInt(d.minStock) || 0,
+//             cost: parseFloat(d.cost) || 0,
+//             processId: mainProcId,
+//             isProductSchedule: d.isProductSchedule,
+//             type: "product",
+//             companyName: d.companyName || "Default",
+//             submittedBy: req.user.id,
+//           },
+//         });
+
+//         // 2. BOM Items process karein
+//         await prisma.ProductTree.deleteMany({
+//           where: { product_id: product.part_id },
+//         });
+
+//         for (const item of group.bomItems) {
+//           const bomPartNum = item.part_number?.trim();
+//           const csvPartQty = parseInt(item.part_qty) || 1; // Ye value part ka minStock banegi
+
+//           if (!bomPartNum) continue;
+
+//           // A. Database mein us Part Number ko dhundein aur uska minStock update karein
+//           const partInDb = await prisma.partNumber.findFirst({
+//             where: { partNumber: bomPartNum, type: "part", isDeleted: false },
+//           });
+
+//           if (partInDb) {
+//             // Part table mein minStock update kar rahe hain as per your requirement
+//             await prisma.partNumber.update({
+//               where: { part_id: partInDb.part_id },
+//               data: { minStock: csvPartQty },
+//             });
+
+//             // B. Product Tree (BOM) mein entry karein
+//             await prisma.ProductTree.create({
+//               data: {
+//                 id: uuidv4().slice(0, 6),
+//                 product_id: product.part_id,
+//                 part_id: partInDb.part_id,
+//                 partQuantity: csvPartQty, // ProductTree mein bhi wahi qty
+//                 processId: partInDb.processId || mainProcId,
+//                 processOrderRequired:
+//                   item.processOrderRequired?.toUpperCase() === "TRUE",
+//                 instructionRequired:
+//                   item.instructionRequired?.toUpperCase() === "TRUE",
+//               },
+//             });
+//           }
+//         }
+//         successCount++;
+//       } catch (err) {
+//         errors.push(`Error in ${pNumber}: ${err.message}`);
+//       }
+//     }
+
+//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+//     return res
+//       .status(200)
+//       .json({ success: true, summary: { success: successCount, errors } });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
 const importProductTree = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -889,20 +1753,18 @@ const importProductTree = async (req, res) => {
         .json({ success: false, message: "CSV file missing" });
     }
 
-    // Frontend se confirmation flag check karna
     const isConfirmed = req.body.confirmChanges === "true";
-
     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
     const filePath = csvFile.path;
     const csvData = [];
     const stream = fs.createReadStream(filePath).pipe(csv());
+
     for await (const row of stream) {
       csvData.push(row);
     }
 
-    // 1. Grouping Products (CSV se data nikalna)
+    // 1. Grouping Products (CSV se data extract karna)
     const groupedProducts = csvData.reduce((acc, row) => {
-      // NOTE: CSV Header ka naam 'product_number' hona chahiye
       const pNum = row.product_number?.trim();
       if (pNum) {
         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
@@ -913,81 +1775,32 @@ const importProductTree = async (req, res) => {
 
     const conflicts = [];
 
-    // --- STEP 2: Existence and Comparison Logic ---
+    // --- STEP 2: Conflict Check (Sirf reference ke liye) ---
     if (!isConfirmed) {
       for (const [pNumber, group] of Object.entries(groupedProducts)) {
-        const d = group.details;
-
-        // Database mein check karein
         const existing = await prisma.partNumber.findUnique({
           where: { partNumber: pNumber },
         });
 
         if (existing) {
-          let changes = [];
-
-          // Helper function to compare values (CSV string vs DB number)
-          const checkChange = (csvVal, dbVal, label) => {
-            const parsedCsv = parseInt(csvVal);
-            if (!isNaN(parsedCsv) && parsedCsv !== dbVal) {
-              return `${label} (Old: ${dbVal} -> New: ${parsedCsv})`;
-            }
-            return null;
-          };
-
-          const minStockChange = checkChange(
-            d.minStock,
-            existing.minStock,
-            "Minimum Stock"
-          );
-          const leadTimeChange = checkChange(
-            d.leadTime,
-            existing.leadTime,
-            "Lead Days"
-          );
-          const availStockChange = checkChange(
-            d.availStock,
-            existing.availStock,
-            "Available Stock"
-          );
-          // CSV mein header 'supplierOrderQty' ya jo bhi ho use yahan check karein
-          const supplierQtyChange = checkChange(
-            d.supplierOrderQty,
-            existing.supplierOrderQty,
-            "Supplier Order Qty"
-          );
-
-          if (minStockChange) changes.push(minStockChange);
-          if (leadTimeChange) changes.push(leadTimeChange);
-          if (availStockChange) changes.push(availStockChange);
-          if (supplierQtyChange) changes.push(supplierQtyChange);
-
-          // Agar product exist karta hai AUR values change ho rahi hain
-          if (changes.length > 0) {
-            conflicts.push({
-              productNumber: pNumber,
-              message: `⚠️ Product "${pNumber}" is ALREADY AVAILABLE. You are changing: ${changes.join(
-                ", "
-              )}.`,
-            });
-          }
+          // Aap chahen toh yahan purane changes check kar sakte hain
+          // Filhal basic conflict alert bhej rahe hain
+          conflicts.push({
+            productNumber: pNumber,
+            message: `Product "${pNumber}" already exists. Importing will overwrite its BOM.`,
+          });
         }
       }
     }
 
-    // --- STEP 3: Agar confirmation chahiye toh 409 bhejien ---
     if (conflicts.length > 0 && !isConfirmed) {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      return res.status(409).json({
-        success: false,
-        requiresConfirmation: true,
-        conflicts: conflicts,
-        message:
-          "Some products already exist with different values. Confirmation needed.",
-      });
+      return res
+        .status(409)
+        .json({ success: false, requiresConfirmation: true, conflicts });
     }
 
-    // --- STEP 4: Saving Logic (Agar No conflicts ya Confirmed hai) ---
+    // --- STEP 3: Saving Logic (createProductNumber ke jaisa) ---
     let successCount = 0;
     const errors = [];
 
@@ -995,6 +1808,7 @@ const importProductTree = async (req, res) => {
       try {
         const d = group.details;
 
+        // Process ID find karna (CSV mein processName column hona chahiye)
         let mainProcId = null;
         if (d.processName) {
           const p = await prisma.process.findFirst({
@@ -1003,73 +1817,84 @@ const importProductTree = async (req, res) => {
           mainProcId = p?.id || null;
         }
 
+        // 1. Product ko Upsert karein (Type: product)
         const product = await prisma.partNumber.upsert({
           where: { partNumber: pNumber },
           update: {
             partFamily: d.partFamily,
-            partDescription: d.partDescription,
+            partDescription: d.product_description,
             cost: parseFloat(d.cost) || 0,
             leadTime: parseInt(d.leadTime) || 0,
             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
             companyName: d.companyName,
             minStock: parseInt(d.minStock) || 0,
             availStock: parseInt(d.availStock) || 0,
-            cycleTime: d.cycleTime?.toString(),
+            processId: mainProcId || d.processId,
+            processDesc: d.processDesc,
+            type: "product",
+            isProductSchedule: d.isProductSchedule?.toUpperCase() === "TRUE",
             processOrderRequired:
               d.processOrderRequired?.toUpperCase() === "TRUE",
             instructionRequired:
               d.instructionRequired?.toUpperCase() === "TRUE",
-            processId: mainProcId,
-            processDesc: d.processDesc,
-            type: "product",
           },
           create: {
             part_id: uuidv4().slice(0, 6),
             partNumber: pNumber,
             partFamily: d.partFamily,
-            partDescription: d.partDescription,
+            partDescription: d.product_description,
             cost: parseFloat(d.cost) || 0,
             leadTime: parseInt(d.leadTime) || 0,
             supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
             companyName: d.companyName || "Default",
             minStock: parseInt(d.minStock) || 0,
             availStock: parseInt(d.availStock) || 0,
-            cycleTime: d.cycleTime?.toString(),
+            processId: mainProcId || d.processId,
+            processDesc: d.processDesc,
+            type: "product",
+            isProductSchedule: d.isProductSchedule?.toUpperCase() === "TRUE",
             processOrderRequired:
               d.processOrderRequired?.toUpperCase() === "TRUE",
             instructionRequired:
               d.instructionRequired?.toUpperCase() === "TRUE",
-            processId: mainProcId,
-            processDesc: d.processDesc,
-            type: "product",
             submittedBy: req.user.id,
           },
         });
 
-        // BOM Logic
+        // 2. Purane BOM items (ProductTree) delete karein
         await prisma.productTree.deleteMany({
           where: { product_id: product.part_id },
         });
+
+        // 3. Naye Parts ko ProductTree mein link karein (Original Part touch nahi hoga)
         for (const item of group.bomItems) {
-          const bomPartNum = item.bom_partNumber?.trim();
+          const bomPartNum = item.part_number?.trim();
           if (!bomPartNum) continue;
 
-          const partInDb = await prisma.partNumber.findFirst({
+          // Check karein ki component part exist karta hai
+          const componentPart = await prisma.partNumber.findFirst({
             where: { partNumber: bomPartNum, type: "part", isDeleted: false },
           });
 
-          if (partInDb) {
+          if (componentPart) {
             await prisma.productTree.create({
               data: {
                 id: uuidv4().slice(0, 6),
-                product_id: product.part_id,
-                part_id: partInDb.part_id,
-                partQuantity: parseFloat(item.bom_qty) || 1,
+                product_id: product.part_id, // Parent Product ID
+                part_id: componentPart.part_id, // Original Component ID
+                partQuantity: Number(item.part_qty) || 1, // Quantity from CSV
+                processId: componentPart.processId || mainProcId,
+                processOrderRequired: componentPart.processOrderRequired,
                 instructionRequired:
-                  item.bom_workInstruction?.toUpperCase() === "YES",
-                processId: partInDb.processId || mainProcId,
+                  item.instructionRequired?.toUpperCase() === "TRUE",
               },
             });
+            // Yahan humne prisma.partNumber.update nahi chalaya,
+            // toh original part ka minStock/data change nahi hoga.
+          } else {
+            console.log(
+              `Component part ${bomPartNum} not found in DB for product ${pNumber}`
+            );
           }
         }
         successCount++;
