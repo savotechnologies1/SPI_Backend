@@ -3229,7 +3229,8 @@ const createProductNumber = async (req, res) => {
     });
 
     let productId;
-
+    const validProcessId =
+      processId && processId.trim() !== "" ? processId : null;
     const commonData = {
       partFamily,
       partDescription,
@@ -3242,7 +3243,7 @@ const createProductNumber = async (req, res) => {
       cycleTime: cycleTime,
       processOrderRequired: processOrderRequired === "true",
       instructionRequired: instructionRequired === "true",
-      processId: processId,
+      processId: validProcessId,
       processDesc,
       type: "product", // Yahan hum type ko "product" mein convert kar rahe hain agar wo "part" tha
       isDeleted: false,
@@ -7429,7 +7430,7 @@ const allEmployeeTimeLine = async (req, res) => {
           logout: null,
           exceptionStart: null, // Placeholder
           exceptionEnd: null, // Placeholder
-          vacation: matchedVacation.status || "PENDING",
+          vacation: matchedVacation?.status || "PENDING",
         };
       }
 
@@ -7860,9 +7861,10 @@ const getDayRange = (dateString) => {
 };
 const productionOverview = async (req, res) => {
   try {
-    const { startOfDay, endOfDay } = getDayRange(
-      req.query.date || moment().format("YYYY-MM-DD")
-    );
+    const dateQuery = req.query.date || moment().format("YYYY-MM-DD");
+    const { startOfDay, endOfDay } = getDayRange(dateQuery);
+
+    console.log("Searching between:", startOfDay, "and", endOfDay);
 
     const productionResponses = await prisma.productionResponse.findMany({
       where: {
@@ -7878,23 +7880,28 @@ const productionOverview = async (req, res) => {
       },
     });
 
+    console.log(`Found ${productionResponses.length} records for this date.`);
     const totalActual = productionResponses.reduce(
-      (sum, res) => sum + (res.completedQuantity || 0),
-      0
-    );
-    const totalScrap = productionResponses.reduce(
-      (sum, res) => sum + (res.scrapQuantity || 0),
+      (sum, item) => sum + (Number(item.completedQuantity) || 0),
       0
     );
 
-    // Determine current shift (simplified)
+    const totalScrap = productionResponses.reduce(
+      (sum, item) => sum + (Number(item.scrapQuantity) || 0),
+      0
+    );
+
+    console.log("Calculated Total Actual:", totalActual);
+    console.log("Calculated Total Scrap:", totalScrap);
+
+    // Current shift logic
     const currentHour = moment().hour();
-    let shift = 1; // Default
+    let shift = 1;
     if (currentHour >= 6 && currentHour < 14) shift = 1;
     else if (currentHour >= 14 && currentHour < 22) shift = 2;
-    else shift = 3; // Night shift
+    else shift = 3;
 
-    const overview = {
+    res.json({
       hourByHour: [
         { label: "Shift", value: shift, image: "green.png" },
         { label: "Actual", value: totalActual, image: "yellow.png" },
@@ -7904,9 +7911,7 @@ const productionOverview = async (req, res) => {
         { name: "Actual", value: totalActual, color: "#4CAF50" },
         { name: "Scrap", value: totalScrap, color: "#FFC107" },
       ],
-    };
-
-    res.json(overview);
+    });
   } catch (error) {
     console.error("Error fetching overview:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -8246,24 +8251,21 @@ const liveProductionGoalBoard = async (req, res) => {
 //     for (const order of stockOrders) {
 //       const process = order.process;
 
-//       // parse cycleTime into minutes
 //       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
 //       const targetPerHour = cycleTimeMinutes
 //         ? Math.round(60 / cycleTimeMinutes)
 //         : process?.ratePerHour || 0;
-//       console.log("cycleTimeMinutes", cycleTimeMinutes);
-//       console.log("targetPerHourtargetPerHour", targetPerHour);
 
-//       // totals
 //       const actual = order.completedQuantity || 0;
 //       const scrap = order.scrapQuantity || 0;
 //       const scheduled = order.scheduleQuantity || 0;
 
-//       // efficiency/productivity
 //       const efficiency =
 //         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
 //       const productivity =
 //         scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+//       const startDate = order.startDateTime;
+//       const now = new Date();
 
 //       result.push({
 //         processName: process?.processName,
@@ -8276,6 +8278,8 @@ const liveProductionGoalBoard = async (req, res) => {
 //         efficiency: efficiency + "%",
 //         productivity: productivity + "%",
 //         avgCycleTime: process?.cycleTime || null,
+//         startDate: startDate,
+//         currentDate: now,
 //       });
 //     }
 
@@ -8290,8 +8294,20 @@ const liveProductionGoalBoard = async (req, res) => {
 
 const currentStatusOverview = async (req, res) => {
   try {
+    const { startDate, endDate } = req.query; // Frontend se dates aayengi
+
+    let dateFilter = { isDeleted: false };
+
+    // Date range filter apply karna
+    if (startDate && endDate) {
+      dateFilter.startDateTime = {
+        gte: new Date(startDate), // "Greater than or equal"
+        lte: new Date(endDate), // "Less than or equal"
+      };
+    }
+
     const stockOrders = await prisma.stockOrderSchedule.findMany({
-      where: { isDeleted: false },
+      where: dateFilter,
       include: {
         process: {
           select: {
@@ -8304,11 +8320,13 @@ const currentStatusOverview = async (req, res) => {
       },
     });
 
-    const result = [];
+    let totalActual = 0;
+    let totalScrap = 0;
+    let totalScheduled = 0;
+    const processDetails = [];
 
     for (const order of stockOrders) {
       const process = order.process;
-
       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
       const targetPerHour = cycleTimeMinutes
         ? Math.round(60 / cycleTimeMinutes)
@@ -8318,14 +8336,17 @@ const currentStatusOverview = async (req, res) => {
       const scrap = order.scrapQuantity || 0;
       const scheduled = order.scheduleQuantity || 0;
 
+      // Totals calculation
+      totalActual += actual;
+      totalScrap += scrap;
+      totalScheduled += scheduled;
+
       const efficiency =
         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
       const productivity =
         scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
-      const startDate = order.startDateTime;
-      const now = new Date();
 
-      result.push({
+      processDetails.push({
         processName: process?.processName,
         partId: order.part_id,
         scheduled,
@@ -8335,15 +8356,22 @@ const currentStatusOverview = async (req, res) => {
         targetPerHour,
         efficiency: efficiency + "%",
         productivity: productivity + "%",
-        avgCycleTime: process?.cycleTime || null,
-        startDate: startDate,
-        currentDate: now,
+        startDate: order.startDateTime,
       });
     }
 
-    res.json(result);
+    // Response mein totals aur list dono bhej rahe hain
+    res.json({
+      summary: {
+        totalActual,
+        totalScrap,
+        totalScheduled,
+        totalOrders: stockOrders.length,
+      },
+      details: processDetails,
+    });
   } catch (error) {
-    console.error("Error fetching current status overview:", error);
+    console.error("Error:", error);
     res
       .status(500)
       .json({ error: "Internal Server Error", details: error.message });
@@ -8879,156 +8907,113 @@ const monitorChartsData = async (req, res) => {
 };
 const getDiveApi = async (req, res) => {
   try {
-    const { processId, startDate, endDate } = req.query;
+    const { processId, startDate, endDate, employeeId } = req.query;
+    const start = startDate ? new Date(startDate) : new Date();
+    start.setHours(0, 0, 0, 0);
 
-    // ===============================
-    // Filters
-    // ===============================
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
     const filterCondition = {
       isDeleted: false,
-      ...(processId && { processId }),
-      ...(startDate &&
-        endDate && {
-          createdAt: {
-            gte: new Date(startDate),
-            lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-          },
-        }),
+      ...(processId && processId !== "All" && { processId }),
+      createdAt: {
+        gte: start,
+        lte: end,
+      },
     };
 
-    // ===============================
-    // 1️⃣ Fetch schedules
-    // ===============================
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
-        process: {
-          select: {
-            id: true,
-            processName: true,
-            cycleTime: true,
-            ratePerHour: true,
-          },
-        },
-        part: {
-          select: {
-            part_id: true,
-            partNumber: true,
-          },
-        },
-        completedByEmployee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        process: true,
+        part: true,
+        completedByEmployee: true,
       },
     });
 
-    // ===============================
-    // 2️⃣ Employee-wise aggregation
-    // ===============================
     const employeeMap = {};
-
-    schedules.forEach((order) => {
-      if (!order.completedByEmployee) return;
-
-      const emp = order.completedByEmployee;
-      const empKey = `${emp.id}_${order.process?.id}`;
-
-      if (!employeeMap[empKey]) {
-        employeeMap[empKey] = {
-          employeeId: emp.id,
-          employeeName: `${emp.firstName} ${emp.lastName}`,
-          processId: order.process?.id,
-          processName: order.process?.processName,
-          totalScheduled: 0,
-          totalCompleted: 0,
-          totalScrap: 0,
-        };
-      }
-
-      employeeMap[empKey].totalScheduled += Number(order.scheduleQuantity || 0);
-      employeeMap[empKey].totalCompleted += Number(
-        order.completedQuantity || 0
-      );
-      employeeMap[empKey].totalScrap += Number(order.scrapQuantity || 0);
-    });
-
-    // ===============================
-    // 3️⃣ Employee productivity result
-    // ===============================
-    const productivity = Object.values(employeeMap).map((emp) => {
-      const netQty = emp.totalCompleted - emp.totalScrap;
-
-      const prod =
-        emp.totalScheduled > 0
-          ? ((netQty / emp.totalScheduled) * 100).toFixed(1)
-          : "0.0";
-
-      const eff =
-        emp.totalScheduled > 0
-          ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1)
-          : "0.0";
-
-      return {
-        processName: emp.processName,
-        employeeName: emp.employeeName,
-        Qty: emp.totalCompleted,
-        Scrap: emp.totalScrap,
-        Eff: eff + "%",
-        Prod: prod + "%",
-      };
-    });
-
-    // ===============================
-    // 4️⃣ Order-wise data
-    // ===============================
     const orderData = schedules.map((order) => {
       const scheduled = Number(order.scheduleQuantity || 0);
       const actual = Number(order.completedQuantity || 0);
       const scrap = Number(order.scrapQuantity || 0);
+      const cycleTime = Number(order.process?.cycleTime || 0);
 
       const productivity =
         scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-
       const efficiency = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+      const empName = order.completedByEmployee
+        ? `${order.completedByEmployee.firstName} ${order.completedByEmployee.lastName}`
+        : "Admin";
+      const empKey = `${order.completedByEmployee?.id || "un"}_${
+        order.process?.id
+      }`;
+      if (order.completedByEmployee) {
+        if (!employeeMap[empKey]) {
+          employeeMap[empKey] = {
+            processName: order.process?.processName,
+            employeeName: empName,
+            totalScheduled: 0,
+            totalCompleted: 0,
+            totalScrap: 0,
+            totalCT: 0,
+            count: 0,
+          };
+        }
+        employeeMap[empKey].totalScheduled += scheduled;
+        employeeMap[empKey].totalCompleted += actual;
+        employeeMap[empKey].totalScrap += scrap;
+        employeeMap[empKey].totalCT += cycleTime;
+        employeeMap[empKey].count += 1;
+      }
 
       return {
-        orderType: order.order_type,
-        processName: order.process?.processName,
-        partNumber: order.part?.partNumber,
+        orderType: order.order_type || "StockOrder",
+        processName: order.process?.processName || "N/A",
+        partNumber: order.part?.partNumber || "N/A",
         scheduled,
         actual,
         scrap,
         productivity: productivity.toFixed(1) + "%",
         efficiency: efficiency.toFixed(1) + "%",
-        employee: order.completedByEmployee
-          ? `${order.completedByEmployee.firstName} ${order.completedByEmployee.lastName}`
-          : null,
+        avgCycleTime: cycleTime + " min",
+        employee: empName,
       };
     });
 
-    // ===============================
-    // 5️⃣ Final response
-    // ===============================
+    const productivity = Object.values(employeeMap).map((emp) => ({
+      processName: emp.processName,
+      employeeName: emp.employeeName,
+      Qty: emp.totalCompleted,
+      Scrap: emp.totalScrap,
+      CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0",
+      Eff:
+        emp.totalScheduled > 0
+          ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1) + "%"
+          : "0.0%",
+      Prod:
+        emp.totalScheduled > 0
+          ? (
+              ((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) *
+              100
+            ).toFixed(1) + "%"
+          : "0.0%",
+    }));
+
     res.json({
-      message: "Employee wise productivity fetched successfully",
+      message: "Data fetched successfully",
       processId: processId || "All",
       totalRecords: orderData.length,
-      data: orderData, // order-wise
-      productivity, // employee-wise
+      data: orderData,
+      productivity,
     });
   } catch (error) {
     console.error("Error fetching productivity:", error);
-    res.status(500).json({
-      error: "Internal Server Error",
-      details: error.message,
-    });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 };
-
 // controllers/cycleTimeController.js
 // const cycleTimeComparisionData = async (req, res) => {
 //   try {

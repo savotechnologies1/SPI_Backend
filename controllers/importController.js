@@ -1922,7 +1922,7 @@ const importProductTree = async (req, res) => {
         .status(400)
         .json({ success: false, message: "CSV file missing" });
     }
-
+    let rowIndex = 2;
     // CSV file aur Images ko alag alag nikaalna (Jaise createProductNumber me hai)
     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
     console.log("csvFilecsvFile", csvFile);
@@ -1987,11 +1987,11 @@ const importProductTree = async (req, res) => {
               });
             }
           });
-
           if (differences.length > 0) {
             conflicts.push({
               productNumber: pNumber,
-              message: `Product "${pNumber}" already exists with different values.`,
+              csvRow: rowIndex, // Ye row number frontend ko bhejein
+              message: `Product "${pNumber}" already exists...`,
               changes: differences,
             });
           }
