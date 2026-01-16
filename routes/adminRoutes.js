@@ -164,6 +164,7 @@ const {
   getInventory,
   customerRelation,
   qualityPerformance,
+  checkTraningStatus,
 } = require("../controllers/productionResponseController");
 const {
   importProcess,
@@ -487,5 +488,6 @@ router.get("/revenue-api", revenueApi);
 router.get("/schedule-inventory", scheudleInventory);
 router.get("/get-labour-forcast", getLabourForcast);
 router.get("/business-analysis", businessAnalysisApi);
+router.get("/trainig-status", adminValidateToken, checkTraningStatus);
 
 module.exports = router;

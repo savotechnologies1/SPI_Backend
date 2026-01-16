@@ -33318,13 +33318,11 @@ const getScheduleProcessInformation = async (req, res) => {
         .json({ message: "processId and stationUserId are required." });
     }
 
-    // Helper: Poori details nikalne ke liye
     const findAndStitchJob = async (findOptions) => {
       const schedule = await prisma.stockOrderSchedule.findFirst({
         ...findOptions,
         include: {
           part: {
-            // Yeh PartNumber table hai
             include: {
               WorkInstruction: {
                 include: {
@@ -33345,8 +33343,6 @@ const getScheduleProcessInformation = async (req, res) => {
       });
 
       if (!schedule) return null;
-
-      // Order type ke hisaab se order details fetch karna
       let orderData = null;
       if (schedule.order_type === "StockOrder") {
         orderData = await prisma.stockOrder.findUnique({
@@ -33360,9 +33356,6 @@ const getScheduleProcessInformation = async (req, res) => {
 
       return { ...schedule, order: orderData };
     };
-
-    // 1. Station ke liye saare pending jobs (New/Progress) nikalein
-    // Humne yahan 'part' (PartNumber table) ko include kiya hai taaki type check kar sakein
     const candidates = await prisma.stockOrderSchedule.findMany({
       where: {
         processId,
@@ -33370,32 +33363,22 @@ const getScheduleProcessInformation = async (req, res) => {
         isDeleted: false,
       },
       include: {
-        part: true, // PartNumber table details
+        part: true,
       },
-      orderBy: [
-        { status: "desc" }, // 'progress' pehle
-        { order_id: "asc" }, // Ek hi order ke parts ek saath
-        { createdAt: "asc" },
-      ],
+      orderBy: [{ status: "desc" }, { order_id: "asc" }, { createdAt: "asc" }],
     });
 
     let nextJob = null;
 
     for (const job of candidates) {
-      // Verification: PartNumber table se check karein ki ye Product hai ya Part
-      // Note: Aapke database mein agar column ka naam 'itemType' ya 'category' hai toh wo use karein
-      // Agar explicit column nahi hai, toh hum check karenge ki kya ye Order ka Main Product ID hai.
-console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
       const isActuallyProduct =
         job.part?.type?.toLowerCase() === "product" || job.type === "product";
 
-      // --- LOGIC A: PRODUCT DEPENDENCY ---
       if (isActuallyProduct) {
-        // Agar ye product hai, toh check karo ki baki saare components complete hain?
         const incompleteParts = await prisma.stockOrderSchedule.count({
           where: {
             order_id: job.order_id,
-            id: { not: job.id }, // Khud ko chhod kar
+            id: { not: job.id },
             status: { not: "completed" },
             isDeleted: false,
           },
@@ -33405,11 +33388,10 @@ console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
           console.log(
             `Order ${job.order_id}: Product ${job.part?.partNumber} is waiting for ${incompleteParts} parts.`
           );
-          continue; // Abhi product skip karo, pehle parts hone do
+          continue;
         }
       }
 
-      // --- LOGIC B: STOCK CHECK (Sirf Parts ke liye) ---
       if (!isActuallyProduct) {
         if (!job.part || job.part.availStock <= 0) {
           console.log(`Part ${job.part?.partNumber} skipped: No Stock.`);
@@ -33417,7 +33399,6 @@ console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
         }
       }
 
-      // --- LOGIC C: QUANTITY CHECK ---
       if (job.remainingQty <= 0) {
         await prisma.stockOrderSchedule.update({
           where: { id: job.id },
@@ -33426,7 +33407,6 @@ console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
         continue;
       }
 
-      // Valid job mil gaya!
       nextJob = await findAndStitchJob({ where: { id: job.id } });
       break;
     }
@@ -33437,7 +33417,6 @@ console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
       });
     }
 
-    // --- Stats & Production Response (Same logic) ---
     const { order_id, part_id } = nextJob;
     const [lastUserProductionCycle, employeeScheduleStats] = await Promise.all([
       prisma.productionResponse.findFirst({
@@ -33480,6 +33459,31 @@ console.log('kkkkkkkkkkkkkkkjobbbbbbbbbbb',job)
       .json({ message: "Internal server error.", error: error.message });
   }
 };
+
+const checkTraningStatus = async (req, res) => {
+  try {
+    const { stationId, production_id } = req.body;
+    const check = await prisma.productionResponse.findFirst({
+      where: {
+        id: production_id,
+        stationUserId: stationId,
+        isDeleted:false
+      },
+      select:{
+        traniningStatus:true
+      }
+    });
+    return res.status(200).json({
+        message:"Trainig status get successfully !",
+        data:check
+    })
+  } catch {
+    res
+      .status(500)
+      .json({ message: "Internal server error.", error: error.message });
+  }
+};
+
 // const getScheduleProcessInformation = async (req, res) => {
 //   try {
 //     const { id: processId } = req.params;
@@ -33655,4 +33659,5 @@ module.exports = {
   fixedCost,
   getInventory,
   customerRelation,
+  checkTraningStatus
 };
