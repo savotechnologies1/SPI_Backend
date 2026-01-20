@@ -113,24 +113,24 @@ router.post(
   "/create-stock-order",
   validateToken,
   stockOrderValidation,
-  createStockOrder
+  createStockOrder,
 );
 router.get("/select-customer", validateToken, selectCustomer);
 router.get("/select-process", validateToken, selectProcess);
 router.get(
   "/select-product-number-for-stock",
   validateToken,
-  selectProductNumberForStockOrder
+  selectProductNumberForStockOrder,
 );
 router.get(
   "/select-customer-for-stock-order",
   validateToken,
-  selectCustomerForStockOrder
+  selectCustomerForStockOrder,
 );
 router.get(
   "/select-part-number-for-custom-order",
   validateToken,
-  selectPartNumberForCustomOrder
+  selectPartNumberForCustomOrder,
 );
 router.get("/search-stock-order", validateToken, searchStockOrders);
 router.get("/search-custom-order", validateToken, searchCustomOrders);
@@ -141,13 +141,13 @@ router.post("/custom-order-schedule", validateToken, customOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
   validateToken,
-  scheduleStockOrdersList
+  scheduleStockOrdersList,
 );
 router.post("/stock-order-schedule", validateToken, stockOrderSchedule);
 router.get(
   "/stock-order-schedule-list",
   validateToken,
-  scheduleStockOrdersList
+  scheduleStockOrdersList,
 );
 
 router.get("/supplier-inventory", getSupplierInventory);
@@ -157,7 +157,7 @@ router.get("/all-station-notification", validateToken, getStationNotifications);
 router.patch(
   "/change-station-notification-status/:id",
   validateToken,
-  changeStationNotification
+  changeStationNotification,
 );
 router.patch("/delete-scrap-entry/:id", validateToken, deleteScrapEntry);
 router.post("/supplier-order-email", validateToken, sendSupplierEmail);
@@ -169,7 +169,7 @@ router.put(
   "/edit-supplier/:id",
   validateToken,
   supplierValidation,
-  editSupplierDetail
+  editSupplierDetail,
 );
 router.put("/delete-supplier/:id", validateToken, deleteSupplier);
 router.get("/select-supplier", validateToken, selectSupplier);
@@ -179,24 +179,24 @@ router.put("/update-supplier-order/:id", validateToken, updateSupplierOrder);
 router.patch(
   "/change-order-status/:id",
   validateToken,
-  updateSupplierOrderStatus
+  updateSupplierOrderStatus,
 );
 router.get(
   "/get-supplier-order-detail/:id",
   validateToken,
-  supplierOrderDetail
+  supplierOrderDetail,
 );
 router.put("/delete-supplier-order/:id", validateToken, deleteSupplierOrder);
 router.post("/create-work-instruction", validateToken, createWorkInstruction);
 router.post(
   "/create-work-instruction-detail",
   validateToken,
-  createWorkInstructionDetail
+  createWorkInstructionDetail,
 );
 router.get(
   "/select-instruction-process",
   validateToken,
-  workInstructionProcess
+  workInstructionProcess,
 );
 router.get("/product-related-parts", validateToken, productRelatedParts);
 router.get("/all-work-instructions", validateToken, allWorkInstructions);
@@ -204,39 +204,39 @@ router.get("/get-instructin-parts", validateToken, selectInstructionPartNumber);
 router.get(
   "/select-work-instruction-title",
   validateToken,
-  selectWorkInstruction
+  selectWorkInstruction,
 );
 router.delete(
   "/delete-work-instruction-image/:id",
   validateToken,
-  deleteWorkInstructionImg
+  deleteWorkInstructionImg,
 );
 router.put(
   "/delete-work-instruction-step/:id",
   validateToken,
-  deleteWorkInstructionStepsById
+  deleteWorkInstructionStepsById,
 );
 router.get("/select-product-info", validateToken, selectByProductNumberOrDesc);
 router.post("/apply-work-instruction", validateToken, applyWorkInstruction);
 router.post(
   "/create-work-instruction-detail",
   validateToken,
-  createWorkInstructionDetail
+  createWorkInstructionDetail,
 );
 router.get(
   "/work-instruction-detail/:id",
   validateToken,
-  getWorkInstructionDetail
+  getWorkInstructionDetail,
 );
 router.put(
   "/update-work-instruction",
   validateToken,
-  updateWorkInstructionDetail
+  updateWorkInstructionDetail,
 );
 router.put(
   "/delete-work-instruction/:id",
   validateToken,
-  deleteWorkInstruction
+  deleteWorkInstruction,
 );
 
 // router.get("/profile-detail", validateToken, profileDetail);
@@ -249,18 +249,18 @@ router.get("/next-job-details/:id", validateToken, getNextJobDetails);
 router.get(
   "/select-schedule-employee-process",
   validateToken,
-  selectScheduleProcess
+  selectScheduleProcess,
 );
 router.get(
   "/get-schedule-process-information/:id",
   validateToken,
-  getScheduleProcessInformation
+  getScheduleProcessInformation,
 );
 router.put("/complete-order/:id", validateToken, completeScheduleOrder);
 router.put(
   "/production-response/:id/update-step-time",
   validateToken,
-  updateStepTime
+  updateStepTime,
 );
 router.put("/complete-traning/:id", validateToken, completeTraning);
 router.put("/scrap-order/:id", validateToken, scrapScheduleOrder);

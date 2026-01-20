@@ -388,7 +388,7 @@ const createWorkInstructionDetail = async (req, res) => {
 
         const imageFiles = uploadedFiles.filter(
           (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
+            file.fieldname === `instructionSteps[${i}][workInstructionImgs]`,
         );
         for (const img of imageFiles) {
           await tx.instructionImage.create({
@@ -401,7 +401,7 @@ const createWorkInstructionDetail = async (req, res) => {
 
         const videoFile = uploadedFiles.find(
           (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
+            file.fieldname === `instructionSteps[${i}][workInstructionVideo]`,
         );
         if (videoFile) {
           await tx.instructionVideo.create({
@@ -673,13 +673,13 @@ const allWorkInstructions = async (req, res) => {
     // }));
 
     const mergedData = [...formattedWI, ...formattedApply].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     );
 
     const totalCount = mergedData.length;
     const paginatedData = mergedData.slice(
       paginationData.skip,
-      paginationData.skip + paginationData.pageSize
+      paginationData.skip + paginationData.pageSize,
     );
 
     const getPagination = await pagination({
@@ -999,7 +999,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
       const originalInstructionId = await getOriginalInstructionId(
         type,
-        workInstructionId
+        workInstructionId,
       );
       if (!originalInstructionId) {
         return {
@@ -1044,7 +1044,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
         const imageFiles = uploadedFiles.filter(
           (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionImgs]`
+            file.fieldname === `instructionSteps[${i}][workInstructionImgs]`,
         );
         for (const img of imageFiles) {
           await tx.instructionImage.create({
@@ -1057,7 +1057,7 @@ const updateWorkInstructionDetail = async (req, res) => {
 
         const videoFile = uploadedFiles.find(
           (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionVideo]`
+            file.fieldname === `instructionSteps[${i}][workInstructionVideo]`,
         );
         if (videoFile) {
           await tx.instructionVideo.deleteMany({
@@ -1075,7 +1075,7 @@ const updateWorkInstructionDetail = async (req, res) => {
       }
 
       const stepsToDelete = [...existingStepIdsInDb].filter(
-        (id) => !incomingStepIds.has(id)
+        (id) => !incomingStepIds.has(id),
       );
       if (stepsToDelete.length > 0) {
         await tx.instructionImage.deleteMany({

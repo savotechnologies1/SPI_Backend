@@ -53,7 +53,7 @@ const login = async (req, res) => {
       process.env.ACCESS_TOKEN_SECRET,
       {
         expiresIn: "5d",
-      }
+      },
     );
 
     await prisma.admin.update({
@@ -96,11 +96,8 @@ const sendForgotPasswordOTP = async (req, res) => {
     }
 
     const otp = generateRandomOTP();
-
     const otpExpiresAt = new Date(Date.now() + 30 * 1000);
-
     await sendMail("otp-verify", { "%otp%": otp }, user.email);
-
     await prisma.admin.update({
       where: { id: user.id },
       data: {
@@ -129,9 +126,7 @@ const validOtp = async (req, res) => {
     if (checkValid.type === "error") {
       return res.status(400).send({ message: checkValid.errors.msg });
     }
-
     const { email, otp } = req.body;
-
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required" });
     }
@@ -883,14 +878,14 @@ const sendSupplierEmail = async (req, res) => {
     }
 
     const formattedOrderDate = new Date(
-      orderDetail.order_date
+      orderDetail.order_date,
     ).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
     const formattedNeedDate = new Date(
-      orderDetail.need_date
+      orderDetail.need_date,
     ).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -1477,7 +1472,7 @@ const sendMailToEmplyee = async (req, res) => {
     await sendMail(
       "account-created",
       { "%email%": getEmail, "%password%": password },
-      email
+      email,
     );
 
     return res.status(200).json({
@@ -2140,9 +2135,6 @@ const addCustomOrder = async (req, res) => {
         });
       }
 
-      // =====================================================
-      // 2️⃣ CREATE CUSTOM ORDER
-      // =====================================================
       const createdOrder = await tx.customOrder.create({
         data: {
           orderNumber,
@@ -2161,9 +2153,6 @@ const addCustomOrder = async (req, res) => {
         },
       });
 
-      // =====================================================
-      // 3️⃣ PROCESS BOM LIST (NO PART CREATION)
-      // =====================================================
       if (Array.isArray(bomList) && bomList.length > 0) {
         for (const item of bomList) {
           if (!item.partId && !item.partNumber) continue;
@@ -2470,49 +2459,107 @@ const selectProcess = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const selectPartNumber = async (req, res) => {
   try {
-    const process = await prisma.partNumber.findMany({
+    const data = await prisma.partNumber.findMany({
       select: {
         part_id: true,
         partNumber: true,
+        partDescription: true,
+        process: {
+          select: {
+            processName: true,
+          },
+        },
+        availStock: true,
+        cost: true,
+        minStock: true,
+        cycleTime: true,
+        instructionRequired: true,
+        type: true,
+        // Aapke schema mein 'components' wo field hai jo sub-parts ko darshati hai
+        components: {
+          where: {
+            isDeleted: false,
+          },
+          select: {
+            part_id: true,
+            partQuantity: true,
+          },
+        },
       },
       where: {
         isDeleted: false,
-        // Logic: Ya toh type 'part' ho
-        // YA phir type 'product' ho lekin wo kisi ProductTree mein as a component (part_id) exit karta ho
-        OR: [
-          { type: "part" },
-          {
-            AND: [
-              { type: "product" },
-              {
-                usedInProducts: {
-                  some: {
-                    isDeleted: false, // Wo product jo kisi tree mein active component hai
-                  },
-                },
-              },
-            ],
-          },
-        ],
+        // Hum "part" aur "product" dono ko fetch karenge
+        type: {
+          in: ["part", "product"],
+        },
+      },
+      orderBy: {
+        partNumber: "asc",
       },
     });
 
-    const formattedProcess = process.map((process) => ({
-      id: process.part_id,
-      partNumber: process.partNumber,
+    // Formatting: Ek extra field 'hasSubParts' add kar rahe hain
+    // taaki frontend pe pehchan sakein ki iske sub-parts hain ya nahi
+    const formattedData = data.map((item) => ({
+      ...item,
+      hasSubParts: item.components.length > 0,
     }));
-    res.status(200).json({
-      data: formattedProcess,
+
+    return res.status(200).json({
+      message: "Part numbers retrieved successfully!",
+      data: formattedData,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Something went wrong . please try again later ." });
+    console.log("Error in selectPartNumberForCustomOrder:", error);
+    return res.status(500).send({
+      message: "Something went wrong. Please try again later.",
+    });
   }
 };
+// const selectPartNumber = async (req, res) => {
+//   try {
+//     const process = await prisma.partNumber.findMany({
+//       select: {
+//         part_id: true,
+//         partNumber: true,
+//       },
+//       where: {
+//         isDeleted: false,
+//         // Logic: Ya toh type 'part' ho
+//         // YA phir type 'product' ho lekin wo kisi ProductTree mein as a component (part_id) exit karta ho
+//         OR: [
+//           { type: "part" },
+//           {
+//             AND: [
+//               { type: "product" },
+//               {
+//                 usedInProducts: {
+//                   some: {
+//                     isDeleted: false, // Wo product jo kisi tree mein active component hai
+//                   },
+//                 },
+//               },
+//             ],
+//           },
+//         ],
+//       },
+//     });
+
+//     const formattedProcess = process.map((process) => ({
+//       id: process.part_id,
+//       partNumber: process.partNumber,
+//     }));
+//     res.status(200).json({
+//       data: formattedProcess,
+//     });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ message: "Something went wrong . please try again later ." });
+//   }
+// };
 
 const selectProductNumber = async (req, res) => {
   try {
@@ -2746,7 +2793,7 @@ const createPartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getPartImages = fileData?.data?.filter(
-      (file) => file.fieldname === "partImages"
+      (file) => file.fieldname === "partImages",
     );
 
     const {
@@ -3199,7 +3246,7 @@ const createProductNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getPartImages = fileData?.data?.filter(
-      (file) => file?.fieldname === "partImages"
+      (file) => file?.fieldname === "partImages",
     );
 
     const {
@@ -3279,20 +3326,93 @@ const createProductNumber = async (req, res) => {
     }
 
     // 2. BOM (ProductTree) Logic - Naye parts add karne ke liye
+    // const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
+
+    // if (parsedParts && parsedParts.length > 0) {
+    //   for (const item of parsedParts) {
+    //     // Component check
+    //     const componentPart = await prisma.partNumber.findUnique({
+    //       where: { part_id: item.part_id },
+    //     });
+
+    //     if (componentPart) {
+    //       // Parent decide karein (Main product ya nested parent)
+    //       const parentToUse = item.parent_id ? item.parent_id : productId;
+
+    //       // Upsert use karein taaki agar relation pehle se hai toh sirf quantity update ho
+    //       await prisma.productTree.upsert({
+    //         where: {
+    //           product_part_unique: {
+    //             product_id: parentToUse,
+    //             part_id: item.part_id,
+    //           },
+    //         },
+    //         update: {
+    //           partQuantity: Number(item.qty) || 1,
+    //           isDeleted: false,
+    //         },
+    //         create: {
+    //           id: uuidv4().slice(0, 6),
+    //           product_id: parentToUse,
+    //           part_id: item.part_id,
+    //           partQuantity: Number(item.qty) || 1,
+    //           processId: componentPart.processId,
+    //           processId: componentPart.processId,
+    //           processOrderRequired: componentPart.processOrderRequired,
+    //           instructionRequired: instructionRequired === "true",
+    //           createdBy: req.user.id,
+    //         },
+    //       });
+    //     }
+    //   }
+    // }
+    // 2. BOM (ProductTree) Logic - Naye parts add karne aur unki details update karne ke liye
     const parsedParts = typeof parts === "string" ? JSON.parse(parts) : parts;
 
     if (parsedParts && parsedParts.length > 0) {
       for (const item of parsedParts) {
-        // Component check
+        // Pehle check karein ki wo part database mein hai ya nahi
         const componentPart = await prisma.partNumber.findUnique({
           where: { part_id: item.part_id },
         });
 
         if (componentPart) {
-          // Parent decide karein (Main product ya nested parent)
+          // --- YAHAN AAPKI LOGIC: Part ki fields update karna ---
+          // Agar item mein ye fields aayi hain, toh hum partNumber table mein update karenge
+          await prisma.partNumber.update({
+            where: { part_id: item.part_id },
+            data: {
+              availStock:
+                item.availStock !== undefined
+                  ? parseInt(item.availStock)
+                  : componentPart.availStock,
+              minStock:
+                item.minStock !== undefined
+                  ? parseInt(item.minStock)
+                  : componentPart.minStock,
+              cost:
+                item.cost !== undefined
+                  ? parseFloat(item.cost)
+                  : componentPart.cost,
+              supplierOrderQty:
+                item.supplierOrderQty !== undefined
+                  ? parseInt(item.supplierOrderQty)
+                  : componentPart.supplierOrderQty,
+              leadTime:
+                item.leadTime !== undefined
+                  ? parseInt(item.leadTime)
+                  : componentPart.leadTime,
+              // Agar type 'part' tha toh hum use change nahi kar rahe, par details update kar rahe hain
+            },
+          });
+
+          console.log(
+            `Updated sub-part details for: ${componentPart.partNumber}`,
+          );
+
+          // --- Relation (ProductTree) update/create karna ---
           const parentToUse = item.parent_id ? item.parent_id : productId;
 
-          // Upsert use karein taaki agar relation pehle se hai toh sirf quantity update ho
           await prisma.productTree.upsert({
             where: {
               product_part_unique: {
@@ -3318,7 +3438,6 @@ const createProductNumber = async (req, res) => {
         }
       }
     }
-
     return res.status(200).json({
       message: existingEntry
         ? "Part updated to Product and BOM added!"
@@ -3583,6 +3702,7 @@ const partNumberDetail = async (req, res) => {
         processId: true,
         supplierOrderQty: true,
         availStock: true,
+        minStock: true,
         cycleTime: true,
         instructionRequired: true,
       },
@@ -3870,7 +3990,7 @@ const updatePartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getPartImages = fileData?.data?.filter(
-      (file) => file.fieldname === "partImages"
+      (file) => file.fieldname === "partImages",
     );
     const id = req.params.id;
     const {
@@ -3919,7 +4039,7 @@ const updatePartNumber = async (req, res) => {
             partId: id,
             type: "part",
           },
-        })
+        }),
       );
       await Promise.all(imagePromises);
     }
@@ -3937,7 +4057,7 @@ const updateProductNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getPartImages = fileData?.data?.filter(
-      (file) => file.fieldname === "partImages"
+      (file) => file.fieldname === "partImages",
     );
     const { id } = req.params;
     const {
@@ -4201,7 +4321,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
         productId: part_id,
         productDescription: partDescription,
         ...rest,
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -5533,6 +5653,7 @@ const searchCustomOrders = async (req, res) => {
 
 // const stockOrderSchedule = async (req, res) => {
 //   const ordersToSchedule = req.body;
+
 //   try {
 //     const allPrismaPromises = [];
 //     const orderIdsToUpdate = new Set();
@@ -5540,12 +5661,9 @@ const searchCustomOrders = async (req, res) => {
 //     for (const order of ordersToSchedule) {
 //       const { order_id, product_id, quantity, delivery_date, status, type } =
 //         order;
-
+//       console.log("orderorderorder", order);
 //       if (!order_id || !product_id) {
-//         console.warn(
-//           "Skipping order due to missing order_id or product_id",
-//           order
-//         );
+//         console.warn("Skipping order: order_id or product_id missing", order);
 //         continue;
 //       }
 
@@ -5556,236 +5674,113 @@ const searchCustomOrders = async (req, res) => {
 //         include: { process: true },
 //       });
 
-//       if (productPart) {
-//         const productSchedule = prisma.stockOrderSchedule.upsert({
-//           where: {
-//             order_id_part_id_order_type: {
-//               order_id: order_id,
-//               part_id: product_id,
-//               order_type: "StockOrder", // You must provide the type now
-//             },
-//           },
-//           update: {
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//             type: type,
-//           },
-//           create: {
-//             // --- CHANGE #2: Set polymorphic fields directly ---
-//             order_id: order_id,
-//             order_type: "StockOrder",
-//             // --- END OF CHANGES ---
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//             submittedBy: { connect: { id: req.user.id } },
-//             part: { connect: { part_id: product_id } },
-//             process: productPart.processId
-//               ? { connect: { id: productPart.processId } }
-//               : undefined,
-//             scheduleQuantity: quantity,
-//             remainingQty: quantity,
-//           },
-//         });
-//         allPrismaPromises.push(productSchedule);
-//       }
-
-//       const bomEntries = await prisma.productTree.findMany({
-//         where: { product_id: product_id },
-//         include: { part: { include: { process: true } } },
-//       });
-
-//       const componentSchedulePromises = bomEntries.map((entry) => {
-//         // Use a default value for minStock if it's null or undefined
-//         const scheduleQty = quantity * (entry?.part?.minStock || 1);
-//         return prisma.stockOrderSchedule.upsert({
-//           where: {
-//             // --- CHANGE #3: Use the new unique identifier here as well ---
-//             order_id_part_id_order_type: {
-//               order_id: order_id,
-//               part_id: entry?.part?.part_id,
-//               order_type: "StockOrder",
-//             },
-//           },
-//           update: {
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//           },
-//           create: {
-//             // --- CHANGE #4: Set polymorphic fields directly here too ---
-//             order_id: order_id,
-//             order_type: "StockOrder",
-//             // --- END OF CHANGES ---
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//             submittedBy: { connect: { id: req.user.id } },
-//             part: { connect: { part_id: entry?.part?.part_id } },
-//             process: entry?.part?.processId
-//               ? { connect: { id: entry?.part?.processId } }
-//               : undefined,
-//             type: type,
-//             scheduleQuantity: scheduleQty,
-//             remainingQty: scheduleQty,
-//           },
-//         });
-//       });
-
-//       allPrismaPromises.push(...componentSchedulePromises);
-//     }
-
-//     if (allPrismaPromises.length > 0) {
-//       const newSchedules = await prisma.$transaction(allPrismaPromises);
-
-//       // Update all scheduled orders, not just the last one
-//       await prisma.stockOrder.updateMany({
-//         where: {
-//           id: { in: Array.from(orderIdsToUpdate) },
-//           isDeleted: false,
-//         },
-//         data: {
-//           status: "scheduled",
-//         },
-//       });
-
-//       return res.status(201).json({
-//         message: `Successfully scheduled or updated  items.`,
-//         data: newSchedules,
-//       });
-//     } else {
-//       return res.status(200).json({ message: "No new items to schedule." });
-//     }
-//   } catch (error) {
-//     console.error("Error during batch scheduling:", error);
-//     return res.status(500).json({
-//       message: "Something went wrong during scheduling.",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// const stockOrderSchedule = async (req, res) => {
-//   const ordersToSchedule = req.body;
-//   try {
-//     const allPrismaPromises = [];
-//     const orderIdsToUpdate = new Set();
-
-//     for (const order of ordersToSchedule) {
-//       const { order_id, product_id, quantity, delivery_date, status, type } =
-//         order;
-
-//       if (!order_id || !product_id) {
-//         console.warn(
-//           "Skipping order due to missing order_id or product_id",
-//           order
-//         );
-//         continue;
-//       }
-
-//       orderIdsToUpdate.add(order_id);
-
-//       const productPart = await prisma.partNumber.findUnique({
-//         where: { part_id: product_id },
-//         include: { process: true },
-//       });
-
-//       // 🟢 Helper: decide whether user is admin or employee
 //       const submittedBy =
 //         req.user.role === "superAdmin"
 //           ? { submittedByAdmin: { connect: { id: req.user.id } } }
 //           : { submittedByEmployee: { connect: { id: req.user.id } } };
-// if (!productPart?.part_id) {
-//   console.warn("Skipping productSchedule, part_id missing", product_id);
-// } else {
-//   const productSchedule = prisma.stockOrderSchedule.upsert({ ... });
-//   allPrismaPromises.push(productSchedule);
-// }
 
-//       if (productPart) {
+//       if (productPart?.part_id) {
 //         const productSchedule = prisma.stockOrderSchedule.upsert({
 //           where: {
 //             order_id_part_id_order_type: {
-//               order_id: order_id,
-//               part_id: product_id,
+//               order_id,
+//               part_id: productPart.part_id,
 //               order_type: "StockOrder",
 //             },
 //           },
 //           update: {
 //             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
+//             quantity,
+//             status,
 //             completed_date: null,
-//             type: type,
+//             type,
 //           },
 //           create: {
-//             order_id: order_id,
+//             order_id,
 //             order_type: "StockOrder",
 //             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
+//             quantity,
+//             status,
 //             completed_date: null,
-//             ...submittedBy, // 🟢 dynamic relation
-//             part: { connect: { part_id: product_id } },
+//             ...submittedBy,
+//             part: {
+//               connect: { part_id: productPart.part_id },
+//             },
 //             process: productPart.processId
 //               ? { connect: { id: productPart.processId } }
 //               : undefined,
+//             type,
 //             scheduleQuantity: quantity,
 //             remainingQty: quantity,
 //           },
 //         });
+
 //         allPrismaPromises.push(productSchedule);
+//       } else {
+//         console.warn(
+//           "Product is not a part, skipping product-level scheduling",
+//           product_id,
+//         );
 //       }
 
+//       // =========================================================
+//       // 🟢 BOM / COMPONENT LEVEL SCHEDULING
+//       // =========================================================
 //       const bomEntries = await prisma.productTree.findMany({
-//         where: { product_id: product_id },
-//         include: { part: { include: { process: true } } },
+//         where: { product_id },
+//         include: {
+//           part: {
+//             include: { process: true },
+//           },
+//         },
 //       });
 
-//       const componentSchedulePromises = bomEntries.map((entry) => {
-//         const scheduleQty = quantity * (entry?.part?.minStock || 1);
+//       const componentSchedulePromises = bomEntries
+//         .filter((entry) => entry?.part?.part_id) // 🔒 SAFETY FILTER
+//         .map((entry) => {
+//           const scheduleQty = quantity * (entry.part.minStock || 1);
 
-//         return prisma.stockOrderSchedule.upsert({
-//           where: {
-//             order_id_part_id_order_type: {
-//               order_id: order_id,
-//               part_id: entry?.part?.part_id,
-//               order_type: "StockOrder",
+//           return prisma.stockOrderSchedule.upsert({
+//             where: {
+//               order_id_part_id_order_type: {
+//                 order_id,
+//                 part_id: entry.part.part_id, // 🔥 SAFE
+//                 order_type: "StockOrder",
+//               },
 //             },
-//           },
-//           update: {
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//           },
-//           create: {
-//             order_id: order_id,
-//             order_type: "StockOrder",
-//             delivery_date: new Date(delivery_date),
-//             quantity: quantity,
-//             status: status,
-//             completed_date: null,
-//             ...submittedBy, // 🟢 dynamic relation
-//             part: { connect: { part_id: entry?.part?.part_id } },
-//             process: entry?.part?.processId
-//               ? { connect: { id: entry?.part?.processId } }
-//               : undefined,
-//             type: type,
-//             scheduleQuantity: scheduleQty,
-//             remainingQty: scheduleQty,
-//           },
+//             update: {
+//               delivery_date: new Date(delivery_date),
+//               quantity,
+//               status,
+//               completed_date: null,
+//             },
+//             create: {
+//               order_id,
+//               order_type: "StockOrder",
+//               delivery_date: new Date(delivery_date),
+//               quantity,
+//               status,
+//               completed_date: null,
+//               ...submittedBy,
+//               part: {
+//                 connect: { part_id: entry.part.part_id },
+//               },
+//               process: entry.part.processId
+//                 ? { connect: { id: entry.part.processId } }
+//                 : undefined,
+//               type,
+//               scheduleQuantity: scheduleQty,
+//               remainingQty: scheduleQty,
+//             },
+//           });
 //         });
-//       });
 
 //       allPrismaPromises.push(...componentSchedulePromises);
 //     }
 
+//     // =========================================================
+//     // 🟢 EXECUTE TRANSACTION
+//     // =========================================================
 //     if (allPrismaPromises.length > 0) {
 //       const newSchedules = await prisma.$transaction(allPrismaPromises);
 
@@ -5798,10 +5793,14 @@ const searchCustomOrders = async (req, res) => {
 //       });
 
 //       return res.status(201).json({
-//         message: `Successfully scheduled or updated items.`,
+//         message: "Successfully scheduled or updated stock orders.",
 //         data: newSchedules,
 //       });
 //     }
+
+//     return res.status(200).json({
+//       message: "No valid orders found to schedule.",
+//     });
 //   } catch (error) {
 //     console.error("Error during batch scheduling:", error);
 //     return res.status(500).json({
@@ -5810,6 +5809,7 @@ const searchCustomOrders = async (req, res) => {
 //     });
 //   }
 // };
+
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
 
@@ -5818,18 +5818,32 @@ const stockOrderSchedule = async (req, res) => {
     const orderIdsToUpdate = new Set();
 
     for (const order of ordersToSchedule) {
-      const { order_id, product_id, quantity, delivery_date, status, type } =
-        order;
-      console.log("orderorderorder", order);
-      if (!order_id || !product_id) {
-        console.warn("Skipping order: order_id or product_id missing", order);
+      // 1. part_id ko destructure karein (Screenshot ke mutabiq ye important hai)
+      const {
+        order_id,
+        product_id,
+        part_id, // 🔥 Added this
+        quantity,
+        delivery_date,
+        status,
+        type,
+      } = order;
+
+      console.log("Processing Order Item:", order);
+
+      // 2. Target ID determine karein (Agar part_id hai toh wo use karein, nahi toh product_id)
+      const targetPartId = part_id || product_id;
+
+      if (!order_id || !targetPartId) {
+        console.warn("Skipping order: IDs missing", order);
         continue;
       }
 
       orderIdsToUpdate.add(order_id);
 
+      // 3. Database lookup targetPartId se karein
       const productPart = await prisma.partNumber.findUnique({
-        where: { part_id: product_id },
+        where: { part_id: targetPartId },
         include: { process: true },
       });
 
@@ -5839,6 +5853,7 @@ const stockOrderSchedule = async (req, res) => {
           : { submittedByEmployee: { connect: { id: req.user.id } } };
 
       if (productPart?.part_id) {
+        // Main Item Scheduling (Part or Product)
         const productSchedule = prisma.stockOrderSchedule.upsert({
           where: {
             order_id_part_id_order_type: {
@@ -5849,7 +5864,7 @@ const stockOrderSchedule = async (req, res) => {
           },
           update: {
             delivery_date: new Date(delivery_date),
-            quantity,
+            quantity: Number(quantity),
             status,
             completed_date: null,
             type,
@@ -5858,7 +5873,7 @@ const stockOrderSchedule = async (req, res) => {
             order_id,
             order_type: "StockOrder",
             delivery_date: new Date(delivery_date),
-            quantity,
+            quantity: Number(quantity),
             status,
             completed_date: null,
             ...submittedBy,
@@ -5869,80 +5884,79 @@ const stockOrderSchedule = async (req, res) => {
               ? { connect: { id: productPart.processId } }
               : undefined,
             type,
-            scheduleQuantity: quantity,
-            remainingQty: quantity,
+            scheduleQuantity: Number(quantity),
+            remainingQty: Number(quantity),
           },
         });
 
         allPrismaPromises.push(productSchedule);
       } else {
-        console.warn(
-          "Product is not a part, skipping product-level scheduling",
-          product_id
-        );
+        console.warn(`Part ID ${targetPartId} not found in database.`);
       }
 
-      // =========================================================
-      // 🟢 BOM / COMPONENT LEVEL SCHEDULING
-      // =========================================================
-      const bomEntries = await prisma.productTree.findMany({
-        where: { product_id },
-        include: {
-          part: {
-            include: { process: true },
+      // 4. BOM / COMPONENT LEVEL SCHEDULING
+      // Sirf tab karein jab type "product" ho, warna duplicates create honge
+      // kyunki sub-parts payload mein pehle se hi alag rows mein aa rahe hain.
+      if (type === "product") {
+        const bomEntries = await prisma.productTree.findMany({
+          where: { product_id: targetPartId },
+          include: {
+            part: {
+              include: { process: true },
+            },
           },
-        },
-      });
-
-      const componentSchedulePromises = bomEntries
-        .filter((entry) => entry?.part?.part_id) // 🔒 SAFETY FILTER
-        .map((entry) => {
-          const scheduleQty = quantity * (entry.part.minStock || 1);
-
-          return prisma.stockOrderSchedule.upsert({
-            where: {
-              order_id_part_id_order_type: {
-                order_id,
-                part_id: entry.part.part_id, // 🔥 SAFE
-                order_type: "StockOrder",
-              },
-            },
-            update: {
-              delivery_date: new Date(delivery_date),
-              quantity,
-              status,
-              completed_date: null,
-            },
-            create: {
-              order_id,
-              order_type: "StockOrder",
-              delivery_date: new Date(delivery_date),
-              quantity,
-              status,
-              completed_date: null,
-              ...submittedBy,
-              part: {
-                connect: { part_id: entry.part.part_id },
-              },
-              process: entry.part.processId
-                ? { connect: { id: entry.part.processId } }
-                : undefined,
-              type,
-              scheduleQuantity: scheduleQty,
-              remainingQty: scheduleQty,
-            },
-          });
         });
 
-      allPrismaPromises.push(...componentSchedulePromises);
+        const componentSchedulePromises = bomEntries
+          .filter((entry) => entry?.part?.part_id)
+          .map((entry) => {
+            // Check if quantity is calculated based on BOM factor
+            const scheduleQty = Number(quantity) * (entry.quantity || 1);
+
+            return prisma.stockOrderSchedule.upsert({
+              where: {
+                order_id_part_id_order_type: {
+                  order_id,
+                  part_id: entry.part.part_id,
+                  order_type: "StockOrder",
+                },
+              },
+              update: {
+                delivery_date: new Date(delivery_date),
+                quantity: scheduleQty,
+                status,
+                completed_date: null,
+              },
+              create: {
+                order_id,
+                order_type: "StockOrder",
+                delivery_date: new Date(delivery_date),
+                quantity: scheduleQty,
+                status,
+                completed_date: null,
+                ...submittedBy,
+                part: {
+                  connect: { part_id: entry.part.part_id },
+                },
+                process: entry.part.processId
+                  ? { connect: { id: entry.part.processId } }
+                  : undefined,
+                type: "part",
+                scheduleQuantity: scheduleQty,
+                remainingQty: scheduleQty,
+              },
+            });
+          });
+
+        allPrismaPromises.push(...componentSchedulePromises);
+      }
     }
 
-    // =========================================================
-    // 🟢 EXECUTE TRANSACTION
-    // =========================================================
+    // 5. EXECUTE TRANSACTION
     if (allPrismaPromises.length > 0) {
       const newSchedules = await prisma.$transaction(allPrismaPromises);
 
+      // Update StockOrder status to 'scheduled'
       await prisma.stockOrder.updateMany({
         where: {
           id: { in: Array.from(orderIdsToUpdate) },
@@ -6556,7 +6570,27 @@ const scheduleStockOrdersList = async (req, res) => {
         take: paginationData.pageSize,
         orderBy: { createdAt: "desc" },
         include: {
-          part: { select: { partNumber: true, process: true } },
+          part: {
+            include: {
+              process: true,
+              // Level 1: Part 100 ke andar ke components (e.g., Part 10)
+              components: {
+                include: {
+                  part: {
+                    // Ye component ki details fetch karega
+                    include: {
+                      // Level 2: Part 10 ke andar ke components (e.g., Part 20)
+                      components: {
+                        include: {
+                          part: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           completedByEmployee: { select: { firstName: true, lastName: true } },
         },
       }),
@@ -6625,7 +6659,7 @@ const scheduleStockOrdersList = async (req, res) => {
 
     // Yahan fix kiya: cp.CustomOrder (Capital C)
     const customPartMap = new Map(
-      customPartDetails.map((cp) => [cp.id, cp.CustomOrder])
+      customPartDetails.map((cp) => [cp.id, cp.CustomOrder]),
     );
 
     const schedulesWithOrders = filteredSchedules.map((schedule) => {
@@ -6664,6 +6698,7 @@ const scheduleStockOrdersList = async (req, res) => {
     });
   }
 };
+
 const deleteProductTreeById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -6726,7 +6761,7 @@ const updateProfileApi = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getProfileImage = fileData?.data?.filter(
-      (file) => file?.fieldname === "profileImg"
+      (file) => file?.fieldname === "profileImg",
     );
     const {
       name,
@@ -6836,7 +6871,7 @@ const getAllSupplierOrder = async (req, res) => {
           supplier,
           part,
         };
-      })
+      }),
     );
 
     // Total count for pagination
@@ -7206,7 +7241,7 @@ const getSupplierInventory = async (req, res) => {
               contains: search,
             },
           },
-        }
+        },
       );
     }
 
@@ -7354,7 +7389,7 @@ const allEmployeeTimeLine = async (req, res) => {
         const dayOfWeek = now.getDay();
         startDate = new Date(now);
         startDate.setDate(
-          now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+          now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
         );
         endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
@@ -7473,7 +7508,7 @@ const allEmployeeTimeLine = async (req, res) => {
     const totalCount = timeSheetData.length;
     const paginatedData = timeSheetData.slice(
       (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
+      currentPage * itemsPerPage,
     );
 
     const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -7797,7 +7832,7 @@ const sendVacationStatus = async (req, res) => {
         "%statusColor%": statusColor,
         "%statusBgColor%": statusBgColor,
       },
-      email
+      email,
     );
 
     return res.status(201).json({
@@ -7883,12 +7918,12 @@ const productionOverview = async (req, res) => {
     console.log(`Found ${productionResponses.length} records for this date.`);
     const totalActual = productionResponses.reduce(
       (sum, item) => sum + (Number(item.completedQuantity) || 0),
-      0
+      0,
     );
 
     const totalScrap = productionResponses.reduce(
       (sum, item) => sum + (Number(item.scrapQuantity) || 0),
-      0
+      0,
     );
 
     console.log("Calculated Total Actual:", totalActual);
@@ -7964,7 +7999,7 @@ function parseCycleTime(cycleTimeStr) {
 const processHourly = async (req, res) => {
   try {
     const { startOfDay, endOfDay } = getDayRange(
-      req.query.date || moment().format("YYYY-MM-DD")
+      req.query.date || moment().format("YYYY-MM-DD"),
     );
 
     const activeProcesses = await prisma.process.findMany({
@@ -8053,7 +8088,7 @@ const processHourly = async (req, res) => {
           actual: data.actual,
           scrap: data.scrap,
           target: data.target,
-        })
+        }),
       );
 
       const totalTarget =
@@ -8093,7 +8128,7 @@ const processHourly = async (req, res) => {
 const liveProductionGoalBoard = async (req, res) => {
   try {
     const { startOfDay, endOfDay } = getDayRange(
-      req.query.date || moment().format("YYYY-MM-DD")
+      req.query.date || moment().format("YYYY-MM-DD"),
     );
 
     const currentHour = moment().hour();
@@ -8491,7 +8526,7 @@ const currentQualityStatusOverview = async (req, res) => {
       ([process, scrap]) => ({
         process,
         scrap,
-      })
+      }),
     );
 
     // Scrap cost logic
@@ -8879,16 +8914,16 @@ const monitorChartsData = async (req, res) => {
     });
 
     const productionScrap = Object.values(scrapGrouped).sort(
-      (a, b) => b.scrap - a.scrap
+      (a, b) => b.scrap - a.scrap,
     );
 
     const totalCompletedQty = data.reduce(
       (sum, item) => sum + (item.completedQuantity || 0),
-      0
+      0,
     );
     const totalScrapQty = data.reduce(
       (sum, item) => sum + (item.scrapQuantity || 0),
-      0
+      0,
     );
 
     return res.status(200).json({
@@ -9911,34 +9946,34 @@ const dashBoardData = async (req, res) => {
     const currentStockOrders = filterOrdersByMonth(
       stockOrder,
       currentMonthStart,
-      currentMonthEnd
+      currentMonthEnd,
     );
     const currentCustomOrders = filterOrdersByMonth(
       customOrder,
       currentMonthStart,
-      currentMonthEnd
+      currentMonthEnd,
     );
     const lastStockOrders = filterOrdersByMonth(
       stockOrder,
       lastMonthStart,
-      lastMonthEnd
+      lastMonthEnd,
     );
     const lastCustomOrders = filterOrdersByMonth(
       customOrder,
       lastMonthStart,
-      lastMonthEnd
+      lastMonthEnd,
     );
 
     const stockOrderRevenue = currentStockOrders.reduce(
       (sum, order) =>
         sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
-      0
+      0,
     );
 
     const customOrderRevenue = currentCustomOrders.reduce(
       (sum, order) =>
         sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
-      0
+      0,
     );
 
     const currentRevenue = stockOrderRevenue + customOrderRevenue;
@@ -9946,12 +9981,12 @@ const dashBoardData = async (req, res) => {
     const lastStockRevenue = lastStockOrders.reduce(
       (sum, order) =>
         sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
-      0
+      0,
     );
     const lastCustomRevenue = lastCustomOrders.reduce(
       (sum, order) =>
         sum + (parseFloat(order.cost) || 0) * (order.productQuantity || 0),
-      0
+      0,
     );
     const lastRevenue = lastStockRevenue + lastCustomRevenue;
     const totalOrders = currentStockOrders.length + currentCustomOrders.length;
@@ -10095,7 +10130,7 @@ const dashBoardData = async (req, res) => {
 
     const inventoryChangePercent = calculatePercentageChange(
       totalInventoryCost,
-      lastInventoryCost
+      lastInventoryCost,
     );
     const inventoryIndicator = inventoryChangePercent >= 0 ? "green" : "red";
 
@@ -10107,7 +10142,7 @@ const dashBoardData = async (req, res) => {
           order_date: { gte: currentMonthStart, lte: currentMonthEnd },
         },
         select: { completedQuantity: true, scrapQuantity: true },
-      }
+      },
     );
 
     const currentProductionTotal = currentMonthProductionData.reduce(
@@ -10116,7 +10151,7 @@ const dashBoardData = async (req, res) => {
         const scrap = p.scrapQuantity || 0;
         return sum + (completed - scrap);
       },
-      0
+      0,
     );
 
     const lastMonthProductionData = await prisma.stockOrderSchedule.findMany({
@@ -10135,7 +10170,7 @@ const dashBoardData = async (req, res) => {
 
     const productionChangePercent = calculatePercentageChange(
       currentProductionTotal,
-      lastProductionTotal
+      lastProductionTotal,
     );
     const productionIndicator = productionChangePercent >= 0 ? "green" : "red";
 
@@ -10176,7 +10211,7 @@ const dashBoardData = async (req, res) => {
 
     const scrapChangePercent = calculatePercentageChange(
       currentScrapQty,
-      lastScrapQty
+      lastScrapQty,
     );
     const scrapIndicator = currentScrapQty <= lastScrapQty ? "red" : "green";
 
@@ -10245,7 +10280,7 @@ const dashBoardData = async (req, res) => {
 
     const totalFulfilledQty = fulfilledOrders.reduce(
       (sum, o) => sum + (o.qty || 0),
-      0
+      0,
     );
 
     // === Final response ===
@@ -10633,7 +10668,7 @@ const capacityStatus = async (req, res) => {
 
         const completedQty = productionResponses.reduce(
           (sum, p) => sum + (p.completedQuantity || 0),
-          0
+          0,
         );
 
         const calculatedCycleTimePerPart =
@@ -10660,7 +10695,7 @@ const capacityStatus = async (req, res) => {
           loadTime,
           order_date: item.StockOrder?.orderDate || item.order_date,
         };
-      })
+      }),
     );
 
     const barChartData = {};
@@ -10700,7 +10735,7 @@ const capacityStatus = async (req, res) => {
             : "0.00",
         completed: values.completed,
         total: values.total,
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -11392,7 +11427,7 @@ const revenueApi = async (req, res) => {
     });
     const totalFixedCost = fixedCosts.reduce(
       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-      0
+      0,
     );
 
     // Initialize
@@ -11416,7 +11451,7 @@ const revenueApi = async (req, res) => {
 
       const partCost = parseFloat(order.part?.cost || 0);
       const productCost = parseFloat(
-        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
       );
       const cycleTimeMinutes = order.part?.cycleTime || 0;
       const cycleTimeHours = cycleTimeMinutes / 60;
@@ -11468,7 +11503,7 @@ const revenueApi = async (req, res) => {
           (parseFloat(o.part?.cost || 0) +
             parseFloat(o.StockOrder?.cost || o.CustomOrder?.totalCost || 0)) *
             (o.remainingQty || 0),
-        0
+        0,
       ),
       cashflowNeeded:
         totalFixedCost +
@@ -11480,7 +11515,7 @@ const revenueApi = async (req, res) => {
             (parseFloat(o.part?.cost || 0) +
               parseFloat(o.StockOrder?.cost || o.CustomOrder?.totalCost || 0)) *
               (o.remainingQty || 0),
-          0
+          0,
         ),
       dailyCashFlow,
     });
@@ -11559,7 +11594,7 @@ const getLabourForcast = async (req, res) => {
     // const getInvData = getInventory.map((item)=>item.availStock)
     const forecastData = orderDetail.map((order) => {
       const matchingInventory = getInventory.find(
-        (inv) => inv.part_id === order.part_id
+        (inv) => inv.part_id === order.part_id,
       );
 
       const available = order.part.availStock || 0;
@@ -11622,7 +11657,7 @@ const businessAnalysisApi = async (req, res) => {
     });
     const sumFixedCosts = fixedCostsData.reduce(
       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-      0
+      0,
     );
     // Formula: (Fixed Cost / 365) * Days Selected
     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
@@ -11644,7 +11679,7 @@ const businessAnalysisApi = async (req, res) => {
       // Unit Costs
       const partCost = parseFloat(order.part?.cost || 0);
       const productCost = parseFloat(
-        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0
+        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
       );
 
       // Labor Calculation

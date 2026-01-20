@@ -55,23 +55,23 @@ router.get("/select-schedule-process", validateToken, selectScheduleProcess);
 router.get(
   "/get-schedule-process-information/:id",
   validateToken,
-  getScheduleProcessInformation
+  getScheduleProcessInformation,
 );
 router.post(
   "/submit-production-response",
   validateToken,
-  createProductionResponse
+  createProductionResponse,
 );
 router.get(
   "/select-schedule-employee-process",
   validateToken,
-  selectScheduleProcess
+  selectScheduleProcess,
 );
 router.post("/station-login", validateToken, stationLogin);
 router.get(
   "/get-schedule-process-information/:id",
   validateToken,
-  getScheduleProcessInformation
+  getScheduleProcessInformation,
 );
 router.put("/complete-order/:id", validateToken, completeScheduleOrder);
 router.put("/scrap-order/:id", validateToken, scrapScheduleOrder);
@@ -79,7 +79,7 @@ router.put("/update-scrap-entry/:id", updateScrapEntry);
 router.put(
   "/production-response/:id/update-step-time",
   validateToken,
-  updateStepTime
+  updateStepTime,
 );
 router.put("/complete-traning/:id", validateToken, completeTraning);
 router.get("/select-supplier", validateToken, selectSupplier);
@@ -89,7 +89,7 @@ router.get("/all-scrap-entry", validateToken, allScrapEntires);
 router.get(
   "/select-schedule-product-number",
   validateToken,
-  selectScheudleProductNumber
+  selectScheudleProductNumber,
 );
 router.get("/employee-time-line-detail", validateToken, employeeTimeLineDetail);
 router.post("/create-timeline", validateToken, createTimeLine);
@@ -106,7 +106,7 @@ router.get("/all-station-notification", validateToken, getStationNotifications);
 router.patch(
   "/change-station-notification-status/:id",
   validateToken,
-  changeStationNotification
+  changeStationNotification,
 );
 
 module.exports = router;

@@ -30808,7 +30808,6 @@ const findNextJobForProcess = async (processId) => {
     }
   }
 };
-
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -30817,18 +30816,15 @@ const completeScheduleOrder = async (req, res) => {
       partId,
       completedBy,
       employeeId,
-      productId,
+      productId, // Ye frontend se nahi aa raha
       order_type,
       type,
     } = req.body;
-    if (!order_type) {
+
+    if (!order_type)
       return res.status(400).json({ message: "order_type is required." });
-    }
-    if (!type) {
-      return res
-        .status(400)
-        .json({ message: "type ('part' or 'product') is required." });
-    }
+    if (!type) return res.status(400).json({ message: "type is required." });
+
     const result = await prisma.$transaction(async (tx) => {
       const orderSchedule = await tx.stockOrderSchedule.findUnique({
         where: {
@@ -30840,38 +30836,45 @@ const completeScheduleOrder = async (req, res) => {
         },
       });
 
-      if (!orderSchedule) {
-        throw new Error("Order schedule not found.");
-      }
+      if (!orderSchedule) throw new Error("Order schedule not found.");
+
       const totalScheduleQty = orderSchedule.scheduleQuantity;
       const completedQuantity = orderSchedule.completedQuantity || 0;
-      if (completedQuantity >= totalScheduleQty) {
+
+      if (completedQuantity >= totalScheduleQty)
         return { alreadyCompleted: true };
-      }
+
       const newCompletedQty = completedQuantity + 1;
-      const newRemainingQty = totalScheduleQty - newCompletedQty;
+      const newRemainingQty = Math.max(0, totalScheduleQty - newCompletedQty);
       const updatedStatus =
         newCompletedQty >= totalScheduleQty ? "completed" : "progress";
+
+      // --- STOCK UPDATE LOGIC ---
       if (type === "part") {
+        // Jab component banta hai toh uska stock badhna chahiye (increment)
         await tx.partNumber.update({
           where: { part_id: partId },
-          data: { availStock: { decrement: 1 } },
+          data: { availStock: { increment: 1 } },
         });
       } else if (type === "product") {
         if (updatedStatus === "completed") {
-          if (!productId) {
+          // 🔥 FIX: Agar productId nahi hai, toh partId use karo
+          const finalProductId = productId || partId;
+
+          if (!finalProductId) {
             throw new Error(
-              "productId is required to update final product stock.",
+              "Product ID or Part ID is required to update final stock.",
             );
           }
+
           await tx.partNumber.update({
-            where: { part_id: partId },
+            where: { part_id: finalProductId },
             data: { availStock: { increment: totalScheduleQty } },
           });
         }
       }
-      console.log("totalScheduleQtytotalScheduleQty", totalScheduleQty);
 
+      // Update Production Response
       await tx.productionResponse.update({
         where: { id },
         data: {
@@ -30882,6 +30885,7 @@ const completeScheduleOrder = async (req, res) => {
         },
       });
 
+      // Update Schedule
       await tx.stockOrderSchedule.update({
         where: {
           order_id_part_id_order_type: {
@@ -30904,27 +30908,27 @@ const completeScheduleOrder = async (req, res) => {
       return { status: updatedStatus };
     });
 
-    // --- Send Response based on transaction result ---
     if (result.alreadyCompleted) {
-      return res.status(400).json({
-        message: "Order is already fully completed.",
-        status: "completed",
-      });
+      return res
+        .status(400)
+        .json({
+          message: "Order is already fully completed.",
+          status: "completed",
+        });
     }
 
     return res.status(200).json({
       message:
         result.status === "completed"
-          ? "Order scheduling completed successfully."
-          : "Quantity updated successfully.",
+          ? "Successfully completed."
+          : "Quantity updated.",
       status: result.status,
     });
   } catch (error) {
-    console.error("Error completing schedule order:", error);
-    res.status(500).json({
-      message: "An error occurred on the server.",
-      error: error.message,
-    });
+    console.error("Error:", error);
+    res
+      .status(500)
+      .json({ message: "An error occurred.", error: error.message });
   }
 };
 const scrapScheduleOrder = async (req, res) => {
@@ -33459,6 +33463,168 @@ const customerRelation = async (req, res) => {
 //       .json({ message: "Internal server error.", error: error.message });
 //   }
 // };
+
+// const getScheduleProcessInformation = async (req, res) => {
+//   try {
+//     const { id: processId } = req.params;
+//     const { stationUserId } = req.query;
+
+//     if (!processId || !stationUserId) {
+//       return res
+//         .status(400)
+//         .json({ message: "processId and stationUserId are required." });
+//     }
+
+//     const findAndStitchJob = async (findOptions) => {
+//       const schedule = await prisma.stockOrderSchedule.findFirst({
+//         ...findOptions,
+//         include: {
+//           part: {
+//             include: {
+//               WorkInstruction: {
+//                 include: {
+//                   steps: {
+//                     orderBy: { stepNumber: "asc" },
+//                     include: {
+//                       images: { select: { id: true, imagePath: true } },
+//                       videos: { select: { id: true, videoPath: true } },
+//                     },
+//                   },
+//                 },
+//               },
+//               process: { select: { id: true, processName: true } },
+//             },
+//           },
+//           process: { select: { processName: true } },
+//         },
+//       });
+
+//       if (!schedule) return null;
+//       let orderData = null;
+//       const orderTable =
+//         schedule.order_type === "StockOrder"
+//           ? prisma.stockOrder
+//           : prisma.customOrder;
+//       orderData = await orderTable.findUnique({
+//         where: { id: schedule.order_id },
+//       });
+
+//       return { ...schedule, order: orderData };
+//     };
+
+//     const candidates = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         processId,
+//         status: { in: ["new", "progress"] },
+//         isDeleted: false,
+//       },
+//       include: { part: true },
+//       orderBy: [{ status: "desc" }, { order_id: "asc" }, { createdAt: "asc" }],
+//     });
+
+//     let nextJob = null;
+
+//     for (const job of candidates) {
+//       // 1. Check if it's a Product
+//       const isActuallyProduct =
+//         job.part?.type?.toLowerCase() === "product" ||
+//         job.type?.toLowerCase() === "product";
+
+//       if (isActuallyProduct) {
+//         // Check if there are ANY parts of this order that are NOT completed yet
+//         const incompleteParts = await prisma.stockOrderSchedule.count({
+//           where: {
+//             order_id: job.order_id,
+//             id: { not: job.id },
+//             // Sirf "Part" type wali items ko check karein
+//             part: { type: { not: "product" } },
+//             status: { not: "completed" },
+//             isDeleted: false,
+//           },
+//         });
+
+//         if (incompleteParts > 0) {
+//           console.log(
+//             `Skipping Product ${job.id}: ${incompleteParts} parts pending.`,
+//           );
+//           continue; // Agar parts pending hain toh product nahi ban sakta
+//         }
+//       }
+
+//       // 2. STOCK CHECK FIX:
+//       // Agar aap koi part BANA rahe hain, to usaka stock 0 hi hoga.
+//       // Stock check tab hona chahiye jab wo kisi doosre part ke liye RAW MATERIAL ho.
+//       // Filhal is check ko hata dena chahiye ya logic change karna chahiye.
+//       /*
+//       if (!isActuallyProduct) {
+//         if (!job.part || job.part.availStock <= 0) {
+//           console.log(`Part ${job.part?.partNumber} skipped: No Stock.`);
+//           continue;
+//         }
+//       }
+//       */
+
+//       // 3. Qty Check
+//       if (job.remainingQty <= 0) {
+//         await prisma.stockOrderSchedule.update({
+//           where: { id: job.id },
+//           data: { status: "completed", completed_date: new Date() },
+//         });
+//         continue;
+//       }
+
+//       nextJob = await findAndStitchJob({ where: { id: job.id } });
+//       if (nextJob) break;
+//     }
+
+//     if (!nextJob) {
+//       return res.status(404).json({
+//         message:
+//           "No jobs available for this process. Check if dependent parts are completed.",
+//       });
+//     }
+
+//     // Stats Fetching logic (Remains same)
+//     const [lastUserProductionCycle, employeeScheduleStats] = await Promise.all([
+//       prisma.productionResponse.findFirst({
+//         where: { processId, stationUserId, isDeleted: false },
+//         orderBy: { cycleTimeStart: "desc" },
+//         include: {
+//           employeeInfo: {
+//             select: { firstName: true, lastName: true, id: true },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.aggregate({
+//         where: {
+//           order_id: nextJob.order_id,
+//           part_id: nextJob.part_id,
+//           processId,
+//           isDeleted: false,
+//           completed_EmpId: stationUserId,
+//         },
+//         _sum: { completedQuantity: true, scrapQuantity: true },
+//       }),
+//     ]);
+
+//     res.status(200).json({
+//       message: "Next job found successfully.",
+//       data: {
+//         ...nextJob,
+//         productionId: lastUserProductionCycle?.id || null,
+//         employeeInfo: lastUserProductionCycle?.employeeInfo || null,
+//         cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
+//         employeeCompletedQty: employeeScheduleStats._sum.completedQuantity || 0,
+//         employeeScrapQty: employeeScheduleStats._sum.scrapQuantity || 0,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Internal server error.", error: error.message });
+//   }
+// };
 const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
@@ -33495,11 +33661,13 @@ const getScheduleProcessInformation = async (req, res) => {
       });
 
       if (!schedule) return null;
+
       let orderData = null;
       const orderTable =
         schedule.order_type === "StockOrder"
           ? prisma.stockOrder
           : prisma.customOrder;
+
       orderData = await orderTable.findUnique({
         where: { id: schedule.order_id },
       });
@@ -33507,59 +33675,51 @@ const getScheduleProcessInformation = async (req, res) => {
       return { ...schedule, order: orderData };
     };
 
+    // 1. Fetch Candidates with BOM (ProductTree)
     const candidates = await prisma.stockOrderSchedule.findMany({
       where: {
         processId,
         status: { in: ["new", "progress"] },
         isDeleted: false,
       },
-      include: { part: true },
-      orderBy: [{ status: "desc" }, { order_id: "asc" }, { createdAt: "asc" }],
+      include: {
+        part: {
+          include: {
+            components: { where: { isDeleted: false } }, // Isse pata chalega sub-parts hain ya nahi
+          },
+        },
+      },
+    });
+
+    // 2. Advanced Sorting Logic
+    const sortedCandidates = candidates.sort((a, b) => {
+      const getPriority = (item) => {
+        const isProduct = item.part?.type?.toLowerCase() === "product";
+        const hasSubParts = (item.part?.components?.length || 0) > 0;
+
+        // Priority 1: Leaf Part (No sub-parts, e.g., Part B)
+        // Priority 2: Sub-Assembly (Has sub-parts, e.g., Part C)
+        // Priority 3: Final Product
+        if (isProduct) return 3;
+        if (hasSubParts) return 2;
+        return 1;
+      };
+
+      const prioA = getPriority(a);
+      const prioB = getPriority(b);
+
+      if (prioA !== prioB) return prioA - prioB;
+
+      // Agar dono assemblies hain, toh check karein kya ek dusre ka sub-part hai
+      // (BOM Depth sorting approximation)
+      if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
+      return new Date(a.createdAt) - new Date(b.createdAt);
     });
 
     let nextJob = null;
 
-    for (const job of candidates) {
-      // 1. Check if it's a Product
-      const isActuallyProduct =
-        job.part?.type?.toLowerCase() === "product" ||
-        job.type?.toLowerCase() === "product";
-
-      if (isActuallyProduct) {
-        // Check if there are ANY parts of this order that are NOT completed yet
-        const incompleteParts = await prisma.stockOrderSchedule.count({
-          where: {
-            order_id: job.order_id,
-            id: { not: job.id },
-            // Sirf "Part" type wali items ko check karein
-            part: { type: { not: "product" } },
-            status: { not: "completed" },
-            isDeleted: false,
-          },
-        });
-
-        if (incompleteParts > 0) {
-          console.log(
-            `Skipping Product ${job.id}: ${incompleteParts} parts pending.`,
-          );
-          continue; // Agar parts pending hain toh product nahi ban sakta
-        }
-      }
-
-      // 2. STOCK CHECK FIX:
-      // Agar aap koi part BANA rahe hain, to usaka stock 0 hi hoga.
-      // Stock check tab hona chahiye jab wo kisi doosre part ke liye RAW MATERIAL ho.
-      // Filhal is check ko hata dena chahiye ya logic change karna chahiye.
-      /* 
-      if (!isActuallyProduct) {
-        if (!job.part || job.part.availStock <= 0) {
-          console.log(`Part ${job.part?.partNumber} skipped: No Stock.`);
-          continue; 
-        }
-      }
-      */
-
-      // 3. Qty Check
+    // 3. Dependency Check Loop
+    for (const job of sortedCandidates) {
       if (job.remainingQty <= 0) {
         await prisma.stockOrderSchedule.update({
           where: { id: job.id },
@@ -33568,19 +33728,56 @@ const getScheduleProcessInformation = async (req, res) => {
         continue;
       }
 
+      const subParts = job.part?.components || [];
+      const isProduct = job.part?.type?.toLowerCase() === "product";
+      const hasSubParts = subParts.length > 0;
+
+      // --- LOGIC FOR NESTED PARTS IN SAME PROCESS ---
+      // Agar ye part (C) hai aur iske sub-parts (B) hain:
+      if (hasSubParts || isProduct) {
+        // Hum check karenge ki kya is ORDER ke liye iske SUB-PARTS abhi tak 'completed' nahi huye?
+        const dependencyQuery = {
+          order_id: job.order_id,
+          status: { not: "completed" },
+          isDeleted: false,
+          id: { not: job.id }, // Khud ko exclude karein
+        };
+
+        if (hasSubParts) {
+          // Sirf un sub-parts ko dekho jo is particular part ke neeche aate hain
+          const subPartIds = subParts.map((sp) => sp.part_id);
+          dependencyQuery.part_id = { in: subPartIds };
+        } else if (isProduct) {
+          // Product ke liye order ke saare non-product parts dekho
+          dependencyQuery.part = { type: { not: "product" } };
+        }
+
+        const pendingDependencies = await prisma.stockOrderSchedule.count({
+          where: dependencyQuery,
+        });
+
+        if (pendingDependencies > 0) {
+          // Agar Part B abhi tak 'new' ya 'progress' mein hai, toh Part C ko skip karo
+          console.log(
+            `Skipping Parent ${job.part?.partNumber}: Sub-part ${pendingDependencies} pending.`,
+          );
+          continue;
+        }
+      }
+
+      // Agar Dependency nahi hai ya saare sub-parts complete ho gaye hain
       nextJob = await findAndStitchJob({ where: { id: job.id } });
       if (nextJob) break;
     }
 
     if (!nextJob) {
       return res.status(404).json({
-        message:
-          "No jobs available for this process. Check if dependent parts are completed.",
+        message: "No ready jobs found. Waiting for sub-parts completion.",
       });
     }
 
-    // Stats Fetching logic (Remains same)
-    const [lastUserProductionCycle, employeeScheduleStats] = await Promise.all([
+    // 4. Stats Fetching
+    const [lastProduction, stats] = await Promise.all([
       prisma.productionResponse.findFirst({
         where: { processId, stationUserId, isDeleted: false },
         orderBy: { cycleTimeStart: "desc" },
@@ -33602,22 +33799,20 @@ const getScheduleProcessInformation = async (req, res) => {
       }),
     ]);
 
-    res.status(200).json({
-      message: "Next job found successfully.",
+    return res.status(200).json({
+      message: "Next job found.",
       data: {
         ...nextJob,
-        productionId: lastUserProductionCycle?.id || null,
-        employeeInfo: lastUserProductionCycle?.employeeInfo || null,
-        cycleTime: lastUserProductionCycle?.cycleTimeStart || null,
-        employeeCompletedQty: employeeScheduleStats._sum.completedQuantity || 0,
-        employeeScrapQty: employeeScheduleStats._sum.scrapQuantity || 0,
+        productionId: lastProduction?.id || null,
+        employeeInfo: lastProduction?.employeeInfo || null,
+        cycleTime: lastProduction?.cycleTimeStart || null,
+        employeeCompletedQty: stats._sum.completedQuantity || 0,
+        employeeScrapQty: stats._sum.scrapQuantity || 0,
       },
     });
   } catch (error) {
     console.error("Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error.", error: error.message });
+    return res.status(500).json({ message: "Error.", error: error.message });
   }
 };
 const checkTraningStatus = async (req, res) => {
