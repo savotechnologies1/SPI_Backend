@@ -2085,6 +2085,7 @@ const createStockOrder = async (req, res) => {
 //   }
 // };
 // correct code end
+
 const addCustomOrder = async (req, res) => {
   try {
     const {
@@ -2103,14 +2104,7 @@ const addCustomOrder = async (req, res) => {
       bomList = [],
       newParts = [],
     } = req.body;
-
-    console.log("Payload Received - BOM:", bomList);
-    console.log("Payload Received - newParts:", newParts);
-
     const result = await prisma.$transaction(async (tx) => {
-      // =====================================================
-      // 1️⃣ CUSTOMER CREATE / FETCH
-      // =====================================================
       let customer = null;
 
       if (customerId && customerId !== "new") {
@@ -2200,15 +2194,11 @@ const addCustomOrder = async (req, res) => {
         }
       }
 
-      // =====================================================
-      // 4️⃣ PROCESS NEW PARTS (CREATE ONLY VALID PARTS)
-      // =====================================================
       const validNewParts = Array.isArray(newParts)
         ? newParts.filter((p) => p?.part && p.part.trim() !== "")
         : [];
 
       for (const partItem of validNewParts) {
-        // 🔎 Duplicate check
         const duplicatePart = await tx.partNumber.findFirst({
           where: { partNumber: partItem.part.trim() },
         });
@@ -2217,33 +2207,40 @@ const addCustomOrder = async (req, res) => {
           throw new Error(`Part "${partItem.part}" already exists`);
         }
 
-        // 🆕 Create Part Number
+        let processData = null;
+        if (partItem.processId) {
+          processData = await tx.process.findUnique({
+            where: { id: partItem.processId },
+          });
+        }
+
         const createdPart = await tx.partNumber.create({
           data: {
             partNumber: partItem.part.trim(),
             cycleTime: partItem.totalTime?.toString() || "0",
             processId: partItem.processId || null,
+            partFamily: processData?.partFamily || "",
+            partDescription: processData?.partNumber || "",
+            processDesc: processData?.processDesc || "",
             cost: 0,
             instructionRequired: false,
-            partFamily: "",
             type: "part",
             companyName: "",
             createdBy: req.user?.id,
           },
         });
 
-        // 🔗 Custom Part
         const createdCustomPart = await tx.customPart.create({
           data: {
             partNumber: createdPart.partNumber,
             quantity: parseInt(partItem.qty || 1, 10),
             processId: createdPart.processId,
             cycleTime: createdPart.cycleTime,
+            processName: processData?.name || "",
             customOrderId: createdOrder.id,
           },
         });
 
-        // 📅 Schedule
         await tx.stockOrderSchedule.create({
           data: {
             order_id: createdOrder.id,
@@ -2260,7 +2257,6 @@ const addCustomOrder = async (req, res) => {
           },
         });
       }
-
       return createdOrder;
     });
 
