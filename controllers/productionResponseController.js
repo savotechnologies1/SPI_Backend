@@ -30854,7 +30854,7 @@ const completeScheduleOrder = async (req, res) => {
         // Jab component banta hai toh uska stock badhna chahiye (increment)
         await tx.partNumber.update({
           where: { part_id: partId },
-          data: { availStock: { increment: 1 } },
+          data: { availStock: { decrement: 1 } },
         });
       } else if (type === "product") {
         if (updatedStatus === "completed") {
@@ -30909,12 +30909,10 @@ const completeScheduleOrder = async (req, res) => {
     });
 
     if (result.alreadyCompleted) {
-      return res
-        .status(400)
-        .json({
-          message: "Order is already fully completed.",
-          status: "completed",
-        });
+      return res.status(400).json({
+        message: "Order is already fully completed.",
+        status: "completed",
+      });
     }
 
     return res.status(200).json({
