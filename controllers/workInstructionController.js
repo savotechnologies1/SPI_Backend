@@ -12,6 +12,7 @@ const workInstructionProcess = async (req, res) => {
       select: {
         id: true,
         processName: true,
+        machineName: true,
       },
       where: {
         isDeleted: false,
@@ -20,6 +21,7 @@ const workInstructionProcess = async (req, res) => {
     const formattedProcess = process.map((process) => ({
       id: process.id,
       name: process.processName,
+      machineName: process.machineName,
     }));
 
     res.status(200).json(formattedProcess);
@@ -709,6 +711,7 @@ const selectInstructionPartNumber = async (req, res) => {
     const process = await prisma.partNumber.findMany({
       select: {
         part_id: true,
+        partNumber: true,
         partNumber: true,
       },
       where: {

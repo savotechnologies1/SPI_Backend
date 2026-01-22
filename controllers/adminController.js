@@ -2438,6 +2438,7 @@ const selectProcess = async (req, res) => {
         processName: true,
         partFamily: true,
         processDesc: true,
+        machineName: true,
       },
       where: {
         isDeleted: false,
@@ -2449,6 +2450,7 @@ const selectProcess = async (req, res) => {
       name: process.processName,
       partFamily: process.partFamily,
       processDesc: process.processDesc,
+      machineName: process.machineName,
     }));
     res.status(200).json(formattedProcess);
   } catch (error) {
@@ -2804,6 +2806,7 @@ const createPartNumber = async (req, res) => {
       availStock,
       cycleTime,
       processOrderRequired,
+      instructionRequired,
       processId,
       processDesc,
     } = req.body;
@@ -2812,14 +2815,10 @@ const createPartNumber = async (req, res) => {
       where: { partNumber: partNumber?.trim() },
     });
 
-    // Agar part exist karta hai aur delete nahi hua hai
     if (existingPart && !existingPart.isDeleted) {
       return res.status(400).json({ message: "Part Number already exists." });
     }
-
     const getId = uuidv4().slice(0, 6);
-
-    // Agar part exist karta hai par delete ho chuka hai, toh use reactivate karein
     if (existingPart && existingPart.isDeleted) {
       await prisma.partNumber.update({
         where: { part_id: existingPart.part_id },
@@ -2834,6 +2833,7 @@ const createPartNumber = async (req, res) => {
           availStock: parseInt(availStock) || 0,
           cycleTime,
           processOrderRequired: processOrderRequired === "true",
+          instructionRequired: instructionRequired === "true",
           processId,
           processDesc,
           type: "part", // Ensuring type is part
@@ -7908,6 +7908,7 @@ const productionOverview = async (req, res) => {
       select: {
         completedQuantity: true,
         scrapQuantity: true,
+        scrap: true,
       },
     });
 
@@ -7918,7 +7919,7 @@ const productionOverview = async (req, res) => {
     );
 
     const totalScrap = productionResponses.reduce(
-      (sum, item) => sum + (Number(item.scrapQuantity) || 0),
+      (sum, item) => sum + (Number(item.scrap) || 0),
       0,
     );
 

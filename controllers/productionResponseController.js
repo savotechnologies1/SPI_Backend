@@ -33672,8 +33672,6 @@ const getScheduleProcessInformation = async (req, res) => {
 
       return { ...schedule, order: orderData };
     };
-
-    // 1. Fetch Candidates with BOM (ProductTree)
     const candidates = await prisma.stockOrderSchedule.findMany({
       where: {
         processId,
@@ -33683,21 +33681,15 @@ const getScheduleProcessInformation = async (req, res) => {
       include: {
         part: {
           include: {
-            components: { where: { isDeleted: false } }, // Isse pata chalega sub-parts hain ya nahi
+            components: { where: { isDeleted: false } },
           },
         },
       },
     });
-
-    // 2. Advanced Sorting Logic
     const sortedCandidates = candidates.sort((a, b) => {
       const getPriority = (item) => {
         const isProduct = item.part?.type?.toLowerCase() === "product";
         const hasSubParts = (item.part?.components?.length || 0) > 0;
-
-        // Priority 1: Leaf Part (No sub-parts, e.g., Part B)
-        // Priority 2: Sub-Assembly (Has sub-parts, e.g., Part C)
-        // Priority 3: Final Product
         if (isProduct) return 3;
         if (hasSubParts) return 2;
         return 1;
@@ -33707,16 +33699,11 @@ const getScheduleProcessInformation = async (req, res) => {
       const prioB = getPriority(b);
 
       if (prioA !== prioB) return prioA - prioB;
-
-      // Agar dono assemblies hain, toh check karein kya ek dusre ka sub-part hai
-      // (BOM Depth sorting approximation)
       if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
 
     let nextJob = null;
-
-    // 3. Dependency Check Loop
     for (const job of sortedCandidates) {
       if (job.remainingQty <= 0) {
         await prisma.stockOrderSchedule.update({
@@ -33730,23 +33717,18 @@ const getScheduleProcessInformation = async (req, res) => {
       const isProduct = job.part?.type?.toLowerCase() === "product";
       const hasSubParts = subParts.length > 0;
 
-      // --- LOGIC FOR NESTED PARTS IN SAME PROCESS ---
-      // Agar ye part (C) hai aur iske sub-parts (B) hain:
       if (hasSubParts || isProduct) {
-        // Hum check karenge ki kya is ORDER ke liye iske SUB-PARTS abhi tak 'completed' nahi huye?
         const dependencyQuery = {
           order_id: job.order_id,
           status: { not: "completed" },
           isDeleted: false,
-          id: { not: job.id }, // Khud ko exclude karein
+          id: { not: job.id },
         };
 
         if (hasSubParts) {
-          // Sirf un sub-parts ko dekho jo is particular part ke neeche aate hain
           const subPartIds = subParts.map((sp) => sp.part_id);
           dependencyQuery.part_id = { in: subPartIds };
         } else if (isProduct) {
-          // Product ke liye order ke saare non-product parts dekho
           dependencyQuery.part = { type: { not: "product" } };
         }
 
@@ -33755,7 +33737,6 @@ const getScheduleProcessInformation = async (req, res) => {
         });
 
         if (pendingDependencies > 0) {
-          // Agar Part B abhi tak 'new' ya 'progress' mein hai, toh Part C ko skip karo
           console.log(
             `Skipping Parent ${job.part?.partNumber}: Sub-part ${pendingDependencies} pending.`,
           );
@@ -33763,7 +33744,6 @@ const getScheduleProcessInformation = async (req, res) => {
         }
       }
 
-      // Agar Dependency nahi hai ya saare sub-parts complete ho gaye hain
       nextJob = await findAndStitchJob({ where: { id: job.id } });
       if (nextJob) break;
     }
