@@ -14,7 +14,7 @@ const importProcess = async (req, res) => {
       });
     }
     const getCsvFile = fileData?.data?.filter(
-      (file) => file.fieldname === "ImportFile"
+      (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
     const csvData = [];
@@ -101,7 +101,7 @@ const importProcess = async (req, res) => {
           } else {
             errorCount++;
             errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+              `Row ${result.reason.index + 2}: ${result.reason.reason}`,
             );
           }
         });
@@ -781,7 +781,6 @@ const importParts = async (req, res) => {
     const errors = [];
     const validatedData = [];
 
-    // --- STEP 1: Validation Loop (Partial Success Logic) ---
     for (let index = 0; index < csvData.length; index++) {
       const row = csvData[index];
       const rowNum = index + 2;
@@ -789,24 +788,21 @@ const importParts = async (req, res) => {
       const rowLabel = `Row ${rowNum} (${partNum || "N/A"})`;
 
       try {
-        // 1. Basic Type Validation
         if (!["part", "product"].includes(row.type)) {
           errors.push(`${rowLabel}: Invalid type (must be part or product)`);
-          continue; // Skip this row, move to next
+          continue;
         }
 
-        // 2. Duplicate Check
         const existingPart = await prisma.partNumber.findFirst({
           where: { partNumber: partNum, isDeleted: false },
         });
         if (existingPart) {
           errors.push(
-            `${rowLabel}: PartNumber '${partNum}' already exists in database`
+            `${rowLabel}: PartNumber '${partNum}' already exists in database`,
           );
-          continue; // Skip this row, move to next
+          continue;
         }
 
-        // 3. Process Validation
         const process = await prisma.process.findFirst({
           where: { processName: row.processName?.trim(), isDeleted: false },
         });
@@ -821,8 +817,7 @@ const importParts = async (req, res) => {
         errors.push(`${rowLabel}: Internal error - ${err.message}`);
       }
     }
-
-    // --- STEP 2: Insert Only Validated Rows ---
+    console.log("instructionRequiredinstructionRequired", validatedData);
     let successCount = 0;
     for (const row of validatedData) {
       try {
@@ -840,6 +835,7 @@ const importParts = async (req, res) => {
             supplierOrderQty: parseInt(row.supplierOrderQty) || 0,
             cycleTime: row.cycleTime,
             processOrderRequired: row.processOrderRequired === "TRUE",
+            instructionRequired: row.instructionRequired === "TRUE",
             processDesc: row.processDesc,
             companyName: row.companyName,
             processId: row.processId,
@@ -850,7 +846,7 @@ const importParts = async (req, res) => {
         successCount++;
       } catch (dbErr) {
         errors.push(
-          `Row ${row.partNumber}: Failed to save to database (${dbErr.message})`
+          `Row ${row.partNumber}: Failed to save to database (${dbErr.message})`,
         );
       }
     }
@@ -1927,7 +1923,7 @@ const importProductTree = async (req, res) => {
     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
     console.log("csvFilecsvFile", csvFile);
     const getPartImages = fileData.data.filter(
-      (file) => file.fieldname === "partImages"
+      (file) => file.fieldname === "partImages",
     );
 
     if (!csvFile) {
@@ -2038,7 +2034,7 @@ const importProductTree = async (req, res) => {
           availStock: parseInt(d.availStock) || 0,
           processId: mainProcId,
           type: "product",
-          isProductSchedule: d.isProductSchedule?.toUpperCase() === "TRUE",
+          // isProductSchedule: d.isProductSchedule?.toUpperCase() === "TRUE",
 
           processOrderRequired:
             d.processOrderRequired?.toString().toLowerCase() === "true" ||
@@ -2138,7 +2134,7 @@ const importEmp = async (req, res) => {
       });
     }
     const getCsvFile = fileData?.data?.filter(
-      (file) => file.fieldname === "ImportFile"
+      (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
     const csvData = []; // Renamed from results to csvData
@@ -2232,7 +2228,7 @@ const importEmp = async (req, res) => {
           } else {
             errorCount++;
             errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+              `Row ${result.reason.index + 2}: ${result.reason.reason}`,
             );
           }
         });
@@ -2270,7 +2266,7 @@ const importSupp = async (req, res) => {
       });
     }
     const getCsvFile = fileData?.data?.filter(
-      (file) => file.fieldname === "ImportFile"
+      (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
     const csvData = []; // Renamed from results to csvData
@@ -2356,7 +2352,7 @@ const importSupp = async (req, res) => {
           } else {
             errorCount++;
             errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+              `Row ${result.reason.index + 2}: ${result.reason.reason}`,
             );
           }
         });
@@ -2394,7 +2390,7 @@ const importCust = async (req, res) => {
       });
     }
     const getCsvFile = fileData?.data?.filter(
-      (file) => file.fieldname === "ImportFile"
+      (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
     const csvData = []; // Renamed from results to csvData
@@ -2483,7 +2479,7 @@ const importCust = async (req, res) => {
           } else {
             errorCount++;
             errors.push(
-              `Row ${result.reason.index + 2}: ${result.reason.reason}`
+              `Row ${result.reason.index + 2}: ${result.reason.reason}`,
             );
           }
         });

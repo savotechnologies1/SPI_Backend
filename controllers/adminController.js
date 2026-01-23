@@ -3261,7 +3261,7 @@ const createProductNumber = async (req, res) => {
       processId,
       processDesc,
       parts = [], // Inme wo sub-parts honge jo aap add karna chahti hain
-      isProductSchedule,
+      // isProductSchedule,
     } = req.body;
 
     const trimmedNumber = productNumber?.trim();
@@ -3291,8 +3291,8 @@ const createProductNumber = async (req, res) => {
       type: "product", // Yahan hum type ko "product" mein convert kar rahe hain agar wo "part" tha
       isDeleted: false,
       submittedBy: req.user.id,
-      isProductSchedule:
-        isProductSchedule === "true" || isProductSchedule === true,
+      // isProductSchedule:
+      //   isProductSchedule === "true" || isProductSchedule === true,
     };
 
     if (existingEntry) {
@@ -3899,7 +3899,7 @@ const getSingleProductTree = async (req, res) => {
         processDesc: true,
         processId: true,
         processOrderRequired: true,
-        isProductSchedule: true,
+        // isProductSchedule: true,
       },
     });
 
@@ -3917,7 +3917,7 @@ const getSingleProductTree = async (req, res) => {
         part_id: true,
         partQuantity: true,
         instructionRequired: true,
-        isProductSchedule: true,
+        // isProductSchedule: true,
         part: {
           select: {
             partNumber: true,
@@ -3964,7 +3964,7 @@ const getSingleProductTree = async (req, res) => {
       processDesc: productInfo.processDesc,
       processId: productInfo.processId,
       processOrderRequired: productInfo.processOrderRequired,
-      isProductSchedule: productInfo.isProductSchedule,
+      // isProductSchedule: productInfo.isProductSchedule,
       productImages: productInfo.partImages,
       parts,
     };
@@ -4071,12 +4071,12 @@ const updateProductNumber = async (req, res) => {
       processDesc,
       processOrderRequired,
       instructionRequired,
-      isProductSchedule,
+      // isProductSchedule,
       parts = [],
     } = req.body;
-    console.log("isProductScheduleisProductSchedule", isProductSchedule);
-    const scheduleValue =
-      isProductSchedule === "true" || isProductSchedule === true;
+    // console.log("isProductScheduleisProductSchedule", isProductSchedule);
+    // const scheduleValue =
+    //   isProductSchedule === "true" || isProductSchedule === true;
     const updatedProduct = await prisma.partNumber.update({
       where: { part_id: id },
       data: {
@@ -4094,7 +4094,7 @@ const updateProductNumber = async (req, res) => {
         processDesc: processDesc,
         processOrderRequired: processOrderRequired === "true",
         instructionRequired: instructionRequired === "true",
-        isProductSchedule: scheduleValue,
+        // isProductSchedule: scheduleValue,
       },
     });
 
@@ -4121,7 +4121,7 @@ const updateProductNumber = async (req, res) => {
             data: {
               partQuantity: Number(part.partQuantity),
               instructionRequired: partInstructionRequired,
-              isProductSchedule: scheduleValue,
+              // isProductSchedule: scheduleValue,
             },
           });
         }
@@ -4132,7 +4132,7 @@ const updateProductNumber = async (req, res) => {
             part_id: part.part_id,
             partQuantity: Number(part.partQuantity),
             instructionRequired: partInstructionRequired,
-            isProductSchedule: scheduleValue,
+            // isProductSchedule: scheduleValue,
           },
         });
       }
@@ -4299,7 +4299,7 @@ const selectProductNumberForStockOrder = async (req, res) => {
         isDeleted: false,
         type: "product",
         processOrderRequired: true,
-        isProductSchedule: true,
+        // isProductSchedule: true,
         // stockOrders: {
         //   none: {
         //     status: "scheduled",
@@ -7993,20 +7993,312 @@ function parseCycleTime(cycleTimeStr) {
   return isNaN(minutes) ? 0 : minutes;
 }
 
+// const processHourly = async (req, res) => {
+//   try {
+//     const { startOfDay, endOfDay } = getDayRange(
+//       req.query.date || moment().format("YYYY-MM-DD"),
+//     );
+
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         cycleTime: true,
+//         ratePerHour: true,
+//       },
+//     });
+
+//     const allProcessData = [];
+//     let grandTotalActual = 0;
+//     let grandTotalScrap = 0;
+//     let grandTotalTarget = 0;
+
+//     for (const process of activeProcesses) {
+//       const productionResponses = await prisma.productionResponse.findMany({
+//         where: {
+//           processId: process.id,
+//           submittedDateTime: {
+//             gte: startOfDay,
+//             lte: endOfDay,
+//           },
+//           isDeleted: false,
+//         },
+//         include: {
+//           employeeInfo: {
+//             select: {
+//               id: true,
+//               firstName: true,
+//               lastName: true,
+//               employeeProfileImg: true,
+//             },
+//           },
+//         },
+//       });
+//       console.log(
+//         "productionResponsesproductionResponses",
+//         productionResponses,
+//       );
+//       // parse cycleTime into minutes
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const hourlyDataMap = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+//       const employeesSet = new Map();
+
+//       // initialize 24 hours with target
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = moment().hour(h).format("HH:00");
+//         hourlyDataMap.set(hourKey, {
+//           actual: 0,
+//           scrap: 0,
+//           target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0, // target per hour
+//         });
+//       }
+
+//       // sum actual, scrap, and track employees
+//       for (const response of productionResponses) {
+//         console.log("responseresponse", response);
+//         const hour = moment(response.submittedDateTime).format("HH:00");
+//         const currentHourData = hourlyDataMap.get(hour);
+
+//         if (currentHourData) {
+//           const actualQty = response.completedQuantity || 0;
+//           const scrapQty = response.scrapQuantity || 0;
+
+//           currentHourData.actual += actualQty;
+//           currentHourData.scrap += scrapQty;
+//         }
+
+//         processTotalActual += response.completedQuantity || 0;
+//         processTotalScrap += response.scrapQuantity || 0;
+
+//         if (response.employeeInfo) {
+//           employeesSet.set(response.employeeInfo.id, {
+//             name: `${response.employeeInfo.firstName} ${response.employeeInfo.lastName}`,
+//             profileImage: response.employeeInfo.employeeProfileImg,
+//           });
+//         }
+//       }
+
+//       const hourlyData = Array.from(hourlyDataMap.entries()).map(
+//         ([hour, data]) => ({
+//           hour,
+//           actual: data.actual,
+//           scrap: data.scrap,
+//           target: data.target,
+//         }),
+//       );
+
+//       const totalTarget =
+//         cycleTimeMinutes > 0 ? Math.round(24 * (60 / cycleTimeMinutes)) : 0;
+
+//       // add to grand totals
+//       grandTotalActual += processTotalActual;
+//       grandTotalScrap += processTotalScrap;
+//       grandTotalTarget += totalTarget;
+
+//       allProcessData.push({
+//         processName: process.processName,
+//         hourlyData,
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: totalTarget,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       });
+//     }
+
+//     res.json({
+//       allProcessData,
+//       grandTotals: {
+//         actual: grandTotalActual,
+//         scrap: grandTotalScrap,
+//         target: grandTotalTarget,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching hourly process data:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
+// const processHourly = async (req, res) => {
+//   try {
+//     const { startOfDay, endOfDay } = getDayRange(
+//       req.query.date || moment().format("YYYY-MM-DD"),
+//     );
+
+//     // 1. Saare active processes nikalna
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         cycleTime: true,
+//         ratePerHour: true,
+//       },
+//     });
+
+//     const allProcessData = [];
+//     let grandTotalActual = 0;
+//     let grandTotalScrap = 0;
+//     let grandTotalTarget = 0;
+
+//     for (const process of activeProcesses) {
+//       // 2. ProductionResponse se data nikalna (Actual + some scrap)
+//       const productionResponses = await prisma.productionResponse.findMany({
+//         where: {
+//           processId: process.id,
+//           submittedDateTime: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: {
+//           employeeInfo: {
+//             select: {
+//               id: true,
+//               firstName: true,
+//               lastName: true,
+//               employeeProfileImg: true,
+//             },
+//           },
+//         },
+//       });
+
+//       // 3. scapEntries table se data nikalna (Dedicated scrap module)
+//       const scrapEntriesRecords = await prisma.scapEntries.findMany({
+//         where: {
+//           processId: process.id,
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: {
+//           createdByEmployee: {
+//             // Schema ke hisaab se relation name
+//             select: {
+//               id: true,
+//               firstName: true,
+//               lastName: true,
+//               employeeProfileImg: true,
+//             },
+//           },
+//         },
+//       });
+
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const hourlyDataMap = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+//       const employeesSet = new Map();
+
+//       // 24 ghante initialize karna
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = moment().hour(h).format("HH:00");
+//         hourlyDataMap.set(hourKey, {
+//           actual: 0,
+//           scrap: 0,
+//           target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0,
+//         });
+//       }
+
+//       // 4. Production Responses loop (Actual Qty ko sum karna)
+//       for (const response of productionResponses) {
+//         const hour = moment(response.submittedDateTime).format("HH:00");
+//         const currentHourData = hourlyDataMap.get(hour);
+
+//         if (currentHourData) {
+//           currentHourData.actual += response.completedQuantity || 0;
+//           currentHourData.scrap += response.scrapQuantity || 0; // Agar response mein scrap hai
+//         }
+
+//         processTotalActual += response.completedQuantity || 0;
+//         processTotalScrap += response.scrapQuantity || 0;
+
+//         if (response.employeeInfo) {
+//           employeesSet.set(response.employeeInfo.id, {
+//             name: `${response.employeeInfo.firstName} ${response.employeeInfo.lastName}`,
+//             profileImage: response.employeeInfo.employeeProfileImg,
+//           });
+//         }
+//       }
+
+//       // 5. Scrap Entries loop (ScapEntries table ka data sum karna)
+//       for (const scrapRecord of scrapEntriesRecords) {
+//         const hour = moment(scrapRecord.createdAt).format("HH:00");
+//         const currentHourData = hourlyDataMap.get(hour);
+
+//         // Schema mein 'returnQuantity' scrap quantity hai
+//         const qty = scrapRecord.returnQuantity || 0;
+
+//         if (currentHourData) {
+//           currentHourData.scrap += qty;
+//         }
+//         processTotalScrap += qty;
+
+//         if (scrapRecord.createdByEmployee) {
+//           employeesSet.set(scrapRecord.createdByEmployee.id, {
+//             name: `${scrapRecord.createdByEmployee.firstName} ${scrapRecord.createdByEmployee.lastName}`,
+//             profileImage: scrapRecord.createdByEmployee.employeeProfileImg,
+//           });
+//         }
+//       }
+
+//       const hourlyData = Array.from(hourlyDataMap.entries()).map(
+//         ([hour, data]) => ({
+//           hour,
+//           actual: data.actual,
+//           scrap: data.scrap,
+//           target: data.target,
+//         }),
+//       );
+
+//       const totalTarget =
+//         cycleTimeMinutes > 0 ? Math.round(24 * (60 / cycleTimeMinutes)) : 0;
+
+//       grandTotalActual += processTotalActual;
+//       grandTotalScrap += processTotalScrap;
+//       grandTotalTarget += totalTarget;
+
+//       allProcessData.push({
+//         processName: process.processName,
+//         hourlyData,
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: totalTarget,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       });
+//     }
+
+//     res.json({
+//       allProcessData,
+//       grandTotals: {
+//         actual: grandTotalActual,
+//         scrap: grandTotalScrap,
+//         target: grandTotalTarget,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching hourly process data:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
 const processHourly = async (req, res) => {
   try {
-    const { startOfDay, endOfDay } = getDayRange(
-      req.query.date || moment().format("YYYY-MM-DD"),
-    );
+    const selectedDate = req.query.date || moment().format("YYYY-MM-DD");
+    const startOfDay = moment(selectedDate).startOf("day").toDate();
+    const endOfDay = moment(selectedDate).endOf("day").toDate();
 
     const activeProcesses = await prisma.process.findMany({
       where: { isDeleted: false },
-      select: {
-        id: true,
-        processName: true,
-        cycleTime: true,
-        ratePerHour: true,
-      },
+      select: { id: true, processName: true, cycleTime: true },
     });
 
     const allProcessData = [];
@@ -8015,28 +8307,29 @@ const processHourly = async (req, res) => {
     let grandTotalTarget = 0;
 
     for (const process of activeProcesses) {
-      const productionResponses = await prisma.productionResponse.findMany({
-        where: {
-          processId: process.id,
-          submittedDateTime: {
-            gte: startOfDay,
-            lte: endOfDay,
+      // Data fetch karna
+      const [productionResponses, scrapEntriesRecords] = await Promise.all([
+        prisma.productionResponse.findMany({
+          where: {
+            processId: process.id,
+            submittedDateTime: { gte: startOfDay, lte: endOfDay },
+            isDeleted: false,
           },
-          isDeleted: false,
-        },
-        include: {
-          employeeInfo: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              employeeProfileImg: true,
-            },
+          include: { employeeInfo: true },
+        }),
+        prisma.scapEntries.findMany({
+          where: {
+            processId: process.id,
+            createdAt: { gte: startOfDay, lte: endOfDay },
+            isDeleted: false,
           },
-        },
-      });
-
-      // parse cycleTime into minutes
+          include: { createdByEmployee: true },
+        }),
+      ]);
+      console.log(
+        "scrapEntriesRecordsscrapEntriesRecords",
+        scrapEntriesRecords,
+      );
       const cycleTimeMinutes = process.cycleTime
         ? parseCycleTime(process.cycleTime)
         : 0;
@@ -8045,39 +8338,68 @@ const processHourly = async (req, res) => {
       let processTotalScrap = 0;
       const employeesSet = new Map();
 
-      // initialize 24 hours with target
+      // 24 ghante initialize karna
       for (let h = 0; h < 24; h++) {
-        const hourKey = moment().hour(h).format("HH:00");
+        const hourKey = h.toString().padStart(2, "0") + ":00";
         hourlyDataMap.set(hourKey, {
           actual: 0,
           scrap: 0,
-          target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0, // target per hour
+          target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0,
         });
       }
 
-      // sum actual, scrap, and track employees
-      for (const response of productionResponses) {
-        const hour = moment(response.submittedDateTime).format("HH:00");
+      // 1. ACTUAL QUANTITY LOOP
+      productionResponses.forEach((res) => {
+        const hour = moment(res.submittedDateTime)
+          .utcOffset("+05:30")
+          .format("HH:00");
         const currentHourData = hourlyDataMap.get(hour);
+        console.log("currentHourDatacurrentHourData", currentHourData);
+        // Yahan check karein completedQuantity field ko
+        const qty = Number(res.completedQuantity) || 0;
+        const resScrap = Number(res.scrapQuantity) || 0; // Kuch log yahan bhi scrap save karte hain
 
         if (currentHourData) {
-          const actualQty = response.completedQuantity || 0;
-          const scrapQty = response.scrapQuantity || 0;
-
-          currentHourData.actual += actualQty;
-          currentHourData.scrap += scrapQty;
+          currentHourData.actual += qty;
+          currentHourData.scrap += resScrap;
         }
+        processTotalActual += qty;
+        processTotalScrap += resScrap;
 
-        processTotalActual += response.completedQuantity || 0;
-        processTotalScrap += response.scrapQuantity || 0;
-
-        if (response.employeeInfo) {
-          employeesSet.set(response.employeeInfo.id, {
-            name: `${response.employeeInfo.firstName} ${response.employeeInfo.lastName}`,
-            profileImage: response.employeeInfo.employeeProfileImg,
+        if (res.employeeInfo) {
+          employeesSet.set(res.employeeInfo.id, {
+            name: `${res.employeeInfo.firstName} ${res.employeeInfo.lastName}`,
+            profileImage: res.employeeInfo.employeeProfileImg || "",
           });
         }
-      }
+      });
+
+      // 2. SCRAP ENTRIES LOOP
+      scrapEntriesRecords.forEach((scrap) => {
+        const hour = moment(scrap.createdAt)
+          .utcOffset("+05:30")
+          .format("HH:00");
+        const currentHourData = hourlyDataMap.get(hour);
+
+        // Sabse important: Yahan check karein field names (returnQuantity ya scrapQuantity)
+        const sQty =
+          Number(scrap.returnQuantity) ||
+          Number(scrap.scrapQuantity) ||
+          Number(scrap.quantity) ||
+          0;
+
+        if (currentHourData) {
+          currentHourData.scrap += sQty;
+        }
+        processTotalScrap += sQty;
+
+        if (scrap.createdByEmployee) {
+          employeesSet.set(scrap.createdByEmployee.id, {
+            name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
+            profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+          });
+        }
+      });
 
       const hourlyData = Array.from(hourlyDataMap.entries()).map(
         ([hour, data]) => ({
@@ -8088,10 +8410,10 @@ const processHourly = async (req, res) => {
         }),
       );
 
-      const totalTarget =
-        cycleTimeMinutes > 0 ? Math.round(24 * (60 / cycleTimeMinutes)) : 0;
+      const targetPerHour =
+        cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+      const totalTarget = targetPerHour * 24;
 
-      // add to grand totals
       grandTotalActual += processTotalActual;
       grandTotalScrap += processTotalScrap;
       grandTotalTarget += totalTarget;
@@ -8117,11 +8439,10 @@ const processHourly = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching hourly process data:", error);
+    console.error("Error:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
 const liveProductionGoalBoard = async (req, res) => {
   try {
     const { startOfDay, endOfDay } = getDayRange(
@@ -8802,33 +9123,171 @@ const currentQualityStatusOverview = async (req, res) => {
 //   }
 // };
 
+// const monitorChartsData = async (req, res) => {
+//   try {
+//     const today = new Date();
+//     const start = startOfDay(today);
+//     const end = endOfDay(today);
+
+//     const data = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         createdAt: {
+//           gte: start,
+//           lte: end,
+//         },
+//       },
+//       include: {
+//         part: { select: { partNumber: true, partDescription: true } },
+//         process: { select: { processName: true, processDesc: true } },
+//       },
+//     });
+//     console.log("datadatadata", data);
+//     const manualGrouped = {};
+//     data.forEach((item) => {
+//       const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
+
+//       if (!manualGrouped[key]) {
+//         manualGrouped[key] = {
+//           process: item.process?.processName || "N/A",
+//           part: item.part?.partDescription || "N/A",
+//           qty: 0,
+//           scrap: 0,
+//         };
+//       }
+//       manualGrouped[key].qty += item.quantity || 0;
+//       manualGrouped[key].scrap += item.scrapQuantity || 0;
+//     });
+
+//     const manualTable = Object.values(manualGrouped);
+
+//     const partToMonitor = await prisma.productionResponse.findMany({
+//       where: {
+//         isDeleted: false,
+//         createdAt: {
+//           gte: start,
+//           lte: end,
+//         },
+//       },
+//       include: {
+//         PartNumber: { select: { partNumber: true, partDescription: true } },
+//         process: {
+//           select: { processName: true, processDesc: true, cycleTime: true },
+//         },
+//       },
+//     });
+//     console.log("partToMonitorpartToMonitor", partToMonitor);
+//     const monitorGrouped = {};
+//     partToMonitor.forEach((item) => {
+//       const key = `${item.process?.processName || "N/A"}-${
+//         item.PartNumber?.partDescription || "N/A"
+//       }`;
+
+//       if (!monitorGrouped[key]) {
+//         monitorGrouped[key] = {
+//           processName: item.process?.processName || "N/A",
+//           processDesc: item.process?.processDesc || "",
+//           cycleTime: item.process?.cycleTime || "",
+//           part: item.PartNumber?.partDescription || "N/A",
+//           totalCycleTime: 0,
+//           count: 0,
+//         };
+//       }
+
+//       if (item.cycleTimeStart && item.cycleTimeEnd) {
+//         const start = new Date(item.cycleTimeStart).getTime();
+//         const end = new Date(item.cycleTimeEnd).getTime();
+//         const diffSec = Math.max(0, (end - start) / 1000);
+//         const diffMin = diffSec / 60;
+//         monitorGrouped[key].totalCycleTime += diffMin;
+//         monitorGrouped[key].count += 1;
+//       }
+//     });
+
+//     const monitorTable = Object.values(monitorGrouped)
+//       .map((row) => ({
+//         processName: row.processName,
+//         processDesc: row.processDesc,
+//         part: row.part,
+//         actualCycleTime: row.cycleTime,
+//         cycleTime:
+//           row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+//       }))
+//       .sort((a, b) => a.cycleTime - b.cycleTime);
+
+//     const scrapGrouped = {};
+//     partToMonitor.forEach((item) => {
+//       // console.log("itemitemitemitemitem", item);
+//       const key = `${item.process?.processName || "N/A"}-${
+//         item.PartNumber?.partDescription || "N/A"
+//       }`;
+
+//       if (!scrapGrouped[key]) {
+//         scrapGrouped[key] = {
+//           processName: item.process?.processName || "N/A",
+//           part: item.PartNumber?.partDescription || "N/A",
+//           scrap: 0,
+//         };
+//       }
+//       scrapGrouped[key].scrap += item.scrapQuantity || 0;
+//     });
+
+//     const productionScrap = Object.values(scrapGrouped).sort(
+//       (a, b) => b.scrap - a.scrap,
+//     );
+
+//     const totalCompletedQty = data.reduce(
+//       (sum, item) => sum + (item.completedQuantity || 0),
+//       0,
+//     );
+//     const totalScrapQty = data.reduce(
+//       (sum, item) => sum + (item.scrapQuantity || 0),
+//       0,
+//     );
+
+//     return res.status(200).json({
+//       message: "All chart data retrieved successfully!",
+//       manualTable,
+//       monitorTable,
+//       productionScrap,
+//       totals: { totalCompletedQty, totalScrapQty },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
+
 const monitorChartsData = async (req, res) => {
   try {
     const today = new Date();
     const start = startOfDay(today);
     const end = endOfDay(today);
 
-    const data = await prisma.stockOrderSchedule.findMany({
+    // 1. Manual Table Data (stockOrderSchedule)
+    const manualData = await prisma.stockOrderSchedule.findMany({
       where: {
-        createdAt: {
-          gte: start,
-          lte: end,
-        },
+        createdAt: { gte: start, lte: end },
+        isDeleted: false,
       },
       include: {
-        part: { select: { partNumber: true } },
+        part: { select: { partNumber: true, partDescription: true } },
         process: { select: { processName: true, processDesc: true } },
       },
     });
 
     const manualGrouped = {};
-    data.forEach((item) => {
-      const key = `${item.processId}-${item.part?.partNumber || "N/A"}`;
+    manualData.forEach((item) => {
+      // Logic: Part Description prefer karein, fir Part Number, fir N/A
+      const partName = item.part?.partDescription || "N/A";
+      const processName = item.process?.processName || "N/A";
+      const key = `${item.processId}-${partName}`;
 
       if (!manualGrouped[key]) {
         manualGrouped[key] = {
-          process: item.process?.processName || "N/A",
-          part: item.part?.partNumber || "N/A",
+          process: processName,
+          part: partName,
           qty: 0,
           scrap: 0,
         };
@@ -8837,102 +9296,123 @@ const monitorChartsData = async (req, res) => {
       manualGrouped[key].scrap += item.scrapQuantity || 0;
     });
 
-    const manualTable = Object.values(manualGrouped);
-
-    // ---------------- Monitor Table (cycle time) ----------------
-    const partToMonitor = await prisma.productionResponse.findMany({
+    // 2. Part to Monitor & Scrap Data (ProductionResponse)
+    const productionData = await prisma.productionResponse.findMany({
       where: {
         isDeleted: false,
-        createdAt: {
-          gte: start,
-          lte: end,
-        },
+        createdAt: { gte: start, lte: end },
       },
       include: {
-        PartNumber: { select: { partNumber: true, partDescription: true } },
+        // Model ke hisaab se 'PartNumber' (P capital) relation hai
+        PartNumber: {
+          select: {
+            partNumber: true,
+            partDescription: true,
+          },
+        },
         process: {
-          select: { processName: true, processDesc: true, cycleTime: true },
+          select: {
+            processName: true,
+            processDesc: true,
+            cycleTime: true,
+          },
         },
       },
     });
-
+    console.log(
+      "productionDataproductionDataproductionDataproductionData",
+      productionData,
+    );
     const monitorGrouped = {};
-    partToMonitor.forEach((item) => {
-      const key = `${item.process?.processName || "N/A"}-${
-        item.PartNumber?.partDescription || "N/A"
-      }`;
+    const scrapGrouped = {};
 
+    productionData.forEach((item) => {
+      // YAHAN IMPROVEMENT HAI:
+      // Agar PartNumber relation null hai, toh hum 'partId' display karenge debugging ke liye
+      const currentPartName =
+        item.PartNumber?.partDescription ||
+        item.PartNumber?.partNumber ||
+        (item.partId ? `ID: ${item.partId}` : "N/A");
+
+      const processName = item.process?.processName || "N/A";
+      const key = `${processName}-${currentPartName}`;
+
+      // --- Monitor Table Logic ---
       if (!monitorGrouped[key]) {
         monitorGrouped[key] = {
-          processName: item.process?.processName || "N/A",
+          processName: processName,
           processDesc: item.process?.processDesc || "",
-          cycleTime: item.process?.cycleTime || "",
-          part: item.PartNumber?.partNumber || "N/A",
+          actualCycleTime: item.process?.cycleTime || "0",
+          part: currentPartName,
           totalCycleTime: 0,
           count: 0,
         };
       }
 
       if (item.cycleTimeStart && item.cycleTimeEnd) {
-        const start = new Date(item.cycleTimeStart).getTime();
-        const end = new Date(item.cycleTimeEnd).getTime();
-        const diffSec = Math.max(0, (end - start) / 1000);
-        const diffMin = diffSec / 60;
+        const sTime = new Date(item.cycleTimeStart).getTime();
+        const eTime = new Date(item.cycleTimeEnd).getTime();
+        const diffMin = Math.max(0, (eTime - sTime) / 60000); // Difference in minutes
         monitorGrouped[key].totalCycleTime += diffMin;
         monitorGrouped[key].count += 1;
       }
-    });
 
-    const monitorTable = Object.values(monitorGrouped)
-      .map((row) => ({
-        processName: row.processName,
-        processDesc: row.processDesc,
-        part: row.part,
-        actualCycleTime: row.cycleTime,
-        cycleTime:
-          row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
-      }))
-      .sort((a, b) => a.cycleTime - b.cycleTime);
-
-    const scrapGrouped = {};
-    partToMonitor.forEach((item) => {
-      const key = `${item.process?.processName || "N/A"}-${
-        item.PartNumber?.partDescription || "N/A"
-      }`;
-
+      // --- Scrap Table Logic ---
       if (!scrapGrouped[key]) {
         scrapGrouped[key] = {
-          processName: item.process?.processName || "N/A",
-          part: item.PartNumber?.partDescription || "N/A",
+          processName: processName,
+          part: currentPartName,
           scrap: 0,
         };
       }
       scrapGrouped[key].scrap += item.scrapQuantity || 0;
     });
 
+    // Final Formatting
+    const manualTable = Object.values(manualGrouped);
+
+    const monitorTable = Object.values(monitorGrouped)
+      .map((row) => ({
+        processName: row.processName,
+        processDesc: row.processDesc,
+        part: row.part,
+        actualCycleTime: row.actualCycleTime,
+        cycleTime:
+          row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+      }))
+      .sort((a, b) => {
+        // Sorting logic (Handling "--" cases)
+        const valA = a.cycleTime === "--" ? Infinity : parseFloat(a.cycleTime);
+        const valB = b.cycleTime === "--" ? Infinity : parseFloat(b.cycleTime);
+        return valA - valB;
+      });
+
     const productionScrap = Object.values(scrapGrouped).sort(
       (a, b) => b.scrap - a.scrap,
     );
 
-    const totalCompletedQty = data.reduce(
-      (sum, item) => sum + (item.completedQuantity || 0),
-      0,
-    );
-    const totalScrapQty = data.reduce(
-      (sum, item) => sum + (item.scrapQuantity || 0),
-      0,
-    );
+    const totals = {
+      totalCompletedQty: manualData.reduce(
+        (sum, item) => sum + (item.completedQuantity || 0),
+        0,
+      ),
+      totalScrapQty: manualData.reduce(
+        (sum, item) => sum + (item.scrapQuantity || 0),
+        0,
+      ),
+    };
 
     return res.status(200).json({
-      message: "All chart data retrieved successfully!",
+      message: "Data retrieved successfully!",
       manualTable,
       monitorTable,
       productionScrap,
-      totals: { totalCompletedQty, totalScrapQty },
+      totals,
     });
   } catch (error) {
+    console.error("Error in monitorChartsData:", error);
     res.status(500).json({
-      error: "Internal Server Error",
+      error: "Internal Error",
       details: error.message,
     });
   }
@@ -10639,6 +11119,7 @@ const capacityStatus = async (req, res) => {
 
     const scheduleDataWithLoad = await Promise.all(
       scheduleData.map(async (item) => {
+        console.log("itemitem", item);
         const productionResponses = await prisma.productionResponse.findMany({
           where: {
             orderId: item.stockOrderId || item.order_id,

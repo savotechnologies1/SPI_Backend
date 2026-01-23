@@ -331,6 +331,7 @@ const createWorkInstruction = async (req, res) => {
 // };
 const createWorkInstructionDetail = async (req, res) => {
   try {
+    // 1. Handle File Uploads
     const fileData = await fileUploadFunc(req, res);
     const uploadedFiles = fileData?.data || [];
     const { processId, productId, instructionTitle, instructionSteps } =
@@ -338,86 +339,96 @@ const createWorkInstructionDetail = async (req, res) => {
 
     const steps = JSON.parse(instructionSteps);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const existingInstruction = await tx.workInstruction.findFirst({
-        where: { processId, productId },
-      });
-      if (existingInstruction) {
-        return {
-          error: true,
-          status: 409,
-          message:
-            "You have already created a work instruction for this process and product combination.",
-        };
-      }
+    // 2. Perform Transaction
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Validation: Check for duplicates
+        const existingInstruction = await tx.workInstruction.findFirst({
+          where: { processId, productId },
+        });
+        if (existingInstruction) {
+          return {
+            error: true,
+            status: 409,
+            message:
+              "A work instruction for this process and product already exists.",
+          };
+        }
 
-      const existingTitle = await tx.workInstruction.findFirst({
-        where: { instructionTitle },
-      });
-      if (existingTitle) {
-        return {
-          error: true,
-          status: 400,
-          message: "Work instruction title must be unique.",
-        };
-      }
+        const existingTitle = await tx.workInstruction.findFirst({
+          where: { instructionTitle },
+        });
+        if (existingTitle) {
+          return {
+            error: true,
+            status: 400,
+            message: "Work instruction title must be unique.",
+          };
+        }
 
-      const workInstruction = await tx.workInstruction.create({
-        data: {
-          processId,
-          productId,
-          instructionTitle,
-          type: "original",
-        },
-      });
-
-      const workInstructionId = workInstruction.id;
-
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const stepId = uuidv4();
-
-        await tx.workInstructionSteps.create({
+        // 3. Create everything in ONE nested query
+        // This maps your steps and files into the structure Prisma expects
+        await tx.workInstruction.create({
           data: {
-            id: stepId,
-            workInstructionId,
-            stepNumber: i + 1,
-            title: step.title,
-            instruction: step.workInstruction,
             processId,
+            productId,
+            instructionTitle,
+            type: "original",
+            steps: {
+              create: steps.map((step, i) => {
+                // Get images for this step
+                const stepImages = uploadedFiles
+                  .filter(
+                    (file) =>
+                      file.fieldname ===
+                      `instructionSteps[${i}][workInstructionImgs]`,
+                  )
+                  .map((img) => ({
+                    imagePath: img.filename,
+                  }));
+
+                // Get video for this step
+                const videoFile = uploadedFiles.find(
+                  (file) =>
+                    file.fieldname ===
+                    `instructionSteps[${i}][workInstructionVideo]`,
+                );
+
+                return {
+                  stepNumber: i + 1,
+                  title: step.title,
+                  instruction: step.workInstruction,
+                  processId,
+                  // Nested create for images (relation name: 'images' from your schema)
+                  images: {
+                    create: stepImages,
+                  },
+                  // Nested create for videos (relation name: 'videos' from your schema)
+                  videos: {
+                    create: videoFile
+                      ? {
+                          videoPath: videoFile.filename,
+                          // If you need the workInstructionId inside the video record too:
+                          // Prisma handles the step connection automatically, but because
+                          // workInstructionId is a direct field on InstructionVideo,
+                          // we can let the DB handle it or link it via the step.
+                        }
+                      : undefined,
+                  },
+                };
+              }),
+            },
           },
         });
 
-        const imageFiles = uploadedFiles.filter(
-          (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionImgs]`,
-        );
-        for (const img of imageFiles) {
-          await tx.instructionImage.create({
-            data: {
-              stepId,
-              imagePath: img.filename,
-            },
-          });
-        }
+        return { error: false };
+      },
+      {
+        maxWait: 5000,
+        timeout: 30000, // Increased to 30 seconds
+      },
+    );
 
-        const videoFile = uploadedFiles.find(
-          (file) =>
-            file.fieldname === `instructionSteps[${i}][workInstructionVideo]`,
-        );
-        if (videoFile) {
-          await tx.instructionVideo.create({
-            data: {
-              stepId,
-              workInstructionId,
-              videoPath: videoFile.filename,
-            },
-          });
-        }
-      }
-
-      return { error: false };
-    });
     if (result.error) {
       return res.status(result.status).json({
         success: false,
@@ -437,7 +448,6 @@ const createWorkInstructionDetail = async (req, res) => {
     });
   }
 };
-
 // const allWorkInstructions = async (req, res) => {
 //   try {
 //     const paginationData = await paginationQuery(req.query);

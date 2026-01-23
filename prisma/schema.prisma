@@ -352,7 +352,6 @@ model PartNumber {
   cycleTime                                       String?                @db.VarChar(255)
   processId                                       String?                @db.VarChar(10)
   processDesc                                     String?                @db.VarChar(255)
-  isProductSchedule                               Boolean?               @default(false)
   processOrderRequired                            Boolean                @default(false)
   instructionRequired                             Boolean                @default(false)
   companyName                                     String                 @db.VarChar(100)
@@ -407,7 +406,6 @@ model ProductTree {
   processOrderRequired Boolean                @default(false)
   instructionRequired  Boolean                @default(false)
   processId            String?                @db.VarChar(10)
-  isProductSchedule    Boolean?               @default(false)
   createdBy            String?                @db.Char(36)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
