@@ -32515,80 +32515,104 @@ const qualityPerformance = async (req, res) => {
         scrapQuantity: true,
         scheduleQuantity: true,
         createdAt: true,
+     
         part: {
           select: {
             part_id: true,
             partNumber: true,
             partDescription: true,
-            // Removed parentPart because it does not exist in your Prisma schema
+            process:{
+                select:{
+                    processName:true,
+                    machineName:true
+                }
+            }
           },
+          
         },
       },
     });
-
-    // 2. Fetch Scrap Entries (Corrected table name to 'scapEntries' based on your error log)
+console.log('rawDatarawData',rawData)
     const scrapEntriesRecords = await prisma.scapEntries.findMany({
       where: scrapWhereCondition,
       include: {
-        part: { 
+       PartNumber:{
           select: {
             part_id: true,
             partNumber: true,
             partDescription: true,
-            // Removed parentPartId because it is not in your schema's PartNumber model
-          }
-        }
+            process:{
+                select:{
+                    processName:true,
+                    machineName:true
+                }
+            }
+        },
+    
+
+       }
       }
     });
 
     const mergedMap = new Map();
 
-    // Helper function to update map
-    const updateMap = (id, partInfo, scrapQty, scheduleQty, date) => {
-      if (!mergedMap.has(id)) {
-        mergedMap.set(id, {
-          partId: id,
-          partNumber: partInfo?.partNumber || "Unknown",
-          partDescription: partInfo?.partDescription || "",
-          scrapQuantity: Number(scrapQty) || 0,
-          scheduleQuantity: Number(scheduleQty) || 0,
-          latestDate: date,
-          // If you need to identify child parts, you'd usually check 
-          // a relation like 'ProductTree' or 'components' here instead
-          isChild: false 
-        });
-      } else {
-        const existing = mergedMap.get(id);
-        existing.scrapQuantity += Number(scrapQty) || 0;
-        existing.scheduleQuantity += Number(scheduleQty) || 0;
-        if (date > existing.latestDate) existing.latestDate = date;
-      }
-    };
+const updateMap = (
+  id,
+  partInfo,
+  scrapQty,
+  scheduleQty,
+  date
+) => {
+  if (!mergedMap.has(id)) {
+    mergedMap.set(id, {
+      partId: id,
+      partNumber: partInfo?.partNumber || "Unknown",
+      partDescription: partInfo?.partDescription || "",
+      processName: partInfo?.process?.processName || "",
+      machineName: partInfo?.process?.machineName || "",
+      scrapQuantity: Number(scrapQty) || 0,
+      scheduleQuantity: Number(scheduleQty) || 0,
+      latestDate: date,
+      isChild: false,
+    });
+  } else {
+    const existing = mergedMap.get(id);
+    existing.scrapQuantity += Number(scrapQty) || 0;
+    existing.scheduleQuantity += Number(scheduleQty) || 0;
+    if (date > existing.latestDate) existing.latestDate = date;
+  }
+};
+
 
     // --- Process Schedule Records ---
-    rawData.forEach((item) => {
-      if (item.part) {
-        updateMap(
-          item.part.part_id, 
-          item.part, 
-          item.scrapQuantity || 0, 
-          item.scheduleQuantity || 0, 
-          item.createdAt
-        );
-      }
-    });
+rawData.forEach((item) => {
+  if (item.part) {
+    updateMap(
+      item.part.part_id,
+      item.part,
+      item.scrapQuantity || 0,
+      item.scheduleQuantity || 0,
+      item.createdAt
+    );
+  }
+});
+
 
     // --- Process Scrap Entries Records ---
-    scrapEntriesRecords.forEach((scrap) => {
-      const partInfo = scrap.part;
-      const key = scrap.partId || (partInfo ? partInfo.part_id : null);
+   scrapEntriesRecords.forEach((scrap) => {
+  const partInfo = scrap.PartNumber;
+  const key = scrap.partId || partInfo?.part_id;
 
-      if (key) {
-        // Checking common scrap field names
-        const sQty = Number(scrap.scrapQuantity) || Number(scrap.returnQuantity) || Number(scrap.quantity) || 0;
-        updateMap(key, partInfo, sQty, 0, scrap.createdAt);
-      }
-    });
+  if (key) {
+    const sQty =
+      Number(scrap.scrapQuantity) ||
+      Number(scrap.returnQuantity) ||
+      Number(scrap.quantity) ||
+      0;
+
+    updateMap(key, partInfo, sQty, 0, scrap.createdAt);
+  }
+});
 
     const data = Array.from(mergedMap.values());
 
