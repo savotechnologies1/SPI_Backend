@@ -31130,79 +31130,97 @@ const updateStepTime = async (req, res) => {
     const { stepId, prevStepId } = req.body;
 
     if (!id || !stepId) {
-      return res.status(400).json({ message: "Missing data" });
+      return res.status(400).json({ message: "Missing productionResponseId or stepId" });
     }
 
-    const productionResponse = await prisma.productionResponse.findFirst({
+    // 1. Fetch the production response to get the base cycleTimeStart
+    const productionResponse = await prisma.productionResponse.findUnique({
       where: { id },
     });
 
     if (!productionResponse) {
-      return res
-        .status(404)
-        .json({ message: "Production response not found." });
+      return res.status(404).json({ message: "Production response not found." });
     }
 
-    // Agar prevStepId aaya hai to usko complete mark karo
-    if (prevStepId) {
-      await prisma.productionStepTracking.updateMany({
+    const now = new Date();
+
+    // 2. Use a Transaction to ensure the end of one step and start of next are atomic
+    const result = await prisma.$transaction(async (tx) => {
+      
+      let calculatedStartTime = productionResponse.cycleTimeStart || now;
+
+      // 3. Close the previous step if it exists
+      // We look for the prevStepId or any currently 'in-progress' step
+      const lastStep = await tx.productionStepTracking.findFirst({
         where: {
           productionResponseId: id,
-          workInstructionStepId: prevStepId,
+          status: "in-progress",
+          // if prevStepId is provided, target it specifically, otherwise target the open one
+          ...(prevStepId ? { workInstructionStepId: prevStepId } : {}),
         },
-        data: {
-          stepEndTime: new Date(),
-          status: "completed",
-        },
+        orderBy: { stepStartTime: 'desc' }
       });
-    }
 
-    // Ab current step check karo
-    const existingStep = await prisma.productionStepTracking.findFirst({
-      where: { productionResponseId: id, workInstructionStepId: stepId },
-    });
-
-    if (!existingStep) {
-      // New step create karo
-      let stepStartTime;
-
-      if (!prevStepId) {
-        // First step → cycleTimeStart
-        stepStartTime = productionResponse.cycleTimeStart;
-      } else {
-        // Agar prevStepId diya hai → prevStep ke endTime ko startTime banao
-        const prevStep = await prisma.productionStepTracking.findFirst({
-          where: {
-            productionResponseId: id,
-            workInstructionStepId: prevStepId,
+      if (lastStep) {
+        // Update the previous step's end time to 'now'
+        await tx.productionStepTracking.update({
+          where: { id: lastStep.id },
+          data: {
+            stepEndTime: now,
+            status: "completed",
           },
         });
+        // The start of the NEW step is EXACTLY the end of the PREVIOUS step
+        calculatedStartTime = now;
+      } else {
+        // If no "in-progress" step was found, check if ANY step was completed before
+        const latestCompleted = await tx.productionStepTracking.findFirst({
+          where: { productionResponseId: id },
+          orderBy: { stepEndTime: 'desc' }
+        });
 
-        stepStartTime = prevStep?.stepEndTime || new Date();
+        if (latestCompleted && latestCompleted.stepEndTime) {
+          calculatedStartTime = latestCompleted.stepEndTime;
+        } else {
+          // It's the very first step
+          calculatedStartTime = productionResponse.cycleTimeStart || now;
+        }
       }
 
-      await prisma.productionStepTracking.create({
-        data: {
-          productionResponseId: id,
-          workInstructionStepId: stepId,
-          stepStartTime,
-          status: "in-progress",
-        },
-      });
-
-      return res.status(201).json({ message: "Step tracking created" });
-    } else {
-      // Agar already exist karta hai → complete mark karo
-      await prisma.productionStepTracking.updateMany({
+      // 4. Handle the Current Step (stepId)
+      const currentStepRecord = await tx.productionStepTracking.findFirst({
         where: { productionResponseId: id, workInstructionStepId: stepId },
-        data: {
-          stepEndTime: new Date(),
-          status: "completed",
-        },
       });
 
-      return res.status(200).json({ message: "Step marked completed" });
-    }
+      if (!currentStepRecord) {
+        // Create new tracking for the current step
+        return await tx.productionStepTracking.create({
+          data: {
+            productionResponseId: id,
+            workInstructionStepId: stepId,
+            stepStartTime: calculatedStartTime,
+            status: "in-progress",
+          },
+        });
+      } else if (currentStepRecord.status === "in-progress") {
+        // If the user clicks the same step again, mark it as completed
+        return await tx.productionStepTracking.update({
+          where: { id: currentStepRecord.id },
+          data: {
+            stepEndTime: now,
+            status: "completed",
+          },
+        });
+      }
+      
+      return currentStepRecord;
+    });
+
+    return res.status(200).json({ 
+      message: "Step updated successfully", 
+      data: result 
+    });
+
   } catch (error) {
     console.error("Step update error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -31211,19 +31229,37 @@ const updateStepTime = async (req, res) => {
 
 const completeTraning = async (req, res) => {
   try {
-    const { id } = req.params;
-    await prisma.productionResponse.update({
-      where: { id },
-      data: {
-        traniningStatus: true,
-      },
+    const { id } = req.params; // productionResponseId
+    const now = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Close any step that is still "in-progress"
+      await tx.productionStepTracking.updateMany({
+        where: {
+          productionResponseId: id,
+          status: "in-progress",
+        },
+        data: {
+          stepEndTime: now,
+          status: "completed",
+        },
+      });
+
+      // 2. Mark the main production response as trained and set end time
+      await tx.productionResponse.update({
+        where: { id },
+        data: {
+          traniningStatus: true,
+          cycleTimeEnd: now, // Important for total duration calculation
+        },
+      });
     });
 
     return res.status(200).json({
-      message: "Order scheduling completed.",
+      message: "Production response and all steps completed successfully.",
     });
   } catch (error) {
-    console.error("Error completing schedule order:", error);
+    console.error("Error completing production response:", error);
     res.status(500).json({ message: "An error occurred on the server." });
   }
 };
@@ -32370,28 +32406,109 @@ const changeStationNotification = async (req, res) => {
 //   }
 // };
 
+// const qualityPerformance = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     let whereCondition = { isDeleted: false };
+
+//     if (startDate && endDate) {
+//       whereCondition.createdAt = {
+//         gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+//         lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     } else if (startDate) {
+//       whereCondition.createdAt = {
+//         gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
+//       };
+//     } else if (endDate) {
+//       whereCondition.createdAt = {
+//         lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
+//       };
+//     }
+
+//     // stockOrderSchedule data
+//     const rawData = await prisma.stockOrderSchedule.findMany({
+//       where: whereCondition,
+//       select: {
+//         scrapQuantity: true,
+//         scheduleQuantity: true,
+//         createdAt: true,
+//         part: {
+//           select: {
+//             part_id: true,
+//             partNumber: true,
+//             partDescription: true,
+//             process: {
+//               select: { processName: true },
+//             },
+//           },
+//         },
+//       },
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     // ✅ Merge same parts
+//     const mergedMap = new Map();
+
+//     rawData.forEach((item) => {
+//       if (!item.part) return; // safety check
+
+//       const key = item.part.part_id;
+
+//       if (!mergedMap.has(key)) {
+//         mergedMap.set(key, {
+//           part: item.part,
+//           scrapQuantity: item.scrapQuantity || 0,
+//           scheduleQuantity: item.scheduleQuantity || 0,
+//           latestDate: item.createdAt,
+//         });
+//       } else {
+//         const existing = mergedMap.get(key);
+//         existing.scrapQuantity += item.scrapQuantity || 0;
+//         existing.scheduleQuantity += item.scheduleQuantity || 0;
+//         if (item.createdAt > existing.latestDate) {
+//           existing.latestDate = item.createdAt;
+//         }
+//       }
+//     });
+
+//     const data = Array.from(mergedMap.values());
+
+//     // total scrap qty
+//     const totalScrapQty = data.reduce(
+//       (acc, item) => acc + (item.scrapQuantity || 0),
+//       0,
+//     );
+
+//     return res.status(200).json({
+//       message: "Quality performance data retrieved successfully!",
+//       totalScrapQty,
+//       data,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
 const qualityPerformance = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
     let whereCondition = { isDeleted: false };
+    let scrapWhereCondition = { isDeleted: false };
 
     if (startDate && endDate) {
-      whereCondition.createdAt = {
-        gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
-        lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-      };
-    } else if (startDate) {
-      whereCondition.createdAt = {
-        gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)),
-      };
-    } else if (endDate) {
-      whereCondition.createdAt = {
-        lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-      };
+      const start = new Date(new Date(startDate).setHours(0, 0, 0, 0));
+      const end = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+      whereCondition.createdAt = { gte: start, lte: end };
+      scrapWhereCondition.createdAt = { gte: start, lte: end };
     }
 
-    // stockOrderSchedule data
+    // 1. Fetch Schedule Data
     const rawData = await prisma.stockOrderSchedule.findMany({
       where: whereCondition,
       select: {
@@ -32403,62 +32520,100 @@ const qualityPerformance = async (req, res) => {
             part_id: true,
             partNumber: true,
             partDescription: true,
-            process: {
-              select: { processName: true },
-            },
+            // Removed parentPart because it does not exist in your Prisma schema
           },
         },
       },
-      orderBy: { createdAt: "desc" },
     });
 
-    // ✅ Merge same parts
+    // 2. Fetch Scrap Entries (Corrected table name to 'scapEntries' based on your error log)
+    const scrapEntriesRecords = await prisma.scapEntries.findMany({
+      where: scrapWhereCondition,
+      include: {
+        part: { 
+          select: {
+            part_id: true,
+            partNumber: true,
+            partDescription: true,
+            // Removed parentPartId because it is not in your schema's PartNumber model
+          }
+        }
+      }
+    });
+
     const mergedMap = new Map();
 
-    rawData.forEach((item) => {
-      if (!item.part) return; // safety check
-
-      const key = item.part.part_id;
-
-      if (!mergedMap.has(key)) {
-        mergedMap.set(key, {
-          part: item.part,
-          scrapQuantity: item.scrapQuantity || 0,
-          scheduleQuantity: item.scheduleQuantity || 0,
-          latestDate: item.createdAt,
+    // Helper function to update map
+    const updateMap = (id, partInfo, scrapQty, scheduleQty, date) => {
+      if (!mergedMap.has(id)) {
+        mergedMap.set(id, {
+          partId: id,
+          partNumber: partInfo?.partNumber || "Unknown",
+          partDescription: partInfo?.partDescription || "",
+          scrapQuantity: Number(scrapQty) || 0,
+          scheduleQuantity: Number(scheduleQty) || 0,
+          latestDate: date,
+          // If you need to identify child parts, you'd usually check 
+          // a relation like 'ProductTree' or 'components' here instead
+          isChild: false 
         });
       } else {
-        const existing = mergedMap.get(key);
-        existing.scrapQuantity += item.scrapQuantity || 0;
-        existing.scheduleQuantity += item.scheduleQuantity || 0;
-        if (item.createdAt > existing.latestDate) {
-          existing.latestDate = item.createdAt;
-        }
+        const existing = mergedMap.get(id);
+        existing.scrapQuantity += Number(scrapQty) || 0;
+        existing.scheduleQuantity += Number(scheduleQty) || 0;
+        if (date > existing.latestDate) existing.latestDate = date;
+      }
+    };
+
+    // --- Process Schedule Records ---
+    rawData.forEach((item) => {
+      if (item.part) {
+        updateMap(
+          item.part.part_id, 
+          item.part, 
+          item.scrapQuantity || 0, 
+          item.scheduleQuantity || 0, 
+          item.createdAt
+        );
+      }
+    });
+
+    // --- Process Scrap Entries Records ---
+    scrapEntriesRecords.forEach((scrap) => {
+      const partInfo = scrap.part;
+      const key = scrap.partId || (partInfo ? partInfo.part_id : null);
+
+      if (key) {
+        // Checking common scrap field names
+        const sQty = Number(scrap.scrapQuantity) || Number(scrap.returnQuantity) || Number(scrap.quantity) || 0;
+        updateMap(key, partInfo, sQty, 0, scrap.createdAt);
       }
     });
 
     const data = Array.from(mergedMap.values());
 
-    // total scrap qty
-    const totalScrapQty = data.reduce(
-      (acc, item) => acc + (item.scrapQuantity || 0),
-      0,
-    );
+    // Sort by Scrap Quantity descending (Highest scrap at the top)
+    data.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
+
+    const totalScrapQty = data.reduce((acc, item) => acc + item.scrapQuantity, 0);
 
     return res.status(200).json({
+      success: true,
       message: "Quality performance data retrieved successfully!",
       totalScrapQty,
+      totalEntries: data.length,
       data,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("Error in qualityPerformance:", error);
     return res.status(500).json({
-      message: "Something went wrong. Please try again later.",
+      success: false,
+      message: "Internal Server Error",
       error: error.message,
     });
   }
 };
-
 // const supplierReturn = async (req, res) => {
 //   try {
 //     const paginationData = await paginationQuery(req.query);

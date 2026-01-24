@@ -650,11 +650,13 @@ model ProductionStepTracking {
   stepEndTime           DateTime?
   productionResponseId  String
   workInstructionStepId String
+  partId                 String?                  @db.Char(36)
   scapEntriesId         String?              @db.Char(36)
   productionResponse    ProductionResponse   @relation(fields: [productionResponseId], references: [id])
   scapEntries           scapEntries?         @relation(fields: [scapEntriesId], references: [id])
   workInstructionStep   WorkInstructionSteps @relation(fields: [workInstructionStepId], references: [id])
 
+  @@index([partId], map: "ProductionResponse_partId_fkey")
   @@index([productionResponseId], map: "production_step_tracking_productionResponseId_fkey")
   @@index([scapEntriesId], map: "production_step_tracking_scapEntriesId_fkey")
   @@index([workInstructionStepId], map: "production_step_tracking_workInstructionStepId_fkey")
