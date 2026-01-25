@@ -34220,10 +34220,10 @@ const getScheduleProcessInformation = async (req, res) => {
                   },
                 },
               },
-              process: { select: { id: true, processName: true } },
+              process: { select: { id: true, processName: true,machineName:true  } },
             },
           },
-          process: { select: { processName: true } },
+          process: { select: { processName: true,machineName:true} },
         },
       });
 

@@ -8289,16 +8289,34 @@ function parseCycleTime(cycleTimeStr) {
 //     res.status(500).json({ error: "Internal Server Error" });
 //   }
 // };
-
 const processHourly = async (req, res) => {
   try {
-    const selectedDate = req.query.date || moment().format("YYYY-MM-DD");
-    const startOfDay = moment(selectedDate).startOf("day").toDate();
-    const endOfDay = moment(selectedDate).endOf("day").toDate();
+    const tz = req.query.tz || "UTC";
+
+    const selectedDate =
+      req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+    // ✅ User timezone ke hisaab se day boundary
+    const startOfDay = moment
+      .tz(selectedDate, tz)
+      .startOf("day")
+      .utc()
+      .toDate();
+
+    const endOfDay = moment
+      .tz(selectedDate, tz)
+      .endOf("day")
+      .utc()
+      .toDate();
 
     const activeProcesses = await prisma.process.findMany({
       where: { isDeleted: false },
-      select: { id: true, processName: true,machineName:true, cycleTime: true },
+      select: {
+        id: true,
+        processName: true,
+        machineName: true,
+        cycleTime: true,
+      },
     });
 
     const allProcessData = [];
@@ -8307,12 +8325,14 @@ const processHourly = async (req, res) => {
     let grandTotalTarget = 0;
 
     for (const process of activeProcesses) {
-      // Data fetch karna
       const [productionResponses, scrapEntriesRecords] = await Promise.all([
         prisma.productionResponse.findMany({
           where: {
             processId: process.id,
-            submittedDateTime: { gte: startOfDay, lte: endOfDay },
+            submittedDateTime: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
             isDeleted: false,
           },
           include: { employeeInfo: true },
@@ -8320,81 +8340,87 @@ const processHourly = async (req, res) => {
         prisma.scapEntries.findMany({
           where: {
             processId: process.id,
-            createdAt: { gte: startOfDay, lte: endOfDay },
+            createdAt: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
             isDeleted: false,
           },
           include: { createdByEmployee: true },
         }),
       ]);
-      console.log(
-        "scrapEntriesRecordsscrapEntriesRecords",
-        scrapEntriesRecords,
-      );
+
       const cycleTimeMinutes = process.cycleTime
         ? parseCycleTime(process.cycleTime)
         : 0;
+
       const hourlyDataMap = new Map();
       let processTotalActual = 0;
       let processTotalScrap = 0;
       const employeesSet = new Map();
 
-      // 24 ghante initialize karna
+      // ✅ 24 hours init (user timezone view)
       for (let h = 0; h < 24; h++) {
-        const hourKey = h.toString().padStart(2, "0") + ":00";
+        const hourKey = `${h.toString().padStart(2, "0")}:00`;
         hourlyDataMap.set(hourKey, {
           actual: 0,
           scrap: 0,
-          target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0,
+          target:
+            cycleTimeMinutes > 0
+              ? Math.round(60 / cycleTimeMinutes)
+              : 0,
         });
       }
 
-      // 1. ACTUAL QUANTITY LOOP
-      productionResponses.forEach((res) => {
-        const hour = moment(res.submittedDateTime)
-          .utcOffset("+05:30")
+      // ✅ ACTUAL + SCRAP from production response
+      productionResponses.forEach((resData) => {
+        const hour = moment(resData.submittedDateTime)
+          .tz(tz)
           .format("HH:00");
-        const currentHourData = hourlyDataMap.get(hour);
-        const qty = Number(res.completedQuantity) || 0;
-        const resScrap = Number(res.scrapQuantity) || 0; // Kuch log yahan bhi scrap save karte hain
 
-        if (currentHourData) {
-          currentHourData.actual += qty;
-          currentHourData.scrap += resScrap;
+        const qty = Number(resData.completedQuantity) || 0;
+        const scrapQty = Number(resData.scrapQuantity) || 0;
+
+        if (hourlyDataMap.has(hour)) {
+          hourlyDataMap.get(hour).actual += qty;
+          hourlyDataMap.get(hour).scrap += scrapQty;
         }
-        processTotalActual += qty;
-        processTotalScrap += resScrap;
 
-        if (res.employeeInfo) {
-          employeesSet.set(res.employeeInfo.id, {
-            name: `${res.employeeInfo.firstName} ${res.employeeInfo.lastName}`,
-            profileImage: res.employeeInfo.employeeProfileImg || "",
+        processTotalActual += qty;
+        processTotalScrap += scrapQty;
+
+        if (resData.employeeInfo) {
+          employeesSet.set(resData.employeeInfo.id, {
+            name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
+            profileImage:
+              resData.employeeInfo.employeeProfileImg || "",
           });
         }
       });
 
-      // 2. SCRAP ENTRIES LOOP
+      // ✅ SCRAP entries
       scrapEntriesRecords.forEach((scrap) => {
         const hour = moment(scrap.createdAt)
-          .utcOffset("+05:30")
+          .tz(tz)
           .format("HH:00");
-        const currentHourData = hourlyDataMap.get(hour);
 
-        // Sabse important: Yahan check karein field names (returnQuantity ya scrapQuantity)
         const sQty =
           Number(scrap.returnQuantity) ||
           Number(scrap.scrapQuantity) ||
           Number(scrap.quantity) ||
           0;
 
-        if (currentHourData) {
-          currentHourData.scrap += sQty;
+        if (hourlyDataMap.has(hour)) {
+          hourlyDataMap.get(hour).scrap += sQty;
         }
+
         processTotalScrap += sQty;
 
         if (scrap.createdByEmployee) {
           employeesSet.set(scrap.createdByEmployee.id, {
             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
-            profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+            profileImage:
+              scrap.createdByEmployee.employeeProfileImg || "",
           });
         }
       });
@@ -8405,11 +8431,14 @@ const processHourly = async (req, res) => {
           actual: data.actual,
           scrap: data.scrap,
           target: data.target,
-        }),
+        })
       );
 
       const targetPerHour =
-        cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+        cycleTimeMinutes > 0
+          ? Math.round(60 / cycleTimeMinutes)
+          : 0;
+
       const totalTarget = targetPerHour * 24;
 
       grandTotalActual += processTotalActual;
@@ -8429,7 +8458,7 @@ const processHourly = async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       allProcessData,
       grandTotals: {
         actual: grandTotalActual,
@@ -8438,10 +8467,11 @@ const processHourly = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("processHourly Error:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
 const liveProductionGoalBoard = async (req, res) => {
   try {
     const { startOfDay, endOfDay } = getDayRange(
