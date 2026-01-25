@@ -106,6 +106,8 @@ const {
   getLabourForcast,
   deleteFixedCost,
   businessAnalysisApi,
+  getProductBOM,
+  getProductParts,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -488,5 +490,5 @@ router.get("/schedule-inventory", scheudleInventory);
 router.get("/get-labour-forcast", getLabourForcast);
 router.get("/business-analysis", businessAnalysisApi);
 router.get("/trainig-status", adminValidateToken, checkTraningStatus);
-
+router.get("/product-parts/:id",adminValidateToken,getProductParts)
 module.exports = router;

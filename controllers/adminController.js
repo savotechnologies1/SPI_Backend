@@ -7698,6 +7698,7 @@ const timeClockList = async (req, res) => {
           process: {
             select: {
               processName: true,
+              machineName: true,
             },
           },
           employeeInfo: {
@@ -7753,6 +7754,7 @@ const timeClockList = async (req, res) => {
         }`,
         email: item.employeeInfo?.email || "",
         process: item.process?.processName || "N/A",
+        machineName: item.process?.machineName || "N/A",
         hours: readableDuration, // now human readable
         vacationDate: submittedDate.toISOString().split("T")[0],
         createDate: createDate.toISOString().split("T")[0],
@@ -9992,58 +9994,199 @@ const getDiveApi = async (req, res) => {
 //     });
 //   }
 // };
+// const cycleTimeComparisionData = async (req, res) => {
+//   try {
+//     let { startDate, endDate, partId } = req.query;
+
+//     if (!partId) {
+//       return res.status(400).json({ error: "partId is required" });
+//     }
+
+//     const today = new Date().toISOString().split("T")[0];
+//     startDate = startDate ;
+//     endDate = endDate ;
+
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     if (isNaN(start) || isNaN(end)) {
+//       return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD)" });
+//     }
+
+//     // ================================
+//     // 1️⃣ Process-wise Cycle Time
+//     // ================================
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: {
+//         partId,
+//         isDeleted: false,
+//       },
+//       include: {
+//         process: { select: { processName: true,machineName: true  } },
+//         PartNumber: { select: { cycleTime: true } },
+//       },
+//     });
+
+//     const grouped = {};
+
+//     productionResponses.forEach((resp) => {
+//       if (!grouped[resp.processId]) {
+//         grouped[resp.processId] = {
+//           processName: resp.process?.processName,
+//           machineName: resp.process?.machineName,
+//           manualCTs: [],
+//           idealCT: resp.PartNumber?.cycleTime
+//             ? Number(resp.PartNumber.cycleTime) / 60
+//             : 0,
+//         };
+//       }
+
+//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+//         const ct =
+//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+//           1000 /
+//           60;
+//         grouped[resp.processId].manualCTs.push(ct);
+//       }
+//     });
+
+//     const processWiseCT = Object.values(grouped).map((p) => ({
+//       processName: p.processName,
+//       machineName: p.machineName,
+//       manualCT:
+//         p.manualCTs.length > 0
+//           ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
+//           : 0,
+//       idealCT: p.idealCT,
+//     }));
+//     const stepTrackings = await prisma.productionStepTracking.findMany({
+//       where: {
+//         status: "completed",
+//         stepStartTime: { not: null },
+//         stepEndTime: { not: null },
+     
+//       },
+//       include: {
+//         productionResponse:{
+//           select:{
+//             partId:true,
+            
+//           }
+//         },
+//         workInstructionStep: {
+//           select: {
+//             id: true,
+//             stepNumber: true,
+//             title: true,
+//           },
+//         },
+//       },
+//     });
+//     console.log('stepTrackingsstepTrackings',stepTrackings)
+
+//     const stepGrouped = {};
+
+//     stepTrackings.forEach((st) => {
+//       const duration =
+//         (new Date(st.stepEndTime) - new Date(st.stepStartTime)) /
+//         1000 /
+//         60;
+
+//       const stepId = st.workInstructionStep?.id;
+//       if (!stepId) return;
+
+//       if (!stepGrouped[stepId]) {
+//         stepGrouped[stepId] = {
+//           stepId,
+//           stepTitle: st.workInstructionStep.title,
+//           stepNumber: st.workInstructionStep.stepNumber,
+//           durations: [],
+//         };
+//       }
+
+//       stepGrouped[stepId].durations.push(duration);
+//     });
+
+//     const stepAverages = Object.values(stepGrouped).map((s) => ({
+//       stepId: s.stepId,
+//       stepTitle: s.stepTitle,
+//       stepNumber: s.stepNumber,
+//       averageDuration:
+//         s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+//       count: s.durations.length,
+//     }));
+
+//     const allDurations = stepAverages.flatMap((s) => s.averageDuration);
+//     const overallAverage =
+//       stepAverages.length > 0
+//         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
+//           stepAverages.length
+//         : 0;
+
+//     // ================================
+//     // ✅ Final Response
+//     // ================================
+//     res.json({
+//       message: "Cycle Time Comparison fetched successfully",
+//       data: {
+//         processWiseCT,
+//         stepWiseCT: {
+//           stepAverages,
+//           overallAverage,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("cycleTimeComparisionData error:", error);
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
 const cycleTimeComparisionData = async (req, res) => {
   try {
-    let { startDate, endDate, partId } = req.query;
+    let { startDate, endDate, partId,processId } = req.query;
 
     if (!partId) {
       return res.status(400).json({ error: "partId is required" });
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    startDate = startDate ;
-    endDate = endDate ;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // 1. सही डेट रेंज सेट करना
+    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const end = endDate ? new Date(endDate) : new Date();
 
     if (isNaN(start) || isNaN(end)) {
-      return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD)" });
+      return res.status(400).json({ error: "Invalid date format" });
     }
 
     // ================================
-    // 1️⃣ Process-wise Cycle Time
+    // 1️⃣ Process-wise Cycle Time (Added Date & Part Filter)
     // ================================
     const productionResponses = await prisma.productionResponse.findMany({
       where: {
-        partId,
+        partId: partId,
         isDeleted: false,
+        createdAt: { gte: start, lte: end }, // ✅ डेट फिल्टर जोड़ा
       },
       include: {
-        process: { select: { processName: true,machineName: true  } },
+        process: { select: { processName: true, machineName: true } },
         PartNumber: { select: { cycleTime: true } },
       },
     });
 
     const grouped = {};
-
     productionResponses.forEach((resp) => {
       if (!grouped[resp.processId]) {
         grouped[resp.processId] = {
           processName: resp.process?.processName,
           machineName: resp.process?.machineName,
           manualCTs: [],
-          idealCT: resp.PartNumber?.cycleTime
-            ? Number(resp.PartNumber.cycleTime) / 60
-            : 0,
+          idealCT: resp.PartNumber?.cycleTime ? Number(resp.PartNumber.cycleTime) / 60 : 0,
         };
       }
-
       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
-        const ct =
-          (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
-          1000 /
-          60;
+        const ct = (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) / 1000 / 60;
         grouped[resp.processId].manualCTs.push(ct);
       }
     });
@@ -10051,45 +10194,28 @@ const cycleTimeComparisionData = async (req, res) => {
     const processWiseCT = Object.values(grouped).map((p) => ({
       processName: p.processName,
       machineName: p.machineName,
-      manualCT:
-        p.manualCTs.length > 0
-          ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
-          : 0,
+      manualCT: p.manualCTs.length > 0 ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length : 0,
       idealCT: p.idealCT,
     }));
-    const stepTrackings = await prisma.productionStepTracking.findMany({
-      where: {
-        status: "completed",
-        stepStartTime: { not: null },
-        stepEndTime: { not: null },
-     
-      },
-      include: {
-        productionResponse:{
-          select:{
-            partId:true,
-            
-          }
-        },
-        workInstructionStep: {
-          select: {
-            id: true,
-            stepNumber: true,
-            title: true,
-          },
-        },
-      },
-    });
-    console.log('stepTrackingsstepTrackings',stepTrackings)
 
+    // ================================
+    // 2️⃣ Step-wise Cycle Time (Added PartId & Date Filter)
+  // cycleTimeComparisionData के अंदर Step-wise query:
+const stepTrackings = await prisma.productionStepTracking.findMany({
+  where: {
+    status: "completed",
+    workInstructionStep:{
+      processId:processId
+    }
+  },
+  include: {
+    workInstructionStep: true
+  }
+});
+console.log('stepTrackingsstepTrackings',stepTrackings)
     const stepGrouped = {};
-
     stepTrackings.forEach((st) => {
-      const duration =
-        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) /
-        1000 /
-        60;
-
+      const duration = (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
       const stepId = st.workInstructionStep?.id;
       if (!stepId) return;
 
@@ -10101,7 +10227,6 @@ const cycleTimeComparisionData = async (req, res) => {
           durations: [],
         };
       }
-
       stepGrouped[stepId].durations.push(duration);
     });
 
@@ -10109,40 +10234,23 @@ const cycleTimeComparisionData = async (req, res) => {
       stepId: s.stepId,
       stepTitle: s.stepTitle,
       stepNumber: s.stepNumber,
-      averageDuration:
-        s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+      averageDuration: s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
       count: s.durations.length,
     }));
 
-    const allDurations = stepAverages.flatMap((s) => s.averageDuration);
-    const overallAverage =
-      stepAverages.length > 0
-        ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
-          stepAverages.length
+    const overallAverage = stepAverages.length > 0
+        ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) / stepAverages.length
         : 0;
 
-    // ================================
-    // ✅ Final Response
-    // ================================
     res.json({
       message: "Cycle Time Comparison fetched successfully",
-      data: {
-        processWiseCT,
-        stepWiseCT: {
-          stepAverages,
-          overallAverage,
-        },
-      },
+      data: { processWiseCT, stepWiseCT: { stepAverages, overallAverage } },
     });
   } catch (error) {
     console.error("cycleTimeComparisionData error:", error);
-    res.status(500).json({
-      error: "Internal Server Error",
-      details: error.message,
-    });
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 };
-
 
 // ordersController.js
 
@@ -11009,6 +11117,7 @@ const dailySchedule = async (req, res) => {
             process: {
               select: {
                 processName: true,
+                machineName: true,
               },
             },
           },
@@ -11395,21 +11504,131 @@ const capacityStatus = async (req, res) => {
     return res.status(500).json({ message: "Server Error", error });
   }
 };
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         scheduleQuantity: true,
+//         completedQuantity: true,
+//         scrapQuantity: true,
+//         remainingQty: true, // supplier return quantity
+//         part: { select: { cost: true } }, // part cost
+//         process: { select: { processName: true, machineName: true } }, // Dono fields select kiye
+//       },
+//     });
+
+//     // Grouping by Machine (since machine name is unique or tied to process)
+//     const processMap = new Map();
+
+//     let totalCompleted = 0;
+//     let totalScheduled = 0;
+//     let totalScrapCost = 0;
+//     let totalSupplierReturnCost = 0;
+
+//     schedules.forEach((item) => {
+//       const processName = item.process?.processName || "Unknown Process";
+//       const machineName = item.process?.machineName || "Unknown Machine";
+      
+//       // Unique key banaya taki same process agar alag machine pe ho to mix na ho
+//       const key = `${processName}-${machineName}`;
+
+//       if (!processMap.has(key)) {
+//         processMap.set(key, {
+//           processName,
+//           machineName, // Machine name yahan store kiya
+//           completed: 0,
+//           scheduled: 0,
+//           scrapCost: 0,
+//           supplierReturnCost: 0,
+//         });
+//       }
+
+//       const current = processMap.get(key);
+
+//       const partCost = item.part?.cost || 0;
+//       const scrapCost = partCost * (item.scrapQuantity || 0);
+      
+//       // Logical Fix: Supplier return ke liye 'remainingQty' use kiya (aapne comment mein wahi likha tha)
+//       const supplierReturnCost = partCost * (item.remainingQty || 0);
+
+//       current.completed += item.completedQuantity || 0;
+//       current.scheduled += item.scheduleQuantity || 0;
+//       current.scrapCost += scrapCost;
+//       current.supplierReturnCost += supplierReturnCost;
+
+//       // Accumulate totals
+//       totalCompleted += item.completedQuantity || 0;
+//       totalScheduled += item.scheduleQuantity || 0;
+//       totalScrapCost += scrapCost;
+//       totalSupplierReturnCost += supplierReturnCost;
+//     });
+
+//     // Convert map to array
+//     const efficiencyData = Array.from(processMap.values()).map((vals) => {
+//       const efficiency =
+//         vals.scheduled > 0 ? (vals.completed / vals.scheduled) * 100 : 0;
+
+//       return {
+//         processName: vals.processName,
+//         machineName: vals.machineName, // Output mein machine name include kiya
+//         efficiency: parseFloat(efficiency.toFixed(2)),
+//         scrapCost: parseFloat(vals.scrapCost.toFixed(2)),
+//         supplierReturnCost: parseFloat(vals.supplierReturnCost.toFixed(2)),
+//       };
+//     });
+
+//     // Calculate total efficiency across all schedules
+//     const totalEfficiency =
+//       totalScheduled > 0 ? (totalCompleted / totalScheduled) * 100 : 0;
+
+//     return res.status(200).json({
+//       message: "Production Efficiency with Costs by Process and Machine",
+//       data: efficiencyData,
+//       totals: {
+//         totalEfficiency: parseFloat(totalEfficiency.toFixed(2)),
+//         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
+//         totalSupplierReturnCost: parseFloat(totalSupplierReturnCost.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error in productionEfficiency:", error);
+//     return res.status(500).json({ message: "Server Error", error: error.message });
+//   }
+// };
 const productionEfficieny = async (req, res) => {
   try {
+    // 1. Request query se dates nikaali
+    const { startDate, endDate } = req.query;
+
+    // 2. Date filter object banaya
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {}; // Yahan 'createdAt' ki jagah aap apna date field name (e.g., 'scheduleDate') use kar sakte hain
+      if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // Din ke aakhri samay tak ka data lene ke liye
+        dateFilter.createdAt.lte = end;
+      }
+    }
+
     const schedules = await prisma.stockOrderSchedule.findMany({
-      where: { isDeleted: false },
+      where: { 
+        isDeleted: false,
+        ...dateFilter // 3. Date filter ko where clause mein add kiya
+      },
       select: {
         scheduleQuantity: true,
         completedQuantity: true,
         scrapQuantity: true,
-        remainingQty: true, // supplier return quantity
-        part: { select: { cost: true } }, // part cost
-        process: { select: { processName: true, machineName: true } }, // Dono fields select kiye
+        remainingQty: true, 
+        part: { select: { cost: true } }, 
+        process: { select: { processName: true, machineName: true } },
       },
     });
 
-    // Grouping by Machine (since machine name is unique or tied to process)
+    // --- Baki functionality unchanged ---
     const processMap = new Map();
 
     let totalCompleted = 0;
@@ -11421,13 +11640,12 @@ const productionEfficieny = async (req, res) => {
       const processName = item.process?.processName || "Unknown Process";
       const machineName = item.process?.machineName || "Unknown Machine";
       
-      // Unique key banaya taki same process agar alag machine pe ho to mix na ho
       const key = `${processName}-${machineName}`;
 
       if (!processMap.has(key)) {
         processMap.set(key, {
           processName,
-          machineName, // Machine name yahan store kiya
+          machineName,
           completed: 0,
           scheduled: 0,
           scrapCost: 0,
@@ -11436,11 +11654,8 @@ const productionEfficieny = async (req, res) => {
       }
 
       const current = processMap.get(key);
-
       const partCost = item.part?.cost || 0;
       const scrapCost = partCost * (item.scrapQuantity || 0);
-      
-      // Logical Fix: Supplier return ke liye 'remainingQty' use kiya (aapne comment mein wahi likha tha)
       const supplierReturnCost = partCost * (item.remainingQty || 0);
 
       current.completed += item.completedQuantity || 0;
@@ -11448,28 +11663,25 @@ const productionEfficieny = async (req, res) => {
       current.scrapCost += scrapCost;
       current.supplierReturnCost += supplierReturnCost;
 
-      // Accumulate totals
       totalCompleted += item.completedQuantity || 0;
       totalScheduled += item.scheduleQuantity || 0;
       totalScrapCost += scrapCost;
       totalSupplierReturnCost += supplierReturnCost;
     });
 
-    // Convert map to array
     const efficiencyData = Array.from(processMap.values()).map((vals) => {
       const efficiency =
         vals.scheduled > 0 ? (vals.completed / vals.scheduled) * 100 : 0;
 
       return {
         processName: vals.processName,
-        machineName: vals.machineName, // Output mein machine name include kiya
+        machineName: vals.machineName,
         efficiency: parseFloat(efficiency.toFixed(2)),
         scrapCost: parseFloat(vals.scrapCost.toFixed(2)),
         supplierReturnCost: parseFloat(vals.supplierReturnCost.toFixed(2)),
       };
     });
 
-    // Calculate total efficiency across all schedules
     const totalEfficiency =
       totalScheduled > 0 ? (totalCompleted / totalScheduled) * 100 : 0;
 
@@ -11487,7 +11699,6 @@ const productionEfficieny = async (req, res) => {
     return res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
-
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;
@@ -12393,6 +12604,59 @@ const businessAnalysisApi = async (req, res) => {
       error: error.message,
     });
   }
+}
+const getProductParts = async (req, res) => {
+  try {
+    const { id } = req.params; // Product ID (part_id from PartNumber table)
+
+    const productParts = await prisma.productTree.findMany({
+      where: {
+        product_id: id,
+        isDeleted: false,
+      },
+      include: {
+        part: {
+          select: {
+            part_id: true,
+            partNumber: true,
+            partDescription: true,
+            cycleTime: true,
+            cost: true,
+          },
+        },
+        process: {
+          select: {
+            id: true,
+            processName: true,
+          },
+        },
+      },
+    });
+
+    // Data ko frontend ke format ke hisaab se map karna
+    const formattedData = productParts.map((item) => ({
+      part_id: item.part_id,
+      partNumber: item.part?.partNumber,
+      qty: item.partQuantity,
+      cycleTime: item.part?.cycleTime || "0",
+      instructionRequired: item.instructionRequired,
+      process: {
+        id: item.process?.id,
+        processName: item.process?.processName,
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedData,
+    });
+  } catch (error) {
+    console.error("Error fetching product parts:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
 };
 
 module.exports = {
@@ -12501,4 +12765,5 @@ module.exports = {
   scheudleInventory,
   getLabourForcast,
   businessAnalysisApi,
+  getProductParts
 };
