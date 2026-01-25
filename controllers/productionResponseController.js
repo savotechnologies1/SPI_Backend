@@ -33090,7 +33090,6 @@ const parseCycleTime = (cycleTime) => {
 
 
 
-
 const costingApi = async (req, res) => {
   try {
     const { year, startDate, endDate } = req.query;
@@ -33100,21 +33099,37 @@ const costingApi = async (req, res) => {
       isDeleted: false,
     };
 
+    // 1. Logic for Date Filtering
     if (startDate || endDate) {
-      whereClause.completed_date = {}; 
-      if (startDate) whereClause.completed_date.gte = new Date(startDate);
+      // Prioritize specific date range
+      whereClause.completed_date = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!isNaN(start)) whereClause.completed_date.gte = start;
+      }
       if (endDate) {
         const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        whereClause.completed_date.lte = end;
+        if (!isNaN(end)) {
+          end.setHours(23, 59, 59, 999);
+          whereClause.completed_date.lte = end;
+        }
       }
+    } else if (year) {
+      // Fallback to Year if no specific dates provided
       const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
-      whereClause.completed_date = { gte: startOfYear, lte: endOfYear };
+
+      // Check if the year provided actually created valid dates
+      if (!isNaN(startOfYear) && !isNaN(endOfYear)) {
+        whereClause.completed_date = {
+          gte: startOfYear,
+          lte: endOfYear,
+        };
+      }
     }
 
     const completedStock = await prisma.stockOrderSchedule.findMany({
-      where: whereClause, // 3. Filter apply kiya
+      where: whereClause,
       include: {
         part: {
           select: {
@@ -33132,28 +33147,26 @@ const costingApi = async (req, res) => {
     const cogsData = {};
     let scrapCost = 0;
     let supplierReturn = 0;
-    let totalRangeCost = 0; 
+    let totalRangeCost = 0;
 
     completedStock.forEach((order) => {
-      const date = new Date(order.completed_date || order.delivery_date);
-      const monthKey =
-        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+      // Use completed_date, fallback to delivery_date, fallback to current date to prevent crash
+      const date = new Date(order.completed_date || order.delivery_date || new Date());
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-      const partCost = parseFloat(order.part.cost || 0);
-      const cycleTimeMinutes = order.part.cycleTime || 0;
+      const partCost = parseFloat(order.part?.cost || 0);
+      const cycleTimeMinutes = order.part?.cycleTime || 0;
       const cycleTimeHours = cycleTimeMinutes / 60;
-      const ratePerHour = order.part.process?.ratePerHour || 0;
-      const totalCOGS =
-        (partCost + cycleTimeHours * ratePerHour) *
-        (order.completedQuantity || 0);
+      const ratePerHour = order.part?.process?.ratePerHour || 0;
+      
+      const totalCOGS = (partCost + (cycleTimeHours * ratePerHour)) * (order.completedQuantity || 0);
+      
       if (!cogsData[monthKey]) cogsData[monthKey] = 0;
       cogsData[monthKey] += totalCOGS;
       totalRangeCost += totalCOGS;
+      
       scrapCost += order.scrapQuantity ? partCost * order.scrapQuantity : 0;
-
-      supplierReturn += order.supplierReturnQuantity
-        ? partCost * order.supplierReturnQuantity
-        : 0;
+      supplierReturn += order.supplierReturnQuantity ? partCost * order.supplierReturnQuantity : 0;
     });
 
     res.json({
@@ -33164,7 +33177,7 @@ const costingApi = async (req, res) => {
       totalCOGSWithScrap: parseFloat((totalRangeCost + scrapCost + supplierReturn).toFixed(2)),
     });
   } catch (error) {
-    console.error(error);
+    console.error("API Error:", error);
     res.status(500).json({
       message: "Something went wrong. Please try again later.",
       error: error.message,
