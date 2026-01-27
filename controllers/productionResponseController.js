@@ -33472,7 +33472,7 @@ const fixedCost = async (req, res) => {
 //   }
 // };
 
-const getInventoryGraph = async (req, res) => {
+const getInventory = async (req, res) => {
   try {
     const { period = "weekly" } = req.query;
 
