@@ -33389,88 +33389,143 @@ const fixedCost = async (req, res) => {
 //   }
 // };
 
-const getInventory = async (req, res) => {
+// const getInventory = async (req, res) => {
+//   try {
+//     const { period, date } = req.query;
+
+//     // 1. Aaj ki date setup karein
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     // 2. Parts fetch karein (Humein calculation har baar karni hai response dene ke liye)
+//     const parts = await prisma.partNumber.findMany({
+//       where: { isDeleted: false },
+//       include: { process: { select: { ratePerHour: true } } },
+//     });
+// console.log('partspartspartspartspartsparts',parts)
+//     const inventoryData = {};
+//     let totalInventoryCostSum = 0;
+//     const currentSnapshotRecords = [];
+
+//     // 3. Calculation Logic
+//     parts.forEach((part) => {
+//       const partCost = parseFloat(part.cost) || 0;
+//       const cycleTimeHours = (parseFloat(part.cycleTime) || 0) / 60;
+//       const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
+//       const costPerUnit = partCost + cycleTimeHours * ratePerHour;
+
+//       const availableStock = Number(part.availStock || 0);
+//       const minStock = Number(part.minStock || 0);
+//       const inventoryLevel = Math.max(availableStock - minStock, 0);
+//       const inventoryCost = inventoryLevel * costPerUnit;
+
+//       totalInventoryCostSum += inventoryCost;
+
+//       // Response ke liye data structure
+//       let key = "total";
+//       if (!inventoryData[key]) inventoryData[key] = [];
+//       inventoryData[key].push({
+//         partNumber: part.partNumber,
+//         availableStock,
+//         inventoryLevel,
+//         costPerUnit,
+//         inventoryCost,
+//       });
+
+//       // Database mein save karne ke liye object (Bina minStock ke)
+//       currentSnapshotRecords.push({
+//         partNumber: part.partNumber,
+//         availableStock,
+//         inventoryLevel,
+//         costPerUnit: parseFloat(costPerUnit.toFixed(2)),
+//         inventoryCost: parseFloat(inventoryCost.toFixed(2)),
+//         totalInventoryCost: 0, // Neeche update hoga
+//         date: today,
+//       });
+//     });
+
+//     // 4. DAILY STORAGE CHECK (Bina Cron ke)
+//     const existingSnapshot = await prisma.dailyInventory.findFirst({
+//       where: { date: today },
+//     });
+
+//     if (!existingSnapshot && currentSnapshotRecords.length > 0) {
+//       console.log("Saving today's inventory...");
+//       await prisma.dailyInventory.createMany({
+//         data: currentSnapshotRecords.map((item) => ({
+//           ...item,
+//           totalInventoryCost: parseFloat(totalInventoryCostSum.toFixed(2)),
+//         })),
+//       });
+//     }
+
+//     // 5. FINAL RESPONSE (Taki Frontend par $0 na dikhe)
+//     res.json({
+//       inventoryData,
+//       totalInventoryCost: totalInventoryCostSum.toFixed(2),
+//     });
+//   } catch (error) {
+//     console.error("Inventory Error:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Error calculating inventory", error: error.message });
+//   }
+// };
+
+const getInventoryGraph = async (req, res) => {
   try {
-    const { period, date } = req.query;
+    const { period = "weekly" } = req.query;
 
-    // 1. Aaj ki date setup karein
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    let startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
 
-    // 2. Parts fetch karein (Humein calculation har baar karni hai response dene ke liye)
-    const parts = await prisma.partNumber.findMany({
-      where: { isDeleted: false },
-      include: { process: { select: { ratePerHour: true } } },
-    });
-console.log('partspartspartspartspartsparts',parts)
-    const inventoryData = {};
-    let totalInventoryCostSum = 0;
-    const currentSnapshotRecords = [];
-
-    // 3. Calculation Logic
-    parts.forEach((part) => {
-      const partCost = parseFloat(part.cost) || 0;
-      const cycleTimeHours = (parseFloat(part.cycleTime) || 0) / 60;
-      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
-      const costPerUnit = partCost + cycleTimeHours * ratePerHour;
-
-      const availableStock = Number(part.availStock || 0);
-      const minStock = Number(part.minStock || 0);
-      const inventoryLevel = Math.max(availableStock - minStock, 0);
-      const inventoryCost = inventoryLevel * costPerUnit;
-
-      totalInventoryCostSum += inventoryCost;
-
-      // Response ke liye data structure
-      let key = "total";
-      if (!inventoryData[key]) inventoryData[key] = [];
-      inventoryData[key].push({
-        partNumber: part.partNumber,
-        availableStock,
-        inventoryLevel,
-        costPerUnit,
-        inventoryCost,
-      });
-
-      // Database mein save karne ke liye object (Bina minStock ke)
-      currentSnapshotRecords.push({
-        partNumber: part.partNumber,
-        availableStock,
-        inventoryLevel,
-        costPerUnit: parseFloat(costPerUnit.toFixed(2)),
-        inventoryCost: parseFloat(inventoryCost.toFixed(2)),
-        totalInventoryCost: 0, // Neeche update hoga
-        date: today,
-      });
-    });
-
-    // 4. DAILY STORAGE CHECK (Bina Cron ke)
-    const existingSnapshot = await prisma.dailyInventory.findFirst({
-      where: { date: today },
-    });
-
-    if (!existingSnapshot && currentSnapshotRecords.length > 0) {
-      console.log("Saving today's inventory...");
-      await prisma.dailyInventory.createMany({
-        data: currentSnapshotRecords.map((item) => ({
-          ...item,
-          totalInventoryCost: parseFloat(totalInventoryCostSum.toFixed(2)),
-        })),
-      });
+    if (period === "weekly") {
+      startDate.setDate(startDate.getDate() - 6);
+    } else if (period === "monthly") {
+      startDate.setDate(startDate.getDate() - 29);
     }
 
-    // 5. FINAL RESPONSE (Taki Frontend par $0 na dikhe)
-    res.json({
-      inventoryData,
-      totalInventoryCost: totalInventoryCostSum.toFixed(2),
+    const data = await prisma.dailyInventory.findMany({
+      where: {
+        date: {
+          gte: startDate,
+        },
+      },
+      select: {
+        date: true,
+        totalInventoryCost: true,
+      },
+      orderBy: {
+        date: "asc",
+      },
     });
+
+    // Group by date (kyunki ek date pe multiple parts hain)
+    const graphData = {};
+
+    data.forEach((item) => {
+      const dateKey = item.date.toISOString().split("T")[0];
+      graphData[dateKey] = item.totalInventoryCost;
+    });
+
+    const result = Object.keys(graphData).map((date) => ({
+      date,
+      totalInventoryCost: graphData[date],
+    }));
+
+    res.json(result);
   } catch (error) {
-    console.error("Inventory Error:", error);
-    res
-      .status(500)
-      .json({ message: "Error calculating inventory", error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
+
+
+
+
+
+
+
+
 
 // function parseCycleTime(cycleTime) {
 //   if (!cycleTime) return 0;
