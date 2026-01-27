@@ -33474,44 +33474,53 @@ const fixedCost = async (req, res) => {
 
 const getInventory = async (req, res) => {
   try {
-    const { period = "weekly" } = req.query;
+    const { period = "daily" } = req.query;
 
-    let startDate = new Date();
+    let days = 7; // default daily → last 7 days
+
+    if (period === "weekly") days = 14;
+    if (period === "monthly") days = 30;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (days - 1));
     startDate.setHours(0, 0, 0, 0);
 
-    if (period === "weekly") {
-      startDate.setDate(startDate.getDate() - 6);
-    } else if (period === "monthly") {
-      startDate.setDate(startDate.getDate() - 29);
-    }
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
 
     const data = await prisma.dailyInventory.findMany({
       where: {
         date: {
           gte: startDate,
+          lte: endDate,
         },
       },
       select: {
         date: true,
         totalInventoryCost: true,
       },
-      orderBy: {
-        date: "asc",
-      },
     });
 
-    // Group by date (kyunki ek date pe multiple parts hain)
-    const graphData = {};
+    // 🔹 date-wise grouping
+    const map = {};
 
     data.forEach((item) => {
-      const dateKey = item.date.toISOString().split("T")[0];
-      graphData[dateKey] = item.totalInventoryCost;
+      const key = item.date.toISOString().split("T")[0];
+      map[key] = (map[key] || 0) + item.totalInventoryCost;
     });
 
-    const result = Object.keys(graphData).map((date) => ({
-      date,
-      totalInventoryCost: graphData[date],
-    }));
+    // 🔹 missing dates bhi add honge (0 value)
+    const result = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+
+      const key = d.toISOString().split("T")[0];
+      result.push({
+        date: key,
+        totalInventoryCost: map[key] || 0,
+      });
+    }
 
     res.json(result);
   } catch (error) {
