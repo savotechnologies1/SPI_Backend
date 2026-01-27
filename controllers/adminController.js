@@ -2086,6 +2086,194 @@ const createStockOrder = async (req, res) => {
 // };
 // correct code end
 
+// const addCustomOrder = async (req, res) => {
+//   try {
+//     const {
+//       orderNumber,
+//       orderDate,
+//       shipDate,
+//       customerId,
+//       customerName,
+//       customerEmail,
+//       customerPhone,
+//       productId,
+//       part_id,
+//       cost,
+//       totalCost,
+//       productQuantity,
+//       bomList = [],
+//       newParts = [],
+//     } = req.body;
+//     const result = await prisma.$transaction(async (tx) => {
+//       let customer = null;
+
+//       if (customerId && customerId !== "new") {
+//         customer = await tx.customers.findUnique({
+//           where: { id: customerId },
+//         });
+//       }
+
+//       if (!customer) {
+//         if (!customerName) {
+//           throw new Error("Customer name is required");
+//         }
+
+//         customer = await tx.customers.create({
+//           data: {
+//             firstName: customerName.split(" ")[0],
+//             lastName: customerName.split(" ").slice(1).join(" ") || "",
+//             email: customerEmail || "",
+//             customerPhone: customerPhone || "",
+//             createdBy: req.user?.id,
+//           },
+//         });
+//       }
+
+//       const createdOrder = await tx.customOrder.create({
+//         data: {
+//           orderNumber,
+//           orderDate: new Date(orderDate),
+//           shipDate: new Date(shipDate),
+//           customerId: customer.id,
+//           customerName,
+//           customerEmail,
+//           customerPhone,
+//           productId: productId || null,
+//           partId: part_id || null,
+//           cost: parseFloat(cost || 0),
+//           totalCost: parseFloat(totalCost || 0),
+//           productQuantity: parseInt(productQuantity || 1, 10),
+//           status: "Pending",
+//         },
+//       });
+
+//       if (Array.isArray(bomList) && bomList.length > 0) {
+//         for (const item of bomList) {
+//           if (!item.partId && !item.partNumber) continue;
+
+//           const existingPart = item.partId
+//             ? await tx.partNumber.findUnique({
+//                 where: { part_id: item.partId },
+//                 include: { process: true },
+//               })
+//             : null;
+
+//           const qtyPerUnit = parseInt(item.qty || 1, 10);
+//           const orderQty = parseInt(productQuantity || 1, 10);
+//           const totalQty = qtyPerUnit * orderQty;
+
+//           const createdCustomPart = await tx.customPart.create({
+//             data: {
+//               partNumber: item.partNumber || existingPart?.partNumber,
+//               quantity: qtyPerUnit,
+//               processId: item.processId || existingPart?.processId || null,
+//               processName:
+//                 item.process || existingPart?.process?.processName || "",
+//               cycleTime:
+//                 item.totalTime?.toString() || existingPart?.cycleTime || "0",
+//               workInstruction: existingPart?.instructionRequired ? "Yes" : "No",
+//               customOrderId: createdOrder.id,
+//             },
+//           });
+
+//           await tx.stockOrderSchedule.create({
+//             data: {
+//               order_id: createdOrder.id,
+//               order_type: "Custom Order",
+//               part_id: existingPart?.part_id || null,
+//               quantity: totalQty,
+//               scheduleQuantity: totalQty,
+//               remainingQty: totalQty,
+//               processId: item.processId || existingPart?.processId || null,
+//               status: "new",
+//               order_date: new Date(orderDate),
+//               delivery_date: new Date(shipDate),
+//               customPartId: createdCustomPart.id,
+//             },
+//           });
+//         }
+//       }
+
+//       const validNewParts = Array.isArray(newParts)
+//         ? newParts.filter((p) => p?.part && p.part.trim() !== "")
+//         : [];
+
+//       for (const partItem of validNewParts) {
+//         const duplicatePart = await tx.partNumber.findFirst({
+//           where: { partNumber: partItem.part.trim() },
+//         });
+
+//         if (duplicatePart) {
+//           throw new Error(`Part "${partItem.part}" already exists`);
+//         }
+
+//         let processData = null;
+//         if (partItem.processId) {
+//           processData = await tx.process.findUnique({
+//             where: { id: partItem.processId },
+//           });
+//         }
+
+//         const createdPart = await tx.partNumber.create({
+//           data: {
+//             partNumber: partItem.part.trim(),
+//             cycleTime: partItem.totalTime?.toString() || "0",
+//             processId: partItem.processId || null,
+//             partFamily: processData?.partFamily || "",
+//             partDescription: processData?.partNumber || "",
+//             processDesc: processData?.processDesc || "",
+//             cost: 0,
+//             instructionRequired: false,
+//             type: "part",
+//             companyName: "",
+//             createdBy: req.user?.id,
+//           },
+//         });
+
+//         const createdCustomPart = await tx.customPart.create({
+//           data: {
+//             partNumber: createdPart.partNumber,
+//             quantity: parseInt(partItem.qty || 1, 10),
+//             processId: createdPart.processId,
+//             cycleTime: createdPart.cycleTime,
+//             processName: processData?.name || "",
+//             customOrderId: createdOrder.id,
+//           },
+//         });
+
+//         await tx.stockOrderSchedule.create({
+//           data: {
+//             order_id: createdOrder.id,
+//             order_type: "Custom Order",
+//             part_id: createdPart.part_id,
+//             quantity: parseInt(partItem.qty || 1, 10),
+//             scheduleQuantity: parseInt(partItem.qty || 1, 10),
+//             remainingQty: parseInt(partItem.qty || 1, 10),
+//             processId: createdPart.processId,
+//             status: "new",
+//             order_date: new Date(orderDate),
+//             delivery_date: new Date(shipDate),
+//             customPartId: createdCustomPart.id,
+//           },
+//         });
+//       }
+//       return createdOrder;
+//     });
+
+//     return res.status(201).json({
+//       success: true,
+//       message: "Custom order created successfully",
+//       data: result,
+//     });
+//   } catch (error) {
+//     console.error("Error creating custom order:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Transaction failed",
+//       error: error.message,
+//     });
+//   }
+// };
 const addCustomOrder = async (req, res) => {
   try {
     const {
@@ -2096,28 +2284,23 @@ const addCustomOrder = async (req, res) => {
       customerName,
       customerEmail,
       customerPhone,
-      productId,
-      part_id,
+      productId, // Original Product Template ID (if selected)
       cost,
       totalCost,
       productQuantity,
-      bomList = [],
-      newParts = [],
+      bomList = [], // TABLE 1: Existing Parts (Library se uthaye gaye)
+      newParts = [], // TABLE 2: New Parts (Manually add kiye gaye)
     } = req.body;
-    const result = await prisma.$transaction(async (tx) => {
-      let customer = null;
 
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Customer Handling (Find existing or create new)
+      let customer = null;
       if (customerId && customerId !== "new") {
-        customer = await tx.customers.findUnique({
-          where: { id: customerId },
-        });
+        customer = await tx.customers.findUnique({ where: { id: customerId } });
       }
 
       if (!customer) {
-        if (!customerName) {
-          throw new Error("Customer name is required");
-        }
-
+        if (!customerName) throw new Error("Customer name is required");
         customer = await tx.customers.create({
           data: {
             firstName: customerName.split(" ")[0],
@@ -2129,6 +2312,7 @@ const addCustomOrder = async (req, res) => {
         });
       }
 
+      // 2. Create Custom Order Record
       const createdOrder = await tx.customOrder.create({
         data: {
           orderNumber,
@@ -2139,142 +2323,80 @@ const addCustomOrder = async (req, res) => {
           customerEmail,
           customerPhone,
           productId: productId || null,
-          partId: part_id || null,
           cost: parseFloat(cost || 0),
           totalCost: parseFloat(totalCost || 0),
           productQuantity: parseInt(productQuantity || 1, 10),
-          status: "Pending",
+          status: "Pending", // Default status
         },
       });
 
+      // 3. TABLE 1: Process Existing BOM/Library Parts (Snapshots save karna)
+      // Isse original ProductTree ya PartNumber table mein koi change nahi hoga
       if (Array.isArray(bomList) && bomList.length > 0) {
         for (const item of bomList) {
-          if (!item.partId && !item.partNumber) continue;
+          if (!item.partId) continue;
 
-          const existingPart = item.partId
-            ? await tx.partNumber.findUnique({
-                where: { part_id: item.partId },
-                include: { process: true },
-              })
-            : null;
+          // Global library se part ki basic info fetch karna (fallback ke liye)
+          const globalPart = await tx.partNumber.findUnique({
+            where: { part_id: item.partId },
+          });
 
-          const qtyPerUnit = parseInt(item.qty || 1, 10);
-          const orderQty = parseInt(productQuantity || 1, 10);
-          const totalQty = qtyPerUnit * orderQty;
+          if (globalPart) {
+            await tx.customOrderExistingPart.create({
+              data: {
+                customOrderId: createdOrder.id,
+                partId: item.partId,
+                processId: item.processId || globalPart.processId, // UI priority, then global
+                quantity: parseInt(item.qty || 1, 10),
+                cycleTime:
+                  item.cycleTime?.toString() || globalPart.cycleTime || "0",
+                instructionRequired:
+                  item.instructionRequired !== undefined
+                    ? item.instructionRequired
+                    : globalPart.instructionRequired,
+              },
+            });
+          }
+        }
+      }
 
-          const createdCustomPart = await tx.customPart.create({
+      // 4. TABLE 2: Process New Custom Parts (Manual Entry)
+      if (Array.isArray(newParts) && newParts.length > 0) {
+        for (const partItem of newParts) {
+          if (!partItem.part) continue;
+
+          await tx.customPart.create({
             data: {
-              partNumber: item.partNumber || existingPart?.partNumber,
-              quantity: qtyPerUnit,
-              processId: item.processId || existingPart?.processId || null,
-              processName:
-                item.process || existingPart?.process?.processName || "",
-              cycleTime:
-                item.totalTime?.toString() || existingPart?.cycleTime || "0",
-              workInstruction: existingPart?.instructionRequired ? "Yes" : "No",
               customOrderId: createdOrder.id,
-            },
-          });
-
-          await tx.stockOrderSchedule.create({
-            data: {
-              order_id: createdOrder.id,
-              order_type: "Custom Order",
-              part_id: existingPart?.part_id || null,
-              quantity: totalQty,
-              scheduleQuantity: totalQty,
-              remainingQty: totalQty,
-              processId: item.processId || existingPart?.processId || null,
-              status: "new",
-              order_date: new Date(orderDate),
-              delivery_date: new Date(shipDate),
-              customPartId: createdCustomPart.id,
+              partNumber: partItem.part.trim(),
+              quantity: parseInt(partItem.qty || 1, 10),
+              processId: partItem.processId || null,
+              processName: partItem.processName || "",
+              cycleTime: partItem.totalTime?.toString() || "0",
+              workInstruction: partItem.instructionRequired ? "Yes" : "No",
             },
           });
         }
       }
 
-      const validNewParts = Array.isArray(newParts)
-        ? newParts.filter((p) => p?.part && p.part.trim() !== "")
-        : [];
-
-      for (const partItem of validNewParts) {
-        const duplicatePart = await tx.partNumber.findFirst({
-          where: { partNumber: partItem.part.trim() },
-        });
-
-        if (duplicatePart) {
-          throw new Error(`Part "${partItem.part}" already exists`);
-        }
-
-        let processData = null;
-        if (partItem.processId) {
-          processData = await tx.process.findUnique({
-            where: { id: partItem.processId },
-          });
-        }
-
-        const createdPart = await tx.partNumber.create({
-          data: {
-            partNumber: partItem.part.trim(),
-            cycleTime: partItem.totalTime?.toString() || "0",
-            processId: partItem.processId || null,
-            partFamily: processData?.partFamily || "",
-            partDescription: processData?.partNumber || "",
-            processDesc: processData?.processDesc || "",
-            cost: 0,
-            instructionRequired: false,
-            type: "part",
-            companyName: "",
-            createdBy: req.user?.id,
-          },
-        });
-
-        const createdCustomPart = await tx.customPart.create({
-          data: {
-            partNumber: createdPart.partNumber,
-            quantity: parseInt(partItem.qty || 1, 10),
-            processId: createdPart.processId,
-            cycleTime: createdPart.cycleTime,
-            processName: processData?.name || "",
-            customOrderId: createdOrder.id,
-          },
-        });
-
-        await tx.stockOrderSchedule.create({
-          data: {
-            order_id: createdOrder.id,
-            order_type: "Custom Order",
-            part_id: createdPart.part_id,
-            quantity: parseInt(partItem.qty || 1, 10),
-            scheduleQuantity: parseInt(partItem.qty || 1, 10),
-            remainingQty: parseInt(partItem.qty || 1, 10),
-            processId: createdPart.processId,
-            status: "new",
-            order_date: new Date(orderDate),
-            delivery_date: new Date(shipDate),
-            customPartId: createdCustomPart.id,
-          },
-        });
-      }
       return createdOrder;
     });
 
     return res.status(201).json({
       success: true,
-      message: "Custom order created successfully",
+      message:
+        "Custom order created successfully. BOM details saved for both Existing and New parts.",
       data: result,
     });
   } catch (error) {
     console.error("Error creating custom order:", error);
     return res.status(500).json({
       success: false,
-      message: "Transaction failed",
+      message: "Failed to create custom order",
       error: error.message,
     });
   }
 };
-
 // const addCustomOrder = async (req, res) => {
 //   try {
 //     const {
@@ -5493,159 +5615,159 @@ const formatOrders = (orders) => {
   });
 };
 
-const searchCustomOrders = async (req, res) => {
-  try {
-    const { customerName, shipDate, partNumber } = req.query;
+// const searchCustomOrders = async (req, res) => {
+//   try {
+//     const { customerName, shipDate, partNumber } = req.query;
 
-    // Common Include Object (DRY Principle - Don't Repeat Yourself)
-    // Ye ensure karega ki hume 'customPart' (BOM List) har baar mile.
-    const commonInclude = {
-      customer: true,
-      part: {
-        include: {
-          components: {
-            where: { isDeleted: false },
-            include: { part: true },
-          },
-        },
-      },
-      product: {
-        include: {
-          process: { select: { id: true, processName: true } },
-          components: {
-            where: { isDeleted: false },
-            include: { part: true },
-          },
-        },
-      },
-      customPart: true,
-    };
+//     // Common Include Object (DRY Principle - Don't Repeat Yourself)
+//     // Ye ensure karega ki hume 'customPart' (BOM List) har baar mile.
+//     const commonInclude = {
+//       customer: true,
+//       part: {
+//         include: {
+//           components: {
+//             where: { isDeleted: false },
+//             include: { part: true },
+//           },
+//         },
+//       },
+//       product: {
+//         include: {
+//           process: { select: { id: true, processName: true } },
+//           components: {
+//             where: { isDeleted: false },
+//             include: { part: true },
+//           },
+//         },
+//       },
+//       customPart: true,
+//     };
 
-    // -------------------------------------------------------------------------------------
-    // CASE 1: IF NO SEARCH INPUT → RETURN ALL CUSTOM ORDERS
-    // -------------------------------------------------------------------------------------
-    if (!customerName && !shipDate && !partNumber) {
-      const orders = await prisma.customOrder.findMany({
-        where: {
-          isDeleted: false,
-        },
-        orderBy: { createdAt: "desc" },
-        include: commonInclude, // Using the updated include object
-      });
+//     // -------------------------------------------------------------------------------------
+//     // CASE 1: IF NO SEARCH INPUT → RETURN ALL CUSTOM ORDERS
+//     // -------------------------------------------------------------------------------------
+//     if (!customerName && !shipDate && !partNumber) {
+//       const orders = await prisma.customOrder.findMany({
+//         where: {
+//           isDeleted: false,
+//         },
+//         orderBy: { createdAt: "desc" },
+//         include: commonInclude, // Using the updated include object
+//       });
 
-      return res.status(200).json({
-        message: "All custom orders retrieved successfully.",
-        data: formatOrders(orders),
-      });
-    }
+//       return res.status(200).json({
+//         message: "All custom orders retrieved successfully.",
+//         data: formatOrders(orders),
+//       });
+//     }
 
-    // -------------------------------------------------------------------------------------
-    // CASE 2: SEARCH LOGIC
-    // -------------------------------------------------------------------------------------
-    const andConditions = [{ isDeleted: false }];
+//     // -------------------------------------------------------------------------------------
+//     // CASE 2: SEARCH LOGIC
+//     // -------------------------------------------------------------------------------------
+//     const andConditions = [{ isDeleted: false }];
 
-    // -----------------------------
-    // 🔹 SEARCH BY CUSTOMER NAME
-    // -----------------------------
-    if (customerName) {
-      const name = customerName.trim();
-      const [fName, lName] = name.split(" ");
+//     // -----------------------------
+//     // 🔹 SEARCH BY CUSTOMER NAME
+//     // -----------------------------
+//     if (customerName) {
+//       const name = customerName.trim();
+//       const [fName, lName] = name.split(" ");
 
-      andConditions.push({
-        customer: {
-          is: {
-            OR: [
-              { firstName: { contains: name, mode: "insensitive" } },
-              { lastName: { contains: name, mode: "insensitive" } },
-              {
-                AND: [
-                  { firstName: { contains: fName || "", mode: "insensitive" } },
-                  { lastName: { contains: lName || "", mode: "insensitive" } },
-                ],
-              },
-            ],
-          },
-        },
-      });
-    }
+//       andConditions.push({
+//         customer: {
+//           is: {
+//             OR: [
+//               { firstName: { contains: name, mode: "insensitive" } },
+//               { lastName: { contains: name, mode: "insensitive" } },
+//               {
+//                 AND: [
+//                   { firstName: { contains: fName || "", mode: "insensitive" } },
+//                   { lastName: { contains: lName || "", mode: "insensitive" } },
+//                 ],
+//               },
+//             ],
+//           },
+//         },
+//       });
+//     }
 
-    // -----------------------------
-    // 🔹 SEARCH BY SHIP DATE
-    // -----------------------------
-    if (shipDate) {
-      const date = new Date(shipDate);
-      andConditions.push({
-        shipDate: {
-          gte: new Date(date.setHours(0, 0, 0, 0)),
-          lt: new Date(new Date(shipDate).setDate(date.getDate() + 1)),
-        },
-      });
-    }
+//     // -----------------------------
+//     // 🔹 SEARCH BY SHIP DATE
+//     // -----------------------------
+//     if (shipDate) {
+//       const date = new Date(shipDate);
+//       andConditions.push({
+//         shipDate: {
+//           gte: new Date(date.setHours(0, 0, 0, 0)),
+//           lt: new Date(new Date(shipDate).setDate(date.getDate() + 1)),
+//         },
+//       });
+//     }
 
-    // -----------------------------
-    // 🔹 SEARCH BY PART NUMBER (Updated for BOM)
-    // -----------------------------
-    if (partNumber) {
-      andConditions.push({
-        OR: [
-          // 1. Search in Main Part ID
-          {
-            part: {
-              partNumber: { contains: partNumber.trim(), mode: "insensitive" },
-            },
-          },
-          // 2. Search in Product ID
-          {
-            product: {
-              partNumber: { contains: partNumber.trim(), mode: "insensitive" },
-            },
-          },
-          // 3. ✅ NEW: Search inside the CustomPart (BOM List)
-          // Agar user kisi child part ka number search kare, to bhi order milna chahiye
-          {
-            customPart: {
-              some: {
-                partNumber: {
-                  contains: partNumber.trim(),
-                  mode: "insensitive",
-                },
-              },
-            },
-          },
-        ],
-      });
-    }
+//     // -----------------------------
+//     // 🔹 SEARCH BY PART NUMBER (Updated for BOM)
+//     // -----------------------------
+//     if (partNumber) {
+//       andConditions.push({
+//         OR: [
+//           // 1. Search in Main Part ID
+//           {
+//             part: {
+//               partNumber: { contains: partNumber.trim(), mode: "insensitive" },
+//             },
+//           },
+//           // 2. Search in Product ID
+//           {
+//             product: {
+//               partNumber: { contains: partNumber.trim(), mode: "insensitive" },
+//             },
+//           },
+//           // 3. ✅ NEW: Search inside the CustomPart (BOM List)
+//           // Agar user kisi child part ka number search kare, to bhi order milna chahiye
+//           {
+//             customPart: {
+//               some: {
+//                 partNumber: {
+//                   contains: partNumber.trim(),
+//                   mode: "insensitive",
+//                 },
+//               },
+//             },
+//           },
+//         ],
+//       });
+//     }
 
-    // -------------------------------------------------------------------------------------
-    // 🔹 GET SEARCH RESULTS
-    // -------------------------------------------------------------------------------------
-    const orders = await prisma.customOrder.findMany({
-      where: { AND: andConditions },
-      orderBy: { createdAt: "desc" },
-      include: commonInclude, // Using the updated include object
-    });
+//     // -------------------------------------------------------------------------------------
+//     // 🔹 GET SEARCH RESULTS
+//     // -------------------------------------------------------------------------------------
+//     const orders = await prisma.customOrder.findMany({
+//       where: { AND: andConditions },
+//       orderBy: { createdAt: "desc" },
+//       include: commonInclude, // Using the updated include object
+//     });
 
-    // No results
-    if (orders.length === 0) {
-      return res.status(200).json({
-        message: "No custom orders found matching your criteria.",
-        data: [],
-      });
-    }
+//     // No results
+//     if (orders.length === 0) {
+//       return res.status(200).json({
+//         message: "No custom orders found matching your criteria.",
+//         data: [],
+//       });
+//     }
 
-    // FINAL RESPONSE
-    return res.status(200).json({
-      message: "Custom orders retrieved successfully!",
-      data: formatOrders(orders),
-    });
-  } catch (error) {
-    console.error("Error searching custom orders:", error);
-    return res.status(500).json({
-      message: "Something went wrong. Please try again later.",
-      error: error.message,
-    });
-  }
-};
+//     // FINAL RESPONSE
+//     return res.status(200).json({
+//       message: "Custom orders retrieved successfully!",
+//       data: formatOrders(orders),
+//     });
+//   } catch (error) {
+//     console.error("Error searching custom orders:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
 
 // const stockOrderSchedule = async (req, res) => {
 //   const ordersToSchedule = req.body;
@@ -5806,6 +5928,272 @@ const searchCustomOrders = async (req, res) => {
 //   }
 // };
 
+// const searchCustomOrders = async (req, res) => {
+//   try {
+//     const { customerName, shipDate, partNumber, orderNumber } = req.query;
+
+//     // 1. Common Include: Hum ensures kar rahe hain ki CustomPart (BOM) hamesha mile
+//     const commonInclude = {
+//       customer: true,
+//       product: {
+//         select: {
+//           partNumber: true,
+//           partDescription: true,
+//         },
+//       },
+//       // Ye sabse important hai kyunki aapne components isi me save kiye hain
+//       customPart: {
+//         include: {
+//           process: {
+//             select: { processName: true },
+//           },
+//         },
+//       },
+//     };
+
+//     // 2. Base Filter
+//     const andConditions = [{ isDeleted: false }];
+
+//     // 🔹 Search by Order Number
+//     if (orderNumber) {
+//       andConditions.push({
+//         orderNumber: { contains: orderNumber.trim() },
+//       });
+//     }
+
+//     // 🔹 Search by Customer Name
+//     if (customerName) {
+//       const name = customerName.trim();
+//       andConditions.push({
+//         OR: [
+//           { customerName: { contains: name } }, // Direct name field in CustomOrder
+//           {
+//             customer: {
+//               OR: [
+//                 { firstName: { contains: name } },
+//                 { lastName: { contains: name } },
+//               ],
+//             },
+//           },
+//         ],
+//       });
+//     }
+
+//     // 🔹 Search by Ship Date
+//     if (shipDate) {
+//       const date = new Date(shipDate);
+//       const nextDay = new Date(shipDate);
+//       nextDay.setDate(date.getDate() + 1);
+
+//       andConditions.push({
+//         shipDate: {
+//           gte: date,
+//           lt: nextDay,
+//         },
+//       });
+//     }
+
+//     // 🔹 Search by Part Number (Main Product ya BOM ke kisi bhi part se)
+//     if (partNumber) {
+//       const pNum = partNumber.trim();
+//       andConditions.push({
+//         OR: [
+//           // Check in Main Product Number
+//           { partNumber: { contains: pNum } },
+//           // Check in CustomPart Table (BOM List)
+//           {
+//             customPart: {
+//               some: {
+//                 partNumber: { contains: pNum },
+//               },
+//             },
+//           },
+//           // Check in Product Relation
+//           {
+//             product: {
+//               partNumber: { contains: pNum },
+//             },
+//           },
+//         ],
+//       });
+//     }
+
+//     // 3. Database Query
+//     const orders = await prisma.customOrder.findMany({
+//       where: { AND: andConditions },
+//       include: commonInclude,
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     // 4. Response Formatting
+//     // Hum data ko aise bhejenge ki frontend ko 'bomList' direct mil jaye
+//     const formattedOrders = orders.map((order) => ({
+//       ...order,
+//       // Frontend ko "Product Components" table dikhane ke liye customPart ko map kar rahe hain
+//       bomList: order.customPart.map((cp) => ({
+//         id: cp.id,
+//         partNumber: cp.partNumber,
+//         qty: cp.quantity,
+//         processName: cp.processName,
+//         processId: cp.processId,
+//         cycleTime: cp.cycleTime,
+//         workInstruction: cp.workInstruction,
+//       })),
+//     }));
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         orders.length > 0 ? "Orders retrieved successfully" : "No orders found",
+//       data: formattedOrders,
+//     });
+//   } catch (error) {
+//     console.error("Error searching custom orders:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+const searchCustomOrders = async (req, res) => {
+  try {
+    const { customerName, shipDate, partNumber, orderNumber } = req.query;
+
+    // 1. Common Include: Hum dono tables (Existing aur New) se data nikaal rahe hain
+    const commonInclude = {
+      customer: true,
+      product: {
+        select: {
+          partNumber: true,
+          partDescription: true,
+        },
+      },
+      // TABLE 1: Library waale parts
+      existingParts: {
+        include: {
+          part: { select: { partNumber: true, partDescription: true } },
+          process: { select: { processName: true } },
+        },
+      },
+      // TABLE 2: Manual add kiye gaye parts
+      customPart: {
+        include: {
+          process: { select: { processName: true } },
+        },
+      },
+    };
+
+    const andConditions = [{ isDeleted: false }];
+
+    // 🔹 Search by Order Number
+    if (orderNumber) {
+      andConditions.push({ orderNumber: { contains: orderNumber.trim() } });
+    }
+
+    // 🔹 Search by Customer Name
+    if (customerName) {
+      const name = customerName.trim();
+      andConditions.push({
+        OR: [
+          { customerName: { contains: name } },
+          {
+            customer: {
+              OR: [
+                { firstName: { contains: name } },
+                { lastName: { contains: name } },
+              ],
+            },
+          },
+        ],
+      });
+    }
+
+    // 🔹 Search by Ship Date
+    if (shipDate) {
+      const date = new Date(shipDate);
+      const nextDay = new Date(shipDate);
+      nextDay.setDate(date.getDate() + 1);
+      andConditions.push({ shipDate: { gte: date, lt: nextDay } });
+    }
+
+    // 🔹 Search by Part Number (BOM ke kisi bhi part se chahe wo Existing ho ya New)
+    if (partNumber) {
+      const pNum = partNumber.trim();
+      andConditions.push({
+        OR: [
+          { partNumber: { contains: pNum } }, // Main order part number
+          // Check in Existing Parts Table
+          {
+            existingParts: {
+              some: { part: { partNumber: { contains: pNum } } },
+            },
+          },
+          // Check in Custom Part Table (Manual)
+          { customPart: { some: { partNumber: { contains: pNum } } } },
+        ],
+      });
+    }
+
+    // 2. Database Query
+    const orders = await prisma.customOrder.findMany({
+      where: { AND: andConditions },
+      include: commonInclude,
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 3. Response Formatting: Dono tables ko merge karke 'bomList' banana
+    const formattedOrders = orders.map((order) => {
+      // Library waale parts ko map karein
+      const mappedExisting = order.existingParts.map((ep) => ({
+        id: ep.id,
+        partId: ep.partId,
+        partNumber: ep.part?.partNumber,
+        partDescription: ep.part?.partDescription,
+        qty: ep.quantity,
+        processId: ep.processId,
+        processName: ep.process?.processName || "No Process",
+        cycleTime: ep.cycleTime,
+        workInstruction: ep.instructionRequired ? "Yes" : "No",
+        source: "Library", // Pehchan ke liye
+      }));
+
+      // Manual parts ko map karein
+      const mappedManual = order.customPart.map((cp) => ({
+        id: cp.id,
+        partNumber: cp.partNumber,
+        qty: cp.quantity,
+        processId: cp.processId,
+        processName:
+          cp.processName || cp.process?.processName || "Manual Process",
+        cycleTime: cp.cycleTime,
+        workInstruction: cp.workInstruction,
+        source: "Manual", // Pehchan ke liye
+      }));
+
+      return {
+        ...order,
+        // Dono ko ek hi bomList mein merge karke bhej rahe hain
+        bomList: [...mappedExisting, ...mappedManual],
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        orders.length > 0 ? "Orders retrieved successfully" : "No orders found",
+      data: formattedOrders,
+    });
+  } catch (error) {
+    console.error("Error searching custom orders:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
 
@@ -6305,6 +6693,125 @@ const stockOrderSchedule = async (req, res) => {
 // correct code end
 // controllers/scheduleController.js
 
+// const customOrderSchedule = async (req, res) => {
+//   const partsToSchedule = req.body;
+
+//   if (!Array.isArray(partsToSchedule) || partsToSchedule.length === 0) {
+//     return res
+//       .status(400)
+//       .json({ message: "Request body must be a non-empty array." });
+//   }
+
+//   try {
+//     const allPrismaPromises = [];
+//     const orderIdsToUpdate = new Set();
+
+//     for (const item of partsToSchedule) {
+//       const {
+//         order_id: customOrderId, // CustomOrder ka ID
+//         part_id,
+//         quantity,
+//         delivery_date,
+//         status,
+//         type,
+//       } = item;
+
+//       if (!customOrderId || !part_id || !quantity) {
+//         console.warn("Skipping an item due to missing data:", item);
+//         continue;
+//       }
+
+//       orderIdsToUpdate.add(customOrderId);
+
+//       // Part details fetch
+//       const partDetails = await prisma.partNumber.findUnique({
+//         where: { part_id: part_id },
+//         include: { process: true },
+//       });
+
+//       if (!partDetails) {
+//         console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
+//         continue;
+//       }
+
+//       // 🟢 Helper: decide whether user is admin or employee
+//       const submittedBy =
+//         req.user.role === "superAdmin"
+//           ? { submittedByAdmin: { connect: { id: req.user.id } } }
+//           : { submittedByEmployee: { connect: { id: req.user.id } } };
+
+//       // Schedule Qty (product vs part logic)
+//       const scheduleQuantity =
+//         partDetails.type === "product"
+//           ? quantity
+//           : quantity * (partDetails.minStock || 1);
+
+//       // Upsert for CustomOrder
+//       const schedulePromise = prisma.stockOrderSchedule.upsert({
+//         where: {
+//           order_id_part_id_order_type: {
+//             order_id: customOrderId,
+//             part_id: part_id,
+//             order_type: "CustomOrder",
+//           },
+//         },
+//         update: {
+//           delivery_date: new Date(delivery_date),
+//           quantity,
+//           status,
+//           type,
+//           scheduleQuantity,
+//           remainingQty: scheduleQuantity,
+//           completed_date: null,
+//         },
+//         create: {
+//           order_id: customOrderId,
+//           order_type: "CustomOrder",
+//           delivery_date: new Date(delivery_date),
+//           quantity,
+//           status,
+//           type,
+//           scheduleQuantity,
+//           remainingQty: scheduleQuantity,
+//           completed_date: null,
+//           ...submittedBy, // ✅ Submitted by (Admin/Employee)
+//           part: { connect: { part_id } },
+//           process: partDetails.processId
+//             ? { connect: { id: partDetails.processId } }
+//             : undefined,
+//         },
+//       });
+
+//       allPrismaPromises.push(schedulePromise);
+//     }
+
+//     if (allPrismaPromises.length === 0) {
+//       return res
+//         .status(200)
+//         .json({ message: "No valid items were provided to schedule." });
+//     }
+
+//     // Run all promises in a transaction
+//     const newSchedules = await prisma.$transaction(allPrismaPromises);
+
+//     // Update customOrder status
+//     await prisma.customOrder.updateMany({
+//       where: { id: { in: Array.from(orderIdsToUpdate) } },
+//       data: { status: "scheduled" },
+//     });
+
+//     return res.status(201).json({
+//       message: `Successfully scheduled ordres`,
+//       data: newSchedules,
+//     });
+//   } catch (error) {
+//     console.error("Error during custom order batch scheduling:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong during custom order scheduling.",
+//       error: error.message,
+//     });
+//   }
+// };
 const customOrderSchedule = async (req, res) => {
   const partsToSchedule = req.body;
 
@@ -6315,116 +6822,144 @@ const customOrderSchedule = async (req, res) => {
   }
 
   try {
-    const allPrismaPromises = [];
-    const orderIdsToUpdate = new Set();
+    const result = await prisma.$transaction(async (tx) => {
+      const orderIds = new Set();
+      const firstItem = partsToSchedule[0];
 
-    for (const item of partsToSchedule) {
-      const {
-        order_id: customOrderId, // CustomOrder ka ID
-        part_id,
-        quantity,
-        delivery_date,
-        status,
-        type,
-      } = item;
-
-      if (!customOrderId || !part_id || !quantity) {
-        console.warn("Skipping an item due to missing data:", item);
-        continue;
-      }
-
-      orderIdsToUpdate.add(customOrderId);
-
-      // Part details fetch
-      const partDetails = await prisma.partNumber.findUnique({
-        where: { part_id: part_id },
-        include: { process: true },
+      // 1. SABSE PEHLE PARENT PRODUCT KO SCHEDULE KAREIN
+      // Hum CustomOrder se productId aur quantity nikalenge
+      const orderData = await tx.customOrder.findUnique({
+        where: { id: firstItem.order_id },
+        include: { product: true }, // Parent product details ke liye
       });
 
-      if (!partDetails) {
-        console.warn(`Part with ID ${part_id} not found. Skipping schedule.`);
-        continue;
-      }
+      if (orderData && orderData.productId) {
+        const submittedBy =
+          req.user.role === "superAdmin"
+            ? { submittedByAdminId: req.user.id }
+            : { submittedByEmployeeId: req.user.id };
 
-      // 🟢 Helper: decide whether user is admin or employee
-      const submittedBy =
-        req.user.role === "superAdmin"
-          ? { submittedByAdmin: { connect: { id: req.user.id } } }
-          : { submittedByEmployee: { connect: { id: req.user.id } } };
-
-      // Schedule Qty (product vs part logic)
-      const scheduleQuantity =
-        partDetails.type === "product"
-          ? quantity
-          : quantity * (partDetails.minStock || 1);
-
-      // Upsert for CustomOrder
-      const schedulePromise = prisma.stockOrderSchedule.upsert({
-        where: {
-          order_id_part_id_order_type: {
-            order_id: customOrderId,
-            part_id: part_id,
-            order_type: "CustomOrder",
+        // Parent ko schedule mein daalein (Upsert use karein taaki duplicate na ho)
+        await tx.stockOrderSchedule.upsert({
+          where: {
+            order_id_part_id_order_type: {
+              order_id: orderData.id,
+              part_id: orderData.productId,
+              order_type: "Custom Order",
+            },
           },
-        },
-        update: {
-          delivery_date: new Date(delivery_date),
-          quantity,
-          status,
+          update: {
+            status: "new",
+            quantity: orderData.productQuantity,
+            scheduleQuantity: orderData.productQuantity,
+            remainingQty: orderData.productQuantity,
+            delivery_date: new Date(orderData.shipDate),
+          },
+          create: {
+            order_id: orderData.id,
+            order_type: "Custom Order",
+            part_id: orderData.productId, // Parent ki ID
+            quantity: orderData.productQuantity,
+            scheduleQuantity: orderData.productQuantity,
+            remainingQty: orderData.productQuantity,
+            delivery_date: new Date(orderData.shipDate),
+            status: "new",
+            type: "product", // Mark as parent product
+            processId: orderData.product?.processId || null,
+            ...submittedBy,
+          },
+        });
+      }
+
+      // 2. AB SARE CHILD PARTS (COMPONENTS) KO LOOP MEIN SCHEDULE KAREIN
+      for (const item of partsToSchedule) {
+        const {
+          order_id,
+          customPartId,
           type,
-          scheduleQuantity,
-          remainingQty: scheduleQuantity,
-          completed_date: null,
-        },
-        create: {
-          order_id: customOrderId,
-          order_type: "CustomOrder",
-          delivery_date: new Date(delivery_date),
           quantity,
-          status,
-          type,
-          scheduleQuantity,
-          remainingQty: scheduleQuantity,
-          completed_date: null,
-          ...submittedBy, // ✅ Submitted by (Admin/Employee)
-          part: { connect: { part_id } },
-          process: partDetails.processId
-            ? { connect: { id: partDetails.processId } }
-            : undefined,
-        },
+          delivery_date,
+          part_id,
+        } = item;
+
+        // Skip if this is the parent (kyuki humne upar kar diya)
+        if (part_id === orderData?.productId) continue;
+
+        let processId = null;
+        if (type === "Existing" || type === "Library") {
+          const existingRecord = await tx.customOrderExistingPart.findUnique({
+            where: { id: customPartId },
+          });
+          processId = existingRecord?.processId;
+        } else {
+          const manualRecord = await tx.customPart.findUnique({
+            where: { id: customPartId },
+          });
+          processId = manualRecord?.processId;
+        }
+
+        const submittedBy =
+          req.user.role === "superAdmin"
+            ? { submittedByAdminId: req.user.id }
+            : { submittedByEmployeeId: req.user.id };
+
+        await tx.stockOrderSchedule.upsert({
+          where: {
+            order_id_part_id_order_type: {
+              order_id: order_id,
+              part_id:
+                type === "Existing" || type === "Library"
+                  ? part_id
+                  : `custom-${customPartId}`,
+              order_type: "Custom Order",
+            },
+          },
+          update: {
+            quantity: parseInt(quantity),
+            scheduleQuantity: parseInt(quantity),
+            remainingQty: parseInt(quantity),
+            status: "new",
+          },
+          create: {
+            order_id: order_id,
+            order_type: "Custom Order",
+            part_id: type === "Existing" || type === "Library" ? part_id : null,
+            customPartId:
+              type === "New" || type === "Manual" ? customPartId : null,
+            quantity: parseInt(quantity),
+            scheduleQuantity: parseInt(quantity),
+            remainingQty: parseInt(quantity),
+            delivery_date: new Date(delivery_date),
+            status: "new",
+            type: "part",
+            processId: processId,
+            ...submittedBy,
+          },
+        });
+
+        orderIds.add(order_id);
+      }
+
+      // 3. Update Order Status
+      await tx.customOrder.updateMany({
+        where: { id: { in: Array.from(orderIds) } },
+        data: { status: "Scheduled" },
       });
 
-      allPrismaPromises.push(schedulePromise);
-    }
-
-    if (allPrismaPromises.length === 0) {
-      return res
-        .status(200)
-        .json({ message: "No valid items were provided to schedule." });
-    }
-
-    // Run all promises in a transaction
-    const newSchedules = await prisma.$transaction(allPrismaPromises);
-
-    // Update customOrder status
-    await prisma.customOrder.updateMany({
-      where: { id: { in: Array.from(orderIdsToUpdate) } },
-      data: { status: "scheduled" },
+      return true;
     });
 
-    return res.status(201).json({
-      message: `Successfully scheduled ordres`,
-      data: newSchedules,
-    });
+    return res
+      .status(201)
+      .json({
+        success: true,
+        message: "Parent and components scheduled successfully",
+      });
   } catch (error) {
-    console.error("Error during custom order batch scheduling:", error);
-    return res.status(500).json({
-      message: "Something went wrong during custom order scheduling.",
-      error: error.message,
-    });
+    console.error("Scheduling Error:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
-
 // const scheduleStockOrdersList = async (req, res) => {
 //   try {
 //     const { search, order_type } = req.query;
@@ -6544,6 +7079,259 @@ const customOrderSchedule = async (req, res) => {
 //     });
 //   }
 // };
+// correct code
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     if (search) {
+//       whereClause.OR = [{ part: { partNumber: { contains: search } } }];
+//     }
+
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           part: {
+//             include: {
+//               process: true,
+//               // Level 1: Part 100 ke andar ke components (e.g., Part 10)
+//               components: {
+//                 include: {
+//                   part: {
+//                     // Ye component ki details fetch karega
+//                     include: {
+//                       // Level 2: Part 10 ke andar ke components (e.g., Part 20)
+//                       components: {
+//                         include: {
+//                           part: true,
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//           },
+//           completedByEmployee: { select: { firstName: true, lastName: true } },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({ where: whereClause }),
+//     ]);
+
+//     if (filteredSchedules.length === 0) {
+//       return res.status(200).json({
+//         message: "No scheduled orders found.",
+//         data: [],
+//         pagination: await pagination({
+//           page: paginationData.page,
+//           pageSize: paginationData.pageSize,
+//           total: 0,
+//         }),
+//       });
+//     }
+
+//     const stockOrderIds = [];
+//     const customOrderIds = [];
+//     const customPartIds = [];
+
+//     for (const schedule of filteredSchedules) {
+//       // String normalize: "Custom Order" -> "CustomOrder"
+//       const type = schedule.order_type?.replace(/\s/g, "");
+
+//       if (type === "StockOrder" && schedule.order_id) {
+//         stockOrderIds.push(schedule.order_id);
+//       } else if (type === "CustomOrder") {
+//         if (schedule.order_id) customOrderIds.push(schedule.order_id);
+//         if (schedule.customPartId) customPartIds.push(schedule.customPartId);
+//       }
+//     }
+
+//     const [stockOrders, customOrders, customPartDetails] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({
+//             where: { id: { in: stockOrderIds } },
+//             include: { part: { select: { partNumber: true } } },
+//           })
+//         : [],
+
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : [],
+
+//       customPartIds.length > 0
+//         ? prisma.customPart.findMany({
+//             where: { id: { in: customPartIds } },
+//             include: {
+//               CustomOrder: {
+//                 // Capital 'C' as per your schema
+//                 include: { product: { select: { partNumber: true } } },
+//               },
+//             },
+//           })
+//         : [],
+//     ]);
+
+//     // Maps creation
+//     const stockOrderMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customOrderMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     // Yahan fix kiya: cp.CustomOrder (Capital C)
+//     const customPartMap = new Map(
+//       customPartDetails.map((cp) => [cp.id, cp.CustomOrder]),
+//     );
+
+//     const schedulesWithOrders = filteredSchedules.map((schedule) => {
+//       let orderData = null;
+//       const type = schedule.order_type?.replace(/\s/g, "");
+
+//       if (type === "StockOrder") {
+//         orderData = stockOrderMap.get(schedule.order_id) || null;
+//       } else if (type === "CustomOrder") {
+//         // First try via order_id, if null try via customPartId
+//         orderData =
+//           customOrderMap.get(schedule.order_id) ||
+//           customPartMap.get(schedule.customPartId) ||
+//           null;
+//       }
+
+//       return { ...schedule, order: orderData };
+//     });
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message: "Scheduled orders retrieved successfully!",
+//       data: schedulesWithOrders,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Error retrieving scheduled orders:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong.",
+//       error: error.message,
+//     });
+//   }
+// };
+// correct code
+
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     if (search) {
+//       const searchTerm = search.trim();
+//       whereClause.OR = [
+//         { part: { partNumber: { contains: searchTerm } } },
+//         { customPart: { partNumber: { contains: searchTerm } } },
+//       ];
+//     }
+
+//     // 1. Fetch Schedules
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           part: { include: { process: true } },
+//           customPart: { include: { process: true } },
+//           completedByEmployee: { select: { firstName: true, lastName: true } },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({ where: whereClause }),
+//     ]);
+
+//     // 2. Collect IDs for manual lookup (Kyuki relations null ho sakti hain)
+//     const stockOrderIds = [];
+//     const customOrderIds = [];
+
+//     filteredSchedules.forEach((s) => {
+//       const type = s.order_type?.replace(/\s/g, "");
+//       if (type === "StockOrder" && s.order_id) stockOrderIds.push(s.order_id);
+//       if (type === "CustomOrder" && s.order_id) customOrderIds.push(s.order_id);
+//     });
+
+//     // 3. Fetch Actual Orders
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
+//         : [],
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } }, // Parent Product fetch karne ke liye
+//           })
+//         : [],
+//     ]);
+
+//     // 4. Create Maps for easy lookup
+//     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     // 5. Final Formatting
+//     const finalData = filteredSchedules.map((schedule) => {
+//       const type = schedule.order_type?.replace(/\s/g, "");
+//       let orderDetails = null;
+
+//       if (type === "StockOrder") {
+//         orderDetails = stockMap.get(schedule.order_id);
+//       } else {
+//         orderDetails = customMap.get(schedule.order_id);
+//       }
+
+//       return {
+//         ...schedule,
+//         order: orderDetails, // Ab isme orderNumber aur product details hongi
+//         partDetails: {
+//           partNumber:
+//             schedule.part?.partNumber ||
+//             schedule.customPart?.partNumber ||
+//             "N/A",
+//           description: schedule.part?.partDescription || "Manual Entry",
+//           source: schedule.part ? "Library" : "Manual",
+//         },
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Orders retrieved successfully",
+//       data: finalData,
+//       pagination: await pagination({
+//         page: paginationData.page,
+//         pageSize: paginationData.pageSize,
+//         total: totalCount,
+//       }),
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
 
 const scheduleStockOrdersList = async (req, res) => {
   try {
@@ -6555,10 +7343,16 @@ const scheduleStockOrdersList = async (req, res) => {
       whereClause.order_type = order_type;
     }
 
+    // Search Logic: Dono tables mein search karega
     if (search) {
-      whereClause.OR = [{ part: { partNumber: { contains: search } } }];
+      const searchTerm = search.trim();
+      whereClause.OR = [
+        { part: { partNumber: { contains: searchTerm } } },
+        { customPart: { partNumber: { contains: searchTerm } } },
+      ];
     }
 
+    // 1. Fetch Schedules (Include dono parts)
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: whereClause,
@@ -6566,135 +7360,90 @@ const scheduleStockOrdersList = async (req, res) => {
         take: paginationData.pageSize,
         orderBy: { createdAt: "desc" },
         include: {
-          part: {
-            include: {
-              process: true,
-              // Level 1: Part 100 ke andar ke components (e.g., Part 10)
-              components: {
-                include: {
-                  part: {
-                    // Ye component ki details fetch karega
-                    include: {
-                      // Level 2: Part 10 ke andar ke components (e.g., Part 20)
-                      components: {
-                        include: {
-                          part: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          part: { include: { process: true } }, // Stock/Library Part
+          customPart: { include: { process: true } }, // Manual/Custom Part
           completedByEmployee: { select: { firstName: true, lastName: true } },
         },
       }),
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
 
-    if (filteredSchedules.length === 0) {
-      return res.status(200).json({
-        message: "No scheduled orders found.",
-        data: [],
-        pagination: await pagination({
-          page: paginationData.page,
-          pageSize: paginationData.pageSize,
-          total: 0,
-        }),
-      });
-    }
-
+    // 2. Lookup IDs for Orders
     const stockOrderIds = [];
     const customOrderIds = [];
-    const customPartIds = [];
 
-    for (const schedule of filteredSchedules) {
-      // String normalize: "Custom Order" -> "CustomOrder"
-      const type = schedule.order_type?.replace(/\s/g, "");
+    filteredSchedules.forEach((s) => {
+      const type = s.order_type?.replace(/\s/g, "");
+      if (type === "StockOrder" && s.order_id) stockOrderIds.push(s.order_id);
+      if (type === "CustomOrder" && s.order_id) customOrderIds.push(s.order_id);
+    });
 
-      if (type === "StockOrder" && schedule.order_id) {
-        stockOrderIds.push(schedule.order_id);
-      } else if (type === "CustomOrder") {
-        if (schedule.order_id) customOrderIds.push(schedule.order_id);
-        if (schedule.customPartId) customPartIds.push(schedule.customPartId);
-      }
-    }
-
-    const [stockOrders, customOrders, customPartDetails] = await Promise.all([
+    const [stockOrders, customOrders] = await Promise.all([
       stockOrderIds.length > 0
-        ? prisma.stockOrder.findMany({
-            where: { id: { in: stockOrderIds } },
-            include: { part: { select: { partNumber: true } } },
-          })
+        ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
         : [],
-
       customOrderIds.length > 0
         ? prisma.customOrder.findMany({
             where: { id: { in: customOrderIds } },
             include: { product: { select: { partNumber: true } } },
           })
         : [],
-
-      customPartIds.length > 0
-        ? prisma.customPart.findMany({
-            where: { id: { in: customPartIds } },
-            include: {
-              CustomOrder: {
-                // Capital 'C' as per your schema
-                include: { product: { select: { partNumber: true } } },
-              },
-            },
-          })
-        : [],
     ]);
 
-    // Maps creation
-    const stockOrderMap = new Map(stockOrders.map((o) => [o.id, o]));
-    const customOrderMap = new Map(customOrders.map((o) => [o.id, o]));
+    const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+    const customMap = new Map(customOrders.map((o) => [o.id, o]));
 
-    // Yahan fix kiya: cp.CustomOrder (Capital C)
-    const customPartMap = new Map(
-      customPartDetails.map((cp) => [cp.id, cp.CustomOrder]),
-    );
-
-    const schedulesWithOrders = filteredSchedules.map((schedule) => {
-      let orderData = null;
+    // 3. Final Formatting with Priority Logic
+    const finalData = filteredSchedules.map((schedule) => {
       const type = schedule.order_type?.replace(/\s/g, "");
+      let orderDetails = null;
 
       if (type === "StockOrder") {
-        orderData = stockOrderMap.get(schedule.order_id) || null;
-      } else if (type === "CustomOrder") {
-        // First try via order_id, if null try via customPartId
-        orderData =
-          customOrderMap.get(schedule.order_id) ||
-          customPartMap.get(schedule.customPartId) ||
-          null;
+        orderDetails = stockMap.get(schedule.order_id);
+      } else {
+        orderDetails = customMap.get(schedule.order_id);
       }
 
-      return { ...schedule, order: orderData };
-    });
+      return {
+        ...schedule,
+        order: orderDetails,
+        partDetails: {
+          // PRIORITY LOGIC: Agar customPart hai toh wahan se, nahi toh part (library) se
+          partNumber:
+            schedule.customPart?.partNumber ||
+            schedule.part?.partNumber ||
+            "N/A",
 
-    const getPagination = await pagination({
-      page: paginationData.page,
-      pageSize: paginationData.pageSize,
-      total: totalCount,
+          description:
+            schedule.part?.partDescription ||
+            (schedule.customPart ? "Manual Entry" : "N/A"),
+
+          source: schedule.customPart ? "Manual" : "Library",
+
+          // Process Name lookup
+          processName:
+            schedule.customPart?.process?.processName ||
+            schedule.part?.process?.processName ||
+            "No Process",
+        },
+      };
     });
 
     return res.status(200).json({
-      message: "Scheduled orders retrieved successfully!",
-      data: schedulesWithOrders,
-      pagination: getPagination,
+      success: true,
+      message: "Orders retrieved successfully",
+      data: finalData,
+      pagination: await pagination({
+        page: paginationData.page,
+        pageSize: paginationData.pageSize,
+        total: totalCount,
+      }),
     });
   } catch (error) {
-    console.error("Error retrieving scheduled orders:", error);
-    return res.status(500).json({
-      message: "Something went wrong.",
-      error: error.message,
-    });
+    console.error("Error:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
-
 const deleteProductTreeById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -8295,8 +9044,7 @@ const processHourly = async (req, res) => {
   try {
     const tz = req.query.tz || "UTC";
 
-    const selectedDate =
-      req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+    const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
 
     // ✅ User timezone ke hisaab se day boundary
     const startOfDay = moment
@@ -8305,11 +9053,7 @@ const processHourly = async (req, res) => {
       .utc()
       .toDate();
 
-    const endOfDay = moment
-      .tz(selectedDate, tz)
-      .endOf("day")
-      .utc()
-      .toDate();
+    const endOfDay = moment.tz(selectedDate, tz).endOf("day").utc().toDate();
 
     const activeProcesses = await prisma.process.findMany({
       where: { isDeleted: false },
@@ -8367,18 +9111,13 @@ const processHourly = async (req, res) => {
         hourlyDataMap.set(hourKey, {
           actual: 0,
           scrap: 0,
-          target:
-            cycleTimeMinutes > 0
-              ? Math.round(60 / cycleTimeMinutes)
-              : 0,
+          target: cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0,
         });
       }
 
       // ✅ ACTUAL + SCRAP from production response
       productionResponses.forEach((resData) => {
-        const hour = moment(resData.submittedDateTime)
-          .tz(tz)
-          .format("HH:00");
+        const hour = moment(resData.submittedDateTime).tz(tz).format("HH:00");
 
         const qty = Number(resData.completedQuantity) || 0;
         const scrapQty = Number(resData.scrapQuantity) || 0;
@@ -8394,17 +9133,14 @@ const processHourly = async (req, res) => {
         if (resData.employeeInfo) {
           employeesSet.set(resData.employeeInfo.id, {
             name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
-            profileImage:
-              resData.employeeInfo.employeeProfileImg || "",
+            profileImage: resData.employeeInfo.employeeProfileImg || "",
           });
         }
       });
 
       // ✅ SCRAP entries
       scrapEntriesRecords.forEach((scrap) => {
-        const hour = moment(scrap.createdAt)
-          .tz(tz)
-          .format("HH:00");
+        const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
 
         const sQty =
           Number(scrap.returnQuantity) ||
@@ -8421,8 +9157,7 @@ const processHourly = async (req, res) => {
         if (scrap.createdByEmployee) {
           employeesSet.set(scrap.createdByEmployee.id, {
             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
-            profileImage:
-              scrap.createdByEmployee.employeeProfileImg || "",
+            profileImage: scrap.createdByEmployee.employeeProfileImg || "",
           });
         }
       });
@@ -8433,13 +9168,11 @@ const processHourly = async (req, res) => {
           actual: data.actual,
           scrap: data.scrap,
           target: data.target,
-        })
+        }),
       );
 
       const targetPerHour =
-        cycleTimeMinutes > 0
-          ? Math.round(60 / cycleTimeMinutes)
-          : 0;
+        cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
 
       const totalTarget = targetPerHour * 24;
 
@@ -8693,10 +9426,10 @@ const currentStatusOverview = async (req, res) => {
     const stockOrders = await prisma.stockOrderSchedule.findMany({
       where: dateFilter,
       include: {
-        part:{
-          select:{
-            partDescription:true
-          }
+        part: {
+          select: {
+            partDescription: true,
+          },
         },
         process: {
           select: {
@@ -8716,7 +9449,7 @@ const currentStatusOverview = async (req, res) => {
     const processDetails = [];
 
     for (const order of stockOrders) {
-      console.log('orderorderorder',order)
+      console.log("orderorderorder", order);
       const process = order.process;
       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
       const targetPerHour = cycleTimeMinutes
@@ -9318,7 +10051,8 @@ const monitorChartsData = async (req, res) => {
 
     const manualGrouped = {};
     manualData.forEach((item) => {
-      const partName = item.part?.partDescription || item.part?.partNumber || "N/A";
+      const partName =
+        item.part?.partDescription || item.part?.partNumber || "N/A";
       const processName = item.process?.processName || "N/A";
       const machineName = item.process?.machineName || "N/A";
       const key = `${item.processId}-${partName}`;
@@ -9344,7 +10078,14 @@ const monitorChartsData = async (req, res) => {
       },
       include: {
         PartNumber: { select: { partNumber: true, partDescription: true } },
-        process: { select: { processName: true, machineName: true, processDesc: true, cycleTime: true } },
+        process: {
+          select: {
+            processName: true,
+            machineName: true,
+            processDesc: true,
+            cycleTime: true,
+          },
+        },
       },
     });
 
@@ -9352,7 +10093,10 @@ const monitorChartsData = async (req, res) => {
     const scrapGrouped = {};
 
     productionData.forEach((item) => {
-      const currentPartName = item.PartNumber?.partDescription || item.PartNumber?.partNumber || "N/A";
+      const currentPartName =
+        item.PartNumber?.partDescription ||
+        item.PartNumber?.partNumber ||
+        "N/A";
       const processName = item.process?.processName || "N/A";
       const machineName = item.process?.machineName || "N/A";
       const key = `${processName}-${currentPartName}`;
@@ -9370,7 +10114,8 @@ const monitorChartsData = async (req, res) => {
         };
       }
       if (item.cycleTimeStart && item.cycleTimeEnd) {
-        const diffMin = (new Date(item.cycleTimeEnd) - new Date(item.cycleTimeStart)) / 60000;
+        const diffMin =
+          (new Date(item.cycleTimeEnd) - new Date(item.cycleTimeStart)) / 60000;
         monitorGrouped[key].totalCycleTime += Math.max(0, diffMin);
         monitorGrouped[key].count += 1;
       }
@@ -9389,18 +10134,20 @@ const monitorChartsData = async (req, res) => {
 
     // Formatting outputs
     const manualTable = Object.values(manualGrouped);
-    
+
     const monitorTable = Object.values(monitorGrouped).map((row) => ({
       processName: row.processName,
       machineName: row.machineName,
       processDesc: row.processDesc,
       part: row.part,
       actualCycleTime: row.actualCycleTime,
-      cycleTime: row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
+      cycleTime:
+        row.count > 0 ? (row.totalCycleTime / row.count).toFixed(2) : "--",
     }));
 
-    const productionScrap = Object.values(scrapGrouped).sort((a, b) => b.scrap - a.scrap);
-
+    const productionScrap = Object.values(scrapGrouped).sort(
+      (a, b) => b.scrap - a.scrap,
+    );
 
     const totals = {
       totalCompletedQty: manualData.reduce(
@@ -9419,10 +10166,11 @@ const monitorChartsData = async (req, res) => {
       productionScrap,
       totals,
     });
-  } catch (error) {   res.status(500).json({
+  } catch (error) {
+    res.status(500).json({
       error: "Internal Error",
       details: error.message,
-    });  // error handling
+    }); // error handling
   }
 };
 // const monitorChartsData = async (req, res) => {
@@ -10064,13 +10812,13 @@ const getDiveApi = async (req, res) => {
 //         status: "completed",
 //         stepStartTime: { not: null },
 //         stepEndTime: { not: null },
-     
+
 //       },
 //       include: {
 //         productionResponse:{
 //           select:{
 //             partId:true,
-            
+
 //           }
 //         },
 //         workInstructionStep: {
@@ -10146,14 +10894,16 @@ const getDiveApi = async (req, res) => {
 // };
 const cycleTimeComparisionData = async (req, res) => {
   try {
-    let { startDate, endDate, partId,processId } = req.query;
+    let { startDate, endDate, partId, processId } = req.query;
 
     if (!partId) {
       return res.status(400).json({ error: "partId is required" });
     }
 
     // 1. सही डेट रेंज सेट करना
-    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(new Date().setDate(new Date().getDate() - 30));
     const end = endDate ? new Date(endDate) : new Date();
 
     if (isNaN(start) || isNaN(end)) {
@@ -10182,11 +10932,16 @@ const cycleTimeComparisionData = async (req, res) => {
           processName: resp.process?.processName,
           machineName: resp.process?.machineName,
           manualCTs: [],
-          idealCT: resp.PartNumber?.cycleTime ? Number(resp.PartNumber.cycleTime) / 60 : 0,
+          idealCT: resp.PartNumber?.cycleTime
+            ? Number(resp.PartNumber.cycleTime) / 60
+            : 0,
         };
       }
       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
-        const ct = (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) / 1000 / 60;
+        const ct =
+          (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+          1000 /
+          60;
         grouped[resp.processId].manualCTs.push(ct);
       }
     });
@@ -10194,28 +10949,32 @@ const cycleTimeComparisionData = async (req, res) => {
     const processWiseCT = Object.values(grouped).map((p) => ({
       processName: p.processName,
       machineName: p.machineName,
-      manualCT: p.manualCTs.length > 0 ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length : 0,
+      manualCT:
+        p.manualCTs.length > 0
+          ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
+          : 0,
       idealCT: p.idealCT,
     }));
 
     // ================================
     // 2️⃣ Step-wise Cycle Time (Added PartId & Date Filter)
-  // cycleTimeComparisionData के अंदर Step-wise query:
-const stepTrackings = await prisma.productionStepTracking.findMany({
-  where: {
-    status: "completed",
-    workInstructionStep:{
-      processId:processId
-    }
-  },
-  include: {
-    workInstructionStep: true
-  }
-});
-console.log('stepTrackingsstepTrackings',stepTrackings)
+    // cycleTimeComparisionData के अंदर Step-wise query:
+    const stepTrackings = await prisma.productionStepTracking.findMany({
+      where: {
+        status: "completed",
+        workInstructionStep: {
+          processId: processId,
+        },
+      },
+      include: {
+        workInstructionStep: true,
+      },
+    });
+    console.log("stepTrackingsstepTrackings", stepTrackings);
     const stepGrouped = {};
     stepTrackings.forEach((st) => {
-      const duration = (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
+      const duration =
+        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
       const stepId = st.workInstructionStep?.id;
       if (!stepId) return;
 
@@ -10234,12 +10993,15 @@ console.log('stepTrackingsstepTrackings',stepTrackings)
       stepId: s.stepId,
       stepTitle: s.stepTitle,
       stepNumber: s.stepNumber,
-      averageDuration: s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+      averageDuration:
+        s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
       count: s.durations.length,
     }));
 
-    const overallAverage = stepAverages.length > 0
-        ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) / stepAverages.length
+    const overallAverage =
+      stepAverages.length > 0
+        ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
+          stepAverages.length
         : 0;
 
     res.json({
@@ -10248,7 +11010,9 @@ console.log('stepTrackingsstepTrackings',stepTrackings)
     });
   } catch (error) {
     console.error("cycleTimeComparisionData error:", error);
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 };
 
@@ -11529,7 +12293,7 @@ const capacityStatus = async (req, res) => {
 //     schedules.forEach((item) => {
 //       const processName = item.process?.processName || "Unknown Process";
 //       const machineName = item.process?.machineName || "Unknown Machine";
-      
+
 //       // Unique key banaya taki same process agar alag machine pe ho to mix na ho
 //       const key = `${processName}-${machineName}`;
 
@@ -11548,7 +12312,7 @@ const capacityStatus = async (req, res) => {
 
 //       const partCost = item.part?.cost || 0;
 //       const scrapCost = partCost * (item.scrapQuantity || 0);
-      
+
 //       // Logical Fix: Supplier return ke liye 'remainingQty' use kiya (aapne comment mein wahi likha tha)
 //       const supplierReturnCost = partCost * (item.remainingQty || 0);
 
@@ -11614,16 +12378,16 @@ const productionEfficieny = async (req, res) => {
     }
 
     const schedules = await prisma.stockOrderSchedule.findMany({
-      where: { 
+      where: {
         isDeleted: false,
-        ...dateFilter // 3. Date filter ko where clause mein add kiya
+        ...dateFilter, // 3. Date filter ko where clause mein add kiya
       },
       select: {
         scheduleQuantity: true,
         completedQuantity: true,
         scrapQuantity: true,
-        remainingQty: true, 
-        part: { select: { cost: true } }, 
+        remainingQty: true,
+        part: { select: { cost: true } },
         process: { select: { processName: true, machineName: true } },
       },
     });
@@ -11639,7 +12403,7 @@ const productionEfficieny = async (req, res) => {
     schedules.forEach((item) => {
       const processName = item.process?.processName || "Unknown Process";
       const machineName = item.process?.machineName || "Unknown Machine";
-      
+
       const key = `${processName}-${machineName}`;
 
       if (!processMap.has(key)) {
@@ -11696,7 +12460,9 @@ const productionEfficieny = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in productionEfficiency:", error);
-    return res.status(500).json({ message: "Server Error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
   }
 };
 const fiexedDataCalculation = async (req, res) => {
@@ -12604,7 +13370,7 @@ const businessAnalysisApi = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 const getProductParts = async (req, res) => {
   try {
     const { id } = req.params; // Product ID (part_id from PartNumber table)
@@ -12765,5 +13531,5 @@ module.exports = {
   scheudleInventory,
   getLabourForcast,
   businessAnalysisApi,
-  getProductParts
+  getProductParts,
 };

@@ -128,31 +128,32 @@ model VacationRequest {
 }
 
 model process {
-  id                   String                 @id @db.VarChar(10)
-  processName          String?                @db.VarChar(255)
-  machineName          String?                @db.VarChar(255)
-  cycleTime            String?                @db.VarChar(255)
-  ratePerHour          Float?
-  orderNeeded          Boolean
-  createdBy            String?                @db.VarChar(255)
-  isDeleted            Boolean?               @default(false)
-  createdAt            DateTime?              @default(now()) @db.DateTime(0)
-  updatedAt            DateTime?              @default(now()) @db.DateTime(0)
-  partFamily           String?                @db.VarChar(255)
-  isProcessReq         Boolean                @default(false)
-  processDesc          String?                @db.VarChar(255)
-  type                 String                 @default("") @db.VarChar(50)
-  customParts          CustomPart[]
-  PartNumber           PartNumber[]
-  ProcessOrderTable    ProcessOrderTable[]
-  ProductTree          ProductTree[]
-  ProductionResponse   ProductionResponse[]
-  StockOrderSchedule   StockOrderSchedule[]
-  WorkInstruction      WorkInstruction[]
-  WorkInstructionApply WorkInstructionApply[]
-  WorkInstructionSteps WorkInstructionSteps[]
-  processLogin         processLogin[]
-  scapEntries          scapEntries[]
+  id                       String                    @id @db.VarChar(10)
+  processName              String?                   @db.VarChar(255)
+  machineName              String?                   @db.VarChar(255)
+  cycleTime                String?                   @db.VarChar(255)
+  ratePerHour              Float?
+  orderNeeded              Boolean
+  createdBy                String?                   @db.VarChar(255)
+  isDeleted                Boolean?                  @default(false)
+  createdAt                DateTime?                 @default(now()) @db.DateTime(0)
+  updatedAt                DateTime?                 @default(now()) @db.DateTime(0)
+  partFamily               String?                   @db.VarChar(255)
+  isProcessReq             Boolean                   @default(false)
+  processDesc              String?                   @db.VarChar(255)
+  type                     String                    @default("") @db.VarChar(50)
+  customParts              CustomPart[]
+  PartNumber               PartNumber[]
+  ProcessOrderTable        ProcessOrderTable[]
+  ProductTree              ProductTree[]
+  ProductionResponse       ProductionResponse[]
+  StockOrderSchedule       StockOrderSchedule[]
+  WorkInstruction          WorkInstruction[]
+  WorkInstructionApply     WorkInstructionApply[]
+  WorkInstructionSteps     WorkInstructionSteps[]
+  processLogin             processLogin[]
+  scapEntries              scapEntries[]
+  customOrderExistingParts CustomOrderExistingPart[]
 }
 
 model suppliers {
@@ -303,6 +304,9 @@ model CustomOrder {
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
 
+  // Is line ko rakhein aur upar wali purani line (customOrderExistingParts) ko delete kar dein
+  existingParts CustomOrderExistingPart[]
+
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
   @@index([partId], map: "CustomOrder_partId_fkey")
@@ -327,6 +331,25 @@ model CustomPart {
   @@index([processId], map: "CustomPart_processId_fkey")
 }
 
+model CustomOrderExistingPart {
+  id                  String  @id @default(uuid()) @db.Char(36)
+  customOrderId       String  @db.Char(36)
+  partId              String  @db.Char(36)
+  processId           String? @db.VarChar(10) // Naya field
+  quantity            Int
+  cycleTime           String? @db.VarChar(255) // Naya field
+  instructionRequired Boolean @default(false) // Naya field
+
+  // Relations
+  customOrder CustomOrder @relation(fields: [customOrderId], references: [id])
+  part        PartNumber  @relation(fields: [partId], references: [part_id])
+  process     process?    @relation(fields: [processId], references: [id])
+
+  @@index([customOrderId])
+  @@index([partId])
+  @@index([processId])
+}
+
 model ProcessDetail {
   id            Int         @id @default(autoincrement())
   process       String
@@ -339,40 +362,40 @@ model ProcessDetail {
 }
 
 model PartNumber {
-  part_id                                         String                 @id @default(uuid()) @db.Char(36)
-  partFamily                                      String                 @db.Char(150)
-  partNumber                                      String                 @unique @db.Char(150)
-  partDescription                                 String?                @db.VarChar(255)
-  type                                            String                 @db.VarChar(100)
+  part_id                                         String                    @id @default(uuid()) @db.Char(36)
+  partFamily                                      String                    @db.Char(150)
+  partNumber                                      String                    @unique @db.Char(150)
+  partDescription                                 String?                   @db.VarChar(255)
+  type                                            String                    @db.VarChar(100)
   cost                                            Float
   leadTime                                        Int?
-  minStock                                        Int?                   @default(0)
-  availStock                                      Int?                   @default(0)
-  supplierOrderQty                                Int?                   @default(0)
-  cycleTime                                       String?                @db.VarChar(255)
-  processId                                       String?                @db.VarChar(10)
-  processDesc                                     String?                @db.VarChar(255)
-  processOrderRequired                            Boolean                @default(false)
-  instructionRequired                             Boolean                @default(false)
-  companyName                                     String                 @db.VarChar(100)
-  submittedBy                                     String?                @db.VarChar(100)
-  createdBy                                       String?                @db.Char(36)
-  createdAt                                       DateTime               @default(now())
-  updatedAt                                       DateTime               @updatedAt
-  isDeleted                                       Boolean                @default(false)
+  minStock                                        Int?                      @default(0)
+  availStock                                      Int?                      @default(0)
+  supplierOrderQty                                Int?                      @default(0)
+  cycleTime                                       String?                   @db.VarChar(255)
+  processId                                       String?                   @db.VarChar(10)
+  processDesc                                     String?                   @db.VarChar(255)
+  processOrderRequired                            Boolean                   @default(false)
+  instructionRequired                             Boolean                   @default(false)
+  companyName                                     String                    @db.VarChar(100)
+  submittedBy                                     String?                   @db.VarChar(100)
+  createdBy                                       String?                   @db.Char(36)
+  createdAt                                       DateTime                  @default(now())
+  updatedAt                                       DateTime                  @updatedAt
+  isDeleted                                       Boolean                   @default(false)
   CustomOrder                                     CustomOrder[]
-  ordersAsProduct                                 CustomOrder[]          @relation("ProductForOrder")
+  ordersAsProduct                                 CustomOrder[]             @relation("ProductForOrder")
   partImages                                      PartImage[]
-  process                                         process?               @relation(fields: [processId], references: [id])
+  process                                         process?                  @relation(fields: [processId], references: [id])
   ProcessOrderTable                               ProcessOrderTable[]
   ProductTree                                     ProductTree[]
-  usedInProducts                                  ProductTree[]          @relation("ComponentParts")
-  components                                      ProductTree[]          @relation("ParentProduct")
+  usedInProducts                                  ProductTree[]             @relation("ComponentParts")
+  components                                      ProductTree[]             @relation("ParentProduct")
   ProductionResponse                              ProductionResponse[]
-  stockOrders                                     StockOrder[]           @relation("part")
-  StockOrder_StockOrder_productNumberToPartNumber StockOrder[]           @relation("StockOrder_productNumberToPartNumber")
+  stockOrders                                     StockOrder[]              @relation("part")
+  StockOrder_StockOrder_productNumberToPartNumber StockOrder[]              @relation("StockOrder_productNumberToPartNumber")
   StockOrderSchedule                              StockOrderSchedule[]
-  usedAsPart                                      StockOrderSchedule[]   @relation("PartRelation")
+  usedAsPart                                      StockOrderSchedule[]      @relation("PartRelation")
   WorkInstruction                                 WorkInstruction[]
   WorkInstructionApply                            WorkInstructionApply[]
   WorkInstructionSteps                            WorkInstructionSteps[]
@@ -380,6 +403,7 @@ model PartNumber {
   scapEntries                                     scapEntries[]
   supplier_inventory                              supplier_inventory?
   supplier_orders                                 supplier_orders[]
+  customOrderExistingParts                        CustomOrderExistingPart[]
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }
@@ -650,7 +674,7 @@ model ProductionStepTracking {
   stepEndTime           DateTime?
   productionResponseId  String
   workInstructionStepId String
-  partId                 String?                  @db.Char(36)
+  partId                String?              @db.Char(36)
   scapEntriesId         String?              @db.Char(36)
   productionResponse    ProductionResponse   @relation(fields: [productionResponseId], references: [id])
   scapEntries           scapEntries?         @relation(fields: [scapEntriesId], references: [id])
@@ -754,6 +778,21 @@ model stationNotification {
   createdBy     String?   @db.Char(36)
   stationUserId String?   @db.Char(36)
   updatedAt     DateTime? @updatedAt
+}
+
+model DailyInventory {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  date               DateTime @db.Date
+  partNumber         String
+  availableStock     Int?
+  minStock           Int? // <--- Ye line check karein, ye honi chahiye
+  inventoryLevel     Int
+  costPerUnit        Float
+  inventoryCost      Float
+  totalInventoryCost Float
+  createdAt          DateTime @default(now())
+
+  @@index([date])
 }
 
 enum TimeClockEventType {
