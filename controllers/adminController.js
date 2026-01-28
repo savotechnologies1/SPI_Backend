@@ -707,8 +707,10 @@ const selectSupplier = async (req, res) => {
         id: true,
         firstName: true,
         lastName: true,
+        email: true,
       },
     });
+    console.log("supplierssuppliers", suppliers);
     const formattedSuppliers = suppliers.map((supplier) => ({
       id: supplier.id,
       name: `${supplier.firstName} ${supplier.lastName}`,
@@ -914,7 +916,93 @@ const sendSupplierEmail = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+const sendOrderToSupplier = async (req, res) => {
+  try {
+    const { part_id, quantity, need_date } = req.body;
 
+    if (!part_id || !quantity || !need_date) {
+      return res
+        .status(400)
+        .json({ message: "part_id, quantity, and need_date are required." });
+    }
+
+    const partDetail = await prisma.partNumber.findUnique({
+      where: { part_id: part_id, isDeleted: false },
+      include: {
+        supplier: true,
+      },
+    });
+
+    if (!partDetail) {
+      return res.status(404).json({ message: "Part not found." });
+    }
+
+    if (!partDetail.supplier || !partDetail.supplier.email) {
+      return res.status(400).json({
+        message: "Supplier or Supplier Email not found for this part.",
+      });
+    }
+
+    // 3. Order Number Generate करें (e.g., PO-17062024-XXXX)
+    const orderNumber = `PO-${new Date().getTime().toString().slice(-6)}`;
+
+    // 4. Dates को Format करें (HTML Template के लिए)
+    const formattedOrderDate = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const formattedNeedDate = new Date(need_date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    // 5. Template Data तैयार करें (आपके HTML Template के अनुसार)
+    const templateData = {
+      "{{supplier_name}}": `${partDetail.supplier.firstName} ${partDetail.supplier.lastName}`,
+      "{{order_number}}": orderNumber,
+      "{{order_date}}": formattedOrderDate,
+      "{{part_name}}": partDetail.partNumber,
+      "{{quantity}}": quantity,
+      "{{cost}}": `$${(partDetail.cost * quantity).toFixed(2)}`,
+      "{{need_date}}": formattedNeedDate,
+    };
+
+    // 6. DB में Order Record बनाएँ (ताकि History रहे)
+    await prisma.supplier_orders.create({
+      data: {
+        order_number: orderNumber,
+        order_date: new Date().toISOString(),
+        supplier_id: partDetail.supplier.id,
+        part_id: partDetail.part_id,
+        quantity: parseInt(quantity),
+        cost: partDetail.cost * quantity,
+        status: "pending",
+        need_date: new Date(need_date).toISOString(),
+        firstName: partDetail.supplier.firstName,
+        lastName: partDetail.supplier.lastName,
+        email: partDetail.supplier.email,
+      },
+    });
+
+    // 7. सप्लायर को मेल भेजें
+    // 'send-order-to-the-supplier' आपके mailTemplate टेबल की event id होनी चाहिए
+    await sendMail(
+      "send-order-to-the-supplier",
+      templateData,
+      partDetail.supplier.email,
+    );
+
+    return res.status(200).json({
+      message: "Order placed and email sent to supplier successfully!",
+      orderNumber,
+    });
+  } catch (error) {
+    console.error("Order API Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 // const supplierOrder = async (req, res) => {
 //   try {
 //     const {
@@ -6949,12 +7037,10 @@ const customOrderSchedule = async (req, res) => {
       return true;
     });
 
-    return res
-      .status(201)
-      .json({
-        success: true,
-        message: "Parent and components scheduled successfully",
-      });
+    return res.status(201).json({
+      success: true,
+      message: "Parent and components scheduled successfully",
+    });
   } catch (error) {
     console.error("Scheduling Error:", error);
     return res.status(500).json({ success: false, error: error.message });
@@ -8051,7 +8137,82 @@ const getSupplierInventory = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+const getLowStockParts = async (req, res) => {
+  try {
+    const paginationData = await paginationQuery(req.query);
+    const { search = "", sort = "" } = req.query;
 
+    const orConditions = [];
+    if (search) {
+      orConditions.push(
+        { partNumber: { contains: search } },
+        { partDescription: { contains: search } },
+        { partFamily: { contains: search } },
+      );
+    }
+
+    const whereFilter = {
+      isDeleted: false,
+      availStock: {
+        lte: prisma.partNumber.fields.minStock,
+      },
+      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
+    };
+
+    let orderBy = { createdAt: "desc" };
+    if (sort === "oldest") {
+      orderBy = { createdAt: "asc" };
+    }
+
+    const [inventoryData, totalCount] = await Promise.all([
+      prisma.partNumber.findMany({
+        where: whereFilter,
+        orderBy,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        select: {
+          part_id: true,
+          partNumber: true,
+          partDescription: true,
+          partFamily: true,
+          availStock: true,
+          minStock: true,
+          cost: true,
+          type: true,
+          createdAt: true,
+          companyName: true, // ये Supplier ID है
+          // 🔥 यहाँ से Supplier का Email और बाकी जानकारी आएगी
+          supplier: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      prisma.partNumber.count({
+        where: whereFilter,
+      }),
+    ]);
+
+    const getPagination = await pagination({
+      page: paginationData.page,
+      pageSize: paginationData.pageSize,
+      total: totalCount,
+    });
+
+    return res.status(200).json({
+      message: "Low Stock Parts retrieved successfully!",
+      data: inventoryData,
+      totalCount,
+      pagination: getPagination,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 const deleteSupplierInventory = async (req, res) => {
   try {
     const id = req.params.id;
@@ -12290,24 +12451,21 @@ const capacityStatus = async (req, res) => {
     const scheduleDataWithLoad = await Promise.all(
       scheduleData.map(async (item) => {
         // 🔹 1. Try from productionResponse
-        const productionResponses =
-          await prisma.productionResponse.findMany({
-            where: {
-              orderId: item.stockOrderId || item.order_id,
-              partId: item.part_id,
-              processId: item.processId,
-              isDeleted: false,
-            },
-          });
+        const productionResponses = await prisma.productionResponse.findMany({
+          where: {
+            orderId: item.stockOrderId || item.order_id,
+            partId: item.part_id,
+            processId: item.processId,
+            isDeleted: false,
+          },
+        });
 
         // ⏱ cycle time
         let totalCycleTime = 0;
         productionResponses.forEach((p) => {
           if (p.cycleTimeStart) {
             const start = new Date(p.cycleTimeStart);
-            const end = p.cycleTimeEnd
-              ? new Date(p.cycleTimeEnd)
-              : new Date();
+            const end = p.cycleTimeEnd ? new Date(p.cycleTimeEnd) : new Date();
             totalCycleTime += (end - start) / (1000 * 60);
           }
         });
@@ -12315,7 +12473,7 @@ const capacityStatus = async (req, res) => {
         // 🔹 2. completed qty from production response
         const productionCompletedQty = productionResponses.reduce(
           (sum, p) => sum + Number(p.completedQuantity || 0),
-          0
+          0,
         );
 
         // 🔹 3. FALLBACK → StockOrderSchedule.completedQuantity
@@ -12343,10 +12501,9 @@ const capacityStatus = async (req, res) => {
           calculatedCycleTimePerPart,
           loadTime,
           status: item.status,
-          order_date:
-            item.StockOrder?.orderDate || item.order_date,
+          order_date: item.StockOrder?.orderDate || item.order_date,
         };
-      })
+      }),
     );
 
     // 🔹 Aggregation
@@ -12379,17 +12536,15 @@ const capacityStatus = async (req, res) => {
       ],
     };
 
-    const processCompletionPercentage = Object.entries(
-      processCompletion
-    ).map(([processName, v]) => ({
-      processName,
-      completed: v.completed,
-      total: v.total,
-      completionPercentage:
-        v.total > 0
-          ? ((v.completed / v.total) * 100).toFixed(2)
-          : "0.00",
-    }));
+    const processCompletionPercentage = Object.entries(processCompletion).map(
+      ([processName, v]) => ({
+        processName,
+        completed: v.completed,
+        total: v.total,
+        completionPercentage:
+          v.total > 0 ? ((v.completed / v.total) * 100).toFixed(2) : "0.00",
+      }),
+    );
 
     return res.status(200).json({
       message: "Capacity Status Data",
@@ -12406,21 +12561,6 @@ const capacityStatus = async (req, res) => {
     });
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // const productionEfficieny = async (req, res) => {
 //   try {
@@ -13565,7 +13705,6 @@ const getProductParts = async (req, res) => {
         processName: item.process?.processName,
       },
     }));
-
     return res.status(200).json({
       success: true,
       data: formattedData,
@@ -13686,4 +13825,6 @@ module.exports = {
   getLabourForcast,
   businessAnalysisApi,
   getProductParts,
+  getLowStockParts,
+  sendOrderToSupplier,
 };

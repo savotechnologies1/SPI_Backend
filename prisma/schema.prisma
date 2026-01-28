@@ -170,6 +170,7 @@ model suppliers {
   scapEntries        scapEntries[]
   supplier_inventory supplier_inventory[]
   orders             supplier_orders[]
+  partNumbers        PartNumber[]
 }
 
 model supplier_orders {
@@ -377,7 +378,6 @@ model PartNumber {
   processDesc                                     String?                   @db.VarChar(255)
   processOrderRequired                            Boolean                   @default(false)
   instructionRequired                             Boolean                   @default(false)
-  companyName                                     String                    @db.VarChar(100)
   submittedBy                                     String?                   @db.VarChar(100)
   createdBy                                       String?                   @db.Char(36)
   createdAt                                       DateTime                  @default(now())
@@ -404,6 +404,9 @@ model PartNumber {
   supplier_inventory                              supplier_inventory?
   supplier_orders                                 supplier_orders[]
   customOrderExistingParts                        CustomOrderExistingPart[]
+  // PartNumber model के अंदर
+  companyName                                     String?                   @db.VarChar(100) // ये भी EXACT VarChar(100) होना चाहिए, Char नहीं।
+  supplier                                        suppliers?                @relation(fields: [companyName], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([processId], map: "PartNumber_processId_fkey")
 }

@@ -108,6 +108,8 @@ const {
   businessAnalysisApi,
   getProductBOM,
   getProductParts,
+  getLowStockParts,
+  sendOrderToSupplier,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -431,7 +433,7 @@ router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.get("/select-schedule-product-number", selectScheudleProductNumber);
 router.get("/scrap-entry-detail/:id", getScrapEntryById);
 router.put("/update-scrap-entry/:id", updateScrapEntry);
-router.get("/supplier-inventory", getSupplierInventory);
+router.get("/supplier-inventory", getLowStockParts);
 router.patch("/delete-supplier-invetory/:id", deleteSupplierInventory);
 router.post("/send-notification", adminValidateToken, stationSendNotification);
 router.get(
@@ -490,5 +492,6 @@ router.get("/schedule-inventory", scheudleInventory);
 router.get("/get-labour-forcast", getLabourForcast);
 router.get("/business-analysis", businessAnalysisApi);
 router.get("/trainig-status", adminValidateToken, checkTraningStatus);
-router.get("/product-parts/:id",adminValidateToken,getProductParts)
+router.get("/product-parts/:id", adminValidateToken, getProductParts);
+router.post("/send-order-to-supplier", adminValidateToken, sendOrderToSupplier);
 module.exports = router;
