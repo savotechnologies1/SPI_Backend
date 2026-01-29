@@ -138,6 +138,12 @@ router.post("/create-custom-order", validateToken, customeOrder);
 router.post("/add-custom-orders", validateToken, addCustomOrder);
 router.get("/get-customOrders/:id", validateToken, getCustomOrderById);
 router.post("/custom-order-schedule", validateToken, customOrderSchedule);
+
+router.get(
+  "/select-product-number-for-stock",
+  validateToken,
+  selectProductNumberForStockOrder,
+);
 router.get(
   "/stock-order-schedule-list",
   validateToken,

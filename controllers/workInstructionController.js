@@ -572,30 +572,168 @@ const removeDuplicateSteps = (steps) => {
     return true;
   });
 };
+// const allWorkInstructions = async (req, res) => {
+//   try {
+//     const paginationData = await paginationQuery(req.query);
+//     const { search = "", productId = "", type = "all" } = req.query;
+
+//     const commonWhereConditions = []; // Use a more descriptive name
+//     if (search) {
+//       commonWhereConditions.push({
+//         instructionTitle: {
+//           contains: search,
+//         },
+//       });
+//     }
+
+//     // If a productId is provided, filter based on it.
+//     // This condition will apply to both WorkInstruction and WorkInstructionApply
+//     // as both models have a 'productId' field.
+//     if (productId) {
+//       commonWhereConditions.push({
+//         productId: productId, // Direct match for productId
+//       });
+//     }
+
+//     // Apply OR if multiple conditions are present, otherwise just the single condition
+//     const finalWhereFilter = {
+//       isDeleted: false,
+//       ...(commonWhereConditions.length > 0
+//         ? { AND: commonWhereConditions }
+//         : {}),
+//     };
+
+//     let workInstructions = [];
+//     let appliedInstructions = [];
+
+//     if (type === "original" || type === "all") {
+//       workInstructions = await prisma.workInstruction.findMany({
+//         where: finalWhereFilter,
+//         include: {
+//           PartNumber: { select: { partNumber: true } },
+//           process: { select: { processName: true } },
+//           steps: {
+//             where: { isDeleted: false },
+//             select: {
+//               id: true,
+//               title: true,
+//               stepNumber: true,
+//               instruction: true,
+//               images: { select: { id: true, imagePath: true } },
+//               videos: { select: { id: true, videoPath: true } },
+//             },
+//             orderBy: { stepNumber: "asc" },
+//           },
+//         },
+//       });
+//     }
+
+//     if (type === "applied" || type === "all") {
+//       appliedInstructions = await prisma.workInstructionApply.findMany({
+//         where: finalWhereFilter,
+//         include: {
+//           PartNumber: { select: { partNumber: true } },
+//           process: { select: { processName: true } },
+//           steps: {
+//             where: { isDeleted: false },
+//             select: {
+//               id: true,
+//               title: true,
+//               stepNumber: true,
+//               instruction: true,
+//               images: { select: { id: true, imagePath: true } },
+//               videos: { select: { id: true, videoPath: true } },
+//             },
+//             orderBy: { stepNumber: "asc" },
+//           },
+//         },
+//       });
+//     }
+
+//     // const formattedWI = workInstructions.map((item) => ({
+//     //   ...item,
+//     //   type: "original",
+//     //   originalId: item.id,
+//     //   appliedId: null, // Clearly indicate it's not an applied ID
+//     // }));
+
+//     // console.log("formattedWIformattedWI", formattedWI);
+//     // Remove duplicate steps by stepNumber
+
+//     const formattedWI = workInstructions.map((item) => ({
+//       ...item,
+//       type: "original",
+//       originalId: item.id,
+//       appliedId: null,
+//       steps: removeDuplicateSteps(item.steps), // 👈 filter applied
+//     }));
+
+//     const formattedApply = appliedInstructions.map((item) => ({
+//       ...item,
+//       type: "applied",
+//       originalId: item.instructionId,
+//       appliedId: item.id,
+//       steps: removeDuplicateSteps(item.steps), // 👈 filter applied
+//     }));
+
+//     // const formattedApply = appliedInstructions.map((item) => ({
+//     //   ...item,
+//     //   type: "applied",
+//     //   // Reference the original instruction ID
+//     //   originalId: item.instructionId, // This links to the WorkInstruction that was applied
+//     //   appliedId: item.id, // This is the ID of the WorkInstructionApply record
+//     // }));
+
+//     const mergedData = [...formattedWI, ...formattedApply].sort(
+//       (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+//     );
+
+//     const totalCount = mergedData.length;
+//     const paginatedData = mergedData.slice(
+//       paginationData.skip,
+//       paginationData.skip + paginationData.pageSize,
+//     );
+
+//     const getPagination = await pagination({
+//       page: paginationData.page,
+//       pageSize: paginationData.pageSize,
+//       total: totalCount,
+//     });
+
+//     return res.status(200).json({
+//       message:
+//         "All work instructions (original + applied) fetched successfully!",
+//       data: paginatedData,
+//       totalCount,
+//       pagination: getPagination,
+//     });
+//   } catch (error) {
+//     console.error("Work Instruction Fetch Error:", error);
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const allWorkInstructions = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
     const { search = "", productId = "", type = "all" } = req.query;
 
-    const commonWhereConditions = []; // Use a more descriptive name
+    const commonWhereConditions = [];
     if (search) {
       commonWhereConditions.push({
-        instructionTitle: {
-          contains: search,
-        },
+        instructionTitle: { contains: search },
       });
     }
 
-    // If a productId is provided, filter based on it.
-    // This condition will apply to both WorkInstruction and WorkInstructionApply
-    // as both models have a 'productId' field.
     if (productId) {
       commonWhereConditions.push({
-        productId: productId, // Direct match for productId
+        productId: productId,
       });
     }
 
-    // Apply OR if multiple conditions are present, otherwise just the single condition
     const finalWhereFilter = {
       isDeleted: false,
       ...(commonWhereConditions.length > 0
@@ -603,9 +741,24 @@ const allWorkInstructions = async (req, res) => {
         : {}),
     };
 
+    // Helper function to remove duplicates based on stepNumber
+    const removeDuplicateSteps = (steps) => {
+      const uniqueStepsMap = new Map();
+      steps.forEach((step) => {
+        // Agar same stepNumber ke multiple steps hain, toh latest ya pehla wala rakhein
+        if (!uniqueStepsMap.has(step.stepNumber)) {
+          uniqueStepsMap.set(step.stepNumber, step);
+        }
+      });
+      return Array.from(uniqueStepsMap.values()).sort(
+        (a, b) => a.stepNumber - b.stepNumber,
+      );
+    };
+
     let workInstructions = [];
     let appliedInstructions = [];
 
+    // 1. ORIGINAL INSTRUCTIONS FETCHING
     if (type === "original" || type === "all") {
       workInstructions = await prisma.workInstruction.findMany({
         where: finalWhereFilter,
@@ -614,11 +767,7 @@ const allWorkInstructions = async (req, res) => {
           process: { select: { processName: true } },
           steps: {
             where: { isDeleted: false },
-            select: {
-              id: true,
-              title: true,
-              stepNumber: true,
-              instruction: true,
+            include: {
               images: { select: { id: true, imagePath: true } },
               videos: { select: { id: true, videoPath: true } },
             },
@@ -628,62 +777,67 @@ const allWorkInstructions = async (req, res) => {
       });
     }
 
+    // 2. APPLIED INSTRUCTIONS FETCHING (Logic Fix Here)
     if (type === "applied" || type === "all") {
       appliedInstructions = await prisma.workInstructionApply.findMany({
         where: finalWhereFilter,
         include: {
           PartNumber: { select: { partNumber: true } },
           process: { select: { processName: true } },
+          // Yahan Master Instruction ke steps nikalne ke liye workInstruction include kiya
+          workInstruction: {
+            include: {
+              steps: {
+                where: { isDeleted: false },
+                include: {
+                  images: { select: { id: true, imagePath: true } },
+                  videos: { select: { id: true, videoPath: true } },
+                },
+              },
+            },
+          },
+          // Agar applied record ke apne koi specific steps hain
           steps: {
             where: { isDeleted: false },
-            select: {
-              id: true,
-              title: true,
-              stepNumber: true,
-              instruction: true,
+            include: {
               images: { select: { id: true, imagePath: true } },
               videos: { select: { id: true, videoPath: true } },
             },
-            orderBy: { stepNumber: "asc" },
           },
         },
       });
     }
 
-    // const formattedWI = workInstructions.map((item) => ({
-    //   ...item,
-    //   type: "original",
-    //   originalId: item.id,
-    //   appliedId: null, // Clearly indicate it's not an applied ID
-    // }));
-
-    // console.log("formattedWIformattedWI", formattedWI);
-    // Remove duplicate steps by stepNumber
-
+    // 3. FORMATTING ORIGINAL
     const formattedWI = workInstructions.map((item) => ({
       ...item,
       type: "original",
       originalId: item.id,
       appliedId: null,
-      steps: removeDuplicateSteps(item.steps), // 👈 filter applied
+      steps: removeDuplicateSteps(item.steps || []),
     }));
 
-    const formattedApply = appliedInstructions.map((item) => ({
-      ...item,
-      type: "applied",
-      originalId: item.instructionId,
-      appliedId: item.id,
-      steps: removeDuplicateSteps(item.steps), // 👈 filter applied
-    }));
+    // 4. FORMATTING APPLIED (Consolidating Master Steps)
+    const formattedApply = appliedInstructions.map((item) => {
+      // Yahan hum Master ke steps aur Applied ke steps ko merge kar rahe hain
+      // Kyunki aksar Applied record mein steps empty hote hain aur wo master se lene hote hain
+      const masterSteps = item.workInstruction?.steps || [];
+      const directSteps = item.steps || [];
 
-    // const formattedApply = appliedInstructions.map((item) => ({
-    //   ...item,
-    //   type: "applied",
-    //   // Reference the original instruction ID
-    //   originalId: item.instructionId, // This links to the WorkInstruction that was applied
-    //   appliedId: item.id, // This is the ID of the WorkInstructionApply record
-    // }));
+      const combinedSteps = [...masterSteps, ...directSteps];
 
+      return {
+        ...item,
+        type: "applied",
+        originalId: item.instructionId,
+        appliedId: item.id,
+        // Master se steps utha kar response mein daal diye
+        steps: removeDuplicateSteps(combinedSteps),
+        workInstruction: undefined, // Cleanup: iski zaroorat response mein nahi hai
+      };
+    });
+
+    // 5. MERGE AND PAGINATE
     const mergedData = [...formattedWI, ...formattedApply].sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     );
@@ -715,7 +869,6 @@ const allWorkInstructions = async (req, res) => {
     });
   }
 };
-
 const selectInstructionPartNumber = async (req, res) => {
   try {
     const process = await prisma.partNumber.findMany({
@@ -1138,9 +1291,12 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 
 // const getWorkInstructionDetail = async (req, res) => {
 //   const { id } = req.params;
-
 //   try {
-//     let workInstruction = await prisma.workInstruction.findUnique({
+//     let source = "original";
+//     let workInstruction = null;
+//     let allSteps = [];
+
+//     const original = await prisma.workInstruction.findUnique({
 //       where: { id },
 //       include: {
 //         steps: {
@@ -1154,59 +1310,41 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 //       },
 //     });
 
-//     let source = "original";
-//     let allSteps = [];
-
-//     if (workInstruction) {
-//       allSteps = workInstruction.steps;
+//     if (original) {
+//       source = "original";
+//       workInstruction = original;
+//       allSteps = original.steps;
 //     } else {
-//       const applyInstruction = await prisma.workInstructionApply.findUnique({
+//       const applied = await prisma.workInstructionApply.findUnique({
 //         where: { id },
 //         include: {
 //           steps: {
 //             where: { isDeleted: false },
 //             orderBy: { stepNumber: "asc" },
 //             include: {
-//               images: true,
-//               videos: true,
-//             },
-//           },
-//           workInstruction: {
-//             include: {
-//               steps: {
-//                 where: { isDeleted: false },
-//                 orderBy: { stepNumber: "asc" },
-//                 include: {
-//                   images: true,
-//                   videos: true,
+//               images: {
+//                 where: {
+//                   isDeleted: false,
 //                 },
 //               },
+//               videos: true,
 //             },
 //           },
 //         },
 //       });
 
-//       if (!applyInstruction) {
+//       if (!applied) {
 //         return res.status(404).json({ message: "Work instruction not found" });
 //       }
-
 //       source = "applied";
-//       workInstruction = applyInstruction;
-
-//       const originalSteps = applyInstruction.workInstruction?.steps || [];
-//       const appliedSteps = applyInstruction.steps;
-
-//       // ✅ Combine and remove duplicates by step ID
-//       const combined = [...originalSteps, ...appliedSteps];
-//       const seen = new Set();
-//       allSteps = combined.filter((step) => {
-//         if (seen.has(step.id)) return false;
-//         seen.add(step.id);
-//         return true;
-//       });
+//       workInstruction = applied;
+//       allSteps = applied.steps;
 //     }
 
-//     const formattedSteps = allSteps.map((step) => ({
+//     // 👇 Deduplicate steps by stepNumber
+//     const uniqueSteps = removeDuplicateSteps(allSteps);
+
+//     const formattedSteps = uniqueSteps.map((step) => ({
 //       id: step.id,
 //       part_id: step.part_id,
 //       processId: step.processId,
@@ -1214,12 +1352,17 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 //       stepNumber: step.stepNumber,
 //       title: step.title,
 //       instruction: step.instruction,
-//       workInstructionImg: step.images?.map((img) => img.imagePath) || [],
+//       workInstructionImg:
+//         step.images?.map((img) => ({
+//           id: img.id,
+//           name: img.imagePath,
+//           workInstructionId: step.id,
+//         })) || [],
 //       workInstructionVideo: step.videos?.map((vid) => vid.videoPath) || [],
 //     }));
 
 //     return res.status(200).json({
-//       message: `✅ Work Instruction fetched from ${source}`,
+//       message: ` Work Instruction fetched from ${source}`,
 //       workInstructionId: workInstruction.id,
 //       instructionTitle: workInstruction.instructionTitle,
 //       processId: workInstruction.processId,
@@ -1235,9 +1378,6 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
 //     });
 //   }
 // };
-
-// Utility function: remove duplicate steps by stepNumber
-
 const getWorkInstructionDetail = async (req, res) => {
   const { id } = req.params;
   try {
@@ -1245,6 +1385,7 @@ const getWorkInstructionDetail = async (req, res) => {
     let workInstruction = null;
     let allSteps = [];
 
+    // 1. Pehle Original/Master table mein check karein
     const original = await prisma.workInstruction.findUnique({
       where: { id },
       include: {
@@ -1252,8 +1393,8 @@ const getWorkInstructionDetail = async (req, res) => {
           where: { isDeleted: false },
           orderBy: { stepNumber: "asc" },
           include: {
-            images: true,
-            videos: true,
+            images: { where: { isDeleted: false } },
+            videos: { where: { isDeleted: false } },
           },
         },
       },
@@ -1264,19 +1405,29 @@ const getWorkInstructionDetail = async (req, res) => {
       workInstruction = original;
       allSteps = original.steps;
     } else {
+      // 2. Agar Original nahi mila, toh Applied table mein check karein
       const applied = await prisma.workInstructionApply.findUnique({
         where: { id },
         include: {
+          // IMPORTANT: Master instruction aur uske steps ko include karein
+          workInstruction: {
+            include: {
+              steps: {
+                where: { isDeleted: false },
+                include: {
+                  images: { where: { isDeleted: false } },
+                  videos: { where: { isDeleted: false } },
+                },
+              },
+            },
+          },
+          // Agar applied record ke paas apne koi specific steps hain
           steps: {
             where: { isDeleted: false },
             orderBy: { stepNumber: "asc" },
             include: {
-              images: {
-                where: {
-                  isDeleted: false,
-                },
-              },
-              videos: true,
+              images: { where: { isDeleted: false } },
+              videos: { where: { isDeleted: false } },
             },
           },
         },
@@ -1285,17 +1436,23 @@ const getWorkInstructionDetail = async (req, res) => {
       if (!applied) {
         return res.status(404).json({ message: "Work instruction not found" });
       }
+
       source = "applied";
       workInstruction = applied;
-      allSteps = applied.steps;
+
+      // Logic: Master steps aur Direct steps ko merge karein
+      const masterSteps = applied.workInstruction?.steps || [];
+      const directSteps = applied.steps || [];
+      allSteps = [...masterSteps, ...directSteps];
     }
 
-    // 👇 Deduplicate steps by stepNumber
+    // 3. Deduplicate steps by stepNumber (Helper function call)
     const uniqueSteps = removeDuplicateSteps(allSteps);
 
+    // 4. Formatting the response
     const formattedSteps = uniqueSteps.map((step) => ({
       id: step.id,
-      part_id: step.part_id,
+      part_id: step.partNumberPart_id || step.part_id, // consistency check
       processId: step.processId,
       productTreeId: step.productTreeId,
       stepNumber: step.stepNumber,
@@ -1305,13 +1462,18 @@ const getWorkInstructionDetail = async (req, res) => {
         step.images?.map((img) => ({
           id: img.id,
           name: img.imagePath,
-          workInstructionId: step.id,
+          workInstructionId: step.workInstructionId || step.id,
         })) || [],
-      workInstructionVideo: step.videos?.map((vid) => vid.videoPath) || [],
+      workInstructionVideo:
+        step.videos?.map((vid) => ({
+          id: vid.id,
+          name: vid.videoPath,
+          workInstructionId: step.workInstructionId || step.id,
+        })) || [],
     }));
 
     return res.status(200).json({
-      message: ` Work Instruction fetched from ${source}`,
+      message: `Work Instruction fetched from ${source}`,
       workInstructionId: workInstruction.id,
       instructionTitle: workInstruction.instructionTitle,
       processId: workInstruction.processId,
@@ -1320,14 +1482,13 @@ const getWorkInstructionDetail = async (req, res) => {
       steps: formattedSteps,
     });
   } catch (error) {
-    console.error(" Error fetching work instruction detail:", error);
+    console.error("Error fetching work instruction detail:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
     });
   }
 };
-
 const deleteWorkInstruction = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1593,11 +1754,133 @@ const selectInstruction = async (req, res) => {
 //   }
 // };
 
+// const applyWorkInstruction = async (req, res) => {
+//   try {
+//     const { workInstructionId, processId, productId } = req.body;
+
+//     const originalWorkInstruction = await prisma.workInstruction.findFirst({
+//       where: {
+//         id: workInstructionId,
+//         isDeleted: false,
+//       },
+//       select: {
+//         id: true,
+//         instructionTitle: true,
+//       },
+//     });
+
+//     if (!originalWorkInstruction) {
+//       return res.status(404).json({
+//         message: "Original Work Instruction not found.",
+//       });
+//     }
+
+//     const alreadyExists = await prisma.workInstructionApply.findFirst({
+//       where: {
+//         instructionTitle: originalWorkInstruction.instructionTitle,
+//         processId,
+//         productId,
+//         isDeleted: false,
+//       },
+//     });
+
+//     if (alreadyExists) {
+//       return res.status(400).json({
+//         message:
+//           "This Work Instruction is already applied for the same process and product.",
+//       });
+//     }
+
+//     const newWorkInstructionApply = await prisma.workInstructionApply.create({
+//       data: {
+//         processId,
+//         productId,
+//         instructionTitle: originalWorkInstruction.instructionTitle,
+//         instructionId: originalWorkInstruction.id,
+//         type: "applied",
+//       },
+//     });
+
+//     const originalSteps = await prisma.workInstructionSteps.findMany({
+//       where: {
+//         workInstructionId: originalWorkInstruction.id,
+//         isDeleted: false,
+//       },
+//       include: {
+//         images: true,
+//         videos: true,
+//       },
+//       orderBy: {
+//         stepNumber: "asc",
+//       },
+//     });
+//     const copiedSteps = [];
+//     for (const step of originalSteps) {
+//       const newStepId = uuidv4();
+
+//       const newStep = await prisma.workInstructionSteps.create({
+//         data: {
+//           id: newStepId, // Use the new generated ID
+//           workInstructionApplyId: newWorkInstructionApply.id, // Link to the newly applied instruction
+//           workInstructionId: originalWorkInstruction.id, // Keep reference to the original instruction if needed
+//           stepNumber: step.stepNumber,
+//           title: step.title,
+//           instruction: step.instruction, // Use 'instruction' as per your schema
+//           processId: step.processId, // Copy associated processId
+//           productTreeId: step.productTreeId, // Copy associated productTreeId
+//           partNumberPart_id: step.partNumberPart_id, // Copy associated partNumberPart_id
+//           // images and videos are created in nested `create`
+//         },
+//         // We'll manually create images/videos below to align with your `createWorkInstructionDetail` structure
+//       });
+
+//       // Copy Images for the new step
+//       for (const img of step.images || []) {
+//         // Ensure step.images is an array
+//         await prisma.instructionImage.create({
+//           data: {
+//             stepId: newStepId, // Link to the newly created step
+//             imagePath: img.imagePath, // Use imagePath as per your schema
+//           },
+//         });
+//       }
+
+//       // Copy Videos for the new step
+//       for (const video of step.videos || []) {
+//         // Ensure step.videos is an array
+//         await prisma.instructionVideo.create({
+//           data: {
+//             stepId: newStepId, // Link to the newly created step
+//             workInstructionId: originalWorkInstruction.id, // Link to the original WorkInstruction as in your create function
+//             videoPath: video.videoPath, // Use videoPath as per your schema
+//           },
+//         });
+//       }
+
+//       copiedSteps.push(newStep); // Add the newly created step to the list
+//     }
+
+//     return res.status(201).json({
+//       success: true,
+//       message: "Work Instruction and its steps copied successfully!",
+//       newWorkInstructionApply: {
+//         ...newWorkInstructionApply,
+//         steps: copiedSteps, // You might want to fetch steps with their images/videos here for a full response
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error applying work instruction:", error);
+//     return res.status(500).json({
+//       success: false, // Changed from 'error: true' for consistency with your create function
+//       message: error.message || "Something went wrong",
+//     });
+//   }
+// };
+
 const applyWorkInstruction = async (req, res) => {
   try {
     const { workInstructionId, processId, productId } = req.body;
 
-    // 1️⃣ Fetch the original Work Instruction
     const originalWorkInstruction = await prisma.workInstruction.findFirst({
       where: {
         id: workInstructionId,
@@ -1617,7 +1900,7 @@ const applyWorkInstruction = async (req, res) => {
 
     const alreadyExists = await prisma.workInstructionApply.findFirst({
       where: {
-        instructionTitle: originalWorkInstruction.instructionTitle,
+        instructionId: originalWorkInstruction.id,
         processId,
         productId,
         isDeleted: false,
@@ -1631,91 +1914,31 @@ const applyWorkInstruction = async (req, res) => {
       });
     }
 
-    const newWorkInstructionApply = await prisma.workInstructionApply.create({
+    const appliedInstruction = await prisma.workInstructionApply.create({
       data: {
+        instructionId: originalWorkInstruction.id,
+        instructionTitle: originalWorkInstruction.instructionTitle,
         processId,
         productId,
-        instructionTitle: originalWorkInstruction.instructionTitle,
-        instructionId: originalWorkInstruction.id,
         type: "applied",
       },
     });
 
-    const originalSteps = await prisma.workInstructionSteps.findMany({
-      where: {
-        workInstructionId: originalWorkInstruction.id,
-        isDeleted: false,
-      },
-      include: {
-        images: true,
-        videos: true,
-      },
-      orderBy: {
-        stepNumber: "asc",
-      },
-    });
-    const copiedSteps = [];
-    for (const step of originalSteps) {
-      const newStepId = uuidv4();
-
-      const newStep = await prisma.workInstructionSteps.create({
-        data: {
-          id: newStepId, // Use the new generated ID
-          workInstructionApplyId: newWorkInstructionApply.id, // Link to the newly applied instruction
-          workInstructionId: originalWorkInstruction.id, // Keep reference to the original instruction if needed
-          stepNumber: step.stepNumber,
-          title: step.title,
-          instruction: step.instruction, // Use 'instruction' as per your schema
-          processId: step.processId, // Copy associated processId
-          productTreeId: step.productTreeId, // Copy associated productTreeId
-          partNumberPart_id: step.partNumberPart_id, // Copy associated partNumberPart_id
-          // images and videos are created in nested `create`
-        },
-        // We'll manually create images/videos below to align with your `createWorkInstructionDetail` structure
-      });
-
-      // Copy Images for the new step
-      for (const img of step.images || []) {
-        // Ensure step.images is an array
-        await prisma.instructionImage.create({
-          data: {
-            stepId: newStepId, // Link to the newly created step
-            imagePath: img.imagePath, // Use imagePath as per your schema
-          },
-        });
-      }
-
-      // Copy Videos for the new step
-      for (const video of step.videos || []) {
-        // Ensure step.videos is an array
-        await prisma.instructionVideo.create({
-          data: {
-            stepId: newStepId, // Link to the newly created step
-            workInstructionId: originalWorkInstruction.id, // Link to the original WorkInstruction as in your create function
-            videoPath: video.videoPath, // Use videoPath as per your schema
-          },
-        });
-      }
-
-      copiedSteps.push(newStep); // Add the newly created step to the list
-    }
-
     return res.status(201).json({
       success: true,
-      message: "Work Instruction and its steps copied successfully!",
-      newWorkInstructionApply: {
-        ...newWorkInstructionApply,
-        steps: copiedSteps, // You might want to fetch steps with their images/videos here for a full response
-      },
+      message:
+        "Work Instruction applied successfully (without duplicating steps)",
+      data: appliedInstruction,
     });
   } catch (error) {
     console.error("Error applying work instruction:", error);
     return res.status(500).json({
-      success: false, // Changed from 'error: true' for consistency with your create function
+      success: false,
       message: error.message || "Something went wrong",
     });
   }
 };
+
 const selectByProductNumberOrDesc = async (req, res) => {
   try {
     const process = await prisma.partNumber.findMany({

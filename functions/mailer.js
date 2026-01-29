@@ -29,7 +29,7 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
           // tls: {
           //   rejectUnauthorized: false,
           // },
-        })
+        }),
       );
 
       for (let key in mailVariables) {

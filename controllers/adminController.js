@@ -1073,11 +1073,11 @@ const addProcess = async (req, res) => {
       },
     });
 
-    if (checkExistingProcess) {
-      return res.status(400).json({
-        message: "Process name already exists.",
-      });
-    }
+    // if (checkExistingProcess) {
+    //   return res.status(400).json({
+    //     message: "Process name already exists.",
+    //   });
+    // }
     const isProcessRequired = String(isProcessReq).toLowerCase() === "true";
     const getId = uuidv4().slice(0, 6);
     await prisma.process.create({
@@ -2651,6 +2651,7 @@ const selectProcess = async (req, res) => {
         machineName: true,
       },
       where: {
+        isProcessReq: true,
         isDeleted: false,
       },
     });
@@ -3113,6 +3114,13 @@ const partNumberList = async (req, res) => {
               processName: true,
             },
           },
+          supplier: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
         },
       }),
       prisma.partNumber.count({
@@ -3136,6 +3144,7 @@ const partNumberList = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -3521,6 +3530,7 @@ const createProductNumber = async (req, res) => {
           ...commonData,
           part_id: productId,
           partNumber: trimmedNumber,
+          partFamily: partFamily,
           partImages: {
             create: getPartImages?.map((img) => ({
               imageUrl: img.filename,
@@ -3938,6 +3948,12 @@ const partDetail = async (req, res) => {
             processName: true,
           },
         },
+        supplier: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
         partImages: {
           select: {
             id: true,
@@ -4086,7 +4102,6 @@ const productDetail = async (req, res) => {
 //     });
 //   }
 // };
-
 const getSingleProductTree = async (req, res) => {
   try {
     const id = req.params.id;
@@ -4098,7 +4113,7 @@ const getSingleProductTree = async (req, res) => {
         partFamily: true,
         partDescription: true,
         availStock: true,
-        companyName: true,
+        companyName: true, // इसमें अक्सर Supplier ID होती है
         cost: true,
         cycleTime: true,
         leadTime: true,
@@ -4109,9 +4124,16 @@ const getSingleProductTree = async (req, res) => {
         processDesc: true,
         processId: true,
         processOrderRequired: true,
-        // isProductSchedule: true,
+        supplier: {
+          // Relation का नाम यहाँ supplier है
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
+    console.log("productInfoproductInfo", productInfo);
 
     if (!productInfo) {
       return res.status(404).json({ message: "Product not found!" });
@@ -4127,7 +4149,6 @@ const getSingleProductTree = async (req, res) => {
         part_id: true,
         partQuantity: true,
         instructionRequired: true,
-        // isProductSchedule: true,
         part: {
           select: {
             partNumber: true,
@@ -4146,7 +4167,6 @@ const getSingleProductTree = async (req, res) => {
         },
       },
     });
-    console.log("productTreeEntries", productTreeEntries);
 
     const parts = productTreeEntries.map((pt) => ({
       id: pt.id,
@@ -4154,9 +4174,14 @@ const getSingleProductTree = async (req, res) => {
       partNumber: pt.part?.partNumber || null,
       partFamily: pt.part?.partFamily || null,
       process: pt.part?.process || null,
-      instructionRequired: pt.instructionRequired,
-      partQuantity: pt?.partQuantity,
+      instructionRequired: pt.instructionRequired ? "Yes" : "No", // Frontend consistency के लिए
+      partQuantity: pt.partQuantity,
     }));
+
+    // Supplier का नाम सुरक्षित तरीके से तैयार करें
+    const fullName = productInfo.supplier
+      ? `${productInfo.supplier.firstName || ""} ${productInfo.supplier.lastName || ""}`.trim()
+      : "";
 
     const result = {
       product_id: productInfo.part_id,
@@ -4164,6 +4189,11 @@ const getSingleProductTree = async (req, res) => {
       partFamily: productInfo.partFamily,
       partDescription: productInfo.partDescription,
       availStock: productInfo.availStock,
+      // Frontend को 'supplier' object भी भेजें ताकि Searchable Dropdown में आसानी हो
+      supplier: productInfo.supplier
+        ? { ...productInfo.supplier, name: fullName }
+        : null,
+      // 'companyName' में ID भेजें ताकि EditForm उसे register कर सके
       companyName: productInfo.companyName,
       cost: productInfo.cost,
       cycleTime: productInfo.cycleTime,
@@ -4174,11 +4204,10 @@ const getSingleProductTree = async (req, res) => {
       processDesc: productInfo.processDesc,
       processId: productInfo.processId,
       processOrderRequired: productInfo.processOrderRequired,
-      // isProductSchedule: productInfo.isProductSchedule,
       productImages: productInfo.partImages,
       parts,
     };
-
+    console.log("resultresult", result);
     return res.status(200).json({
       message: "Product detail retrieved successfully!",
       data: result,
@@ -4191,6 +4220,72 @@ const getSingleProductTree = async (req, res) => {
     });
   }
 };
+// const updatePartNumber = async (req, res) => {
+//   try {
+//     const fileData = await fileUploadFunc(req, res);
+//     const getPartImages = fileData?.data?.filter(
+//       (file) => file.fieldname === "partImages",
+//     );
+//     const id = req.params.id;
+//     const {
+//       partFamily,
+//       partNumber,
+//       partDescription,
+//       cost,
+//       leadTime,
+//       supplierOrderQty,
+//       companyName,
+//       minStock,
+//       availStock,
+//       cycleTime,
+//       processOrderRequired,
+//       processId,
+//       processDesc,
+//     } = req.body;
+//     await prisma.partNumber.update({
+//       where: {
+//         part_id: id,
+//         isDeleted: false,
+//       },
+//       data: {
+//         partFamily,
+//         partNumber,
+//         partDescription,
+//         cost: parseFloat(cost),
+//         leadTime: parseInt(leadTime),
+//         supplierOrderQty: parseInt(supplierOrderQty),
+//         companyName,
+//         minStock: parseInt(minStock),
+//         availStock: parseInt(availStock),
+//         cycleTime: cycleTime,
+//         processOrderRequired: processOrderRequired === "true",
+//         processId,
+//         processDesc,
+//         type: "part",
+//         submittedBy: req.user.id,
+//       },
+//     });
+//     if (getPartImages && getPartImages.length > 0) {
+//       const imagePromises = getPartImages.map((img) =>
+//         prisma.partImage.create({
+//           data: {
+//             imageUrl: img.filename,
+//             partId: id,
+//             type: "part",
+//           },
+//         }),
+//       );
+//       await Promise.all(imagePromises);
+//     }
+//     return res.status(200).json({
+//       message: "Part updated successfully!",
+//     });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Something went wrong . please try again later ." });
+//   }
+// };
 
 const updatePartNumber = async (req, res) => {
   try {
@@ -4199,6 +4294,7 @@ const updatePartNumber = async (req, res) => {
       (file) => file.fieldname === "partImages",
     );
     const id = req.params.id;
+
     const {
       partFamily,
       partNumber,
@@ -4206,14 +4302,17 @@ const updatePartNumber = async (req, res) => {
       cost,
       leadTime,
       supplierOrderQty,
-      companyName,
+      companyName, // अब इसमें Frontend से Supplier की ID आएगी
       minStock,
       availStock,
       cycleTime,
       processOrderRequired,
       processId,
+      instructionRequired,
       processDesc,
     } = req.body;
+
+    // डेटाबेस में अपडेट करने से पहले डेटा को क्लीन करें
     await prisma.partNumber.update({
       where: {
         part_id: id,
@@ -4223,20 +4322,33 @@ const updatePartNumber = async (req, res) => {
         partFamily,
         partNumber,
         partDescription,
-        cost: parseFloat(cost),
-        leadTime: parseInt(leadTime),
-        supplierOrderQty: parseInt(supplierOrderQty),
-        companyName,
-        minStock: parseInt(minStock),
-        availStock: parseInt(availStock),
+        // सुरक्षित रूप से नंबर में बदलें, अगर खाली है तो 0 या null रखें
+        cost: cost ? parseFloat(cost) : 0,
+        leadTime: leadTime ? parseInt(leadTime) : 0,
+        supplierOrderQty: supplierOrderQty ? parseInt(supplierOrderQty) : 0,
+
+        // कंपनी (Supplier ID) को स्टोर करें
+        companyName: companyName || null,
+
+        minStock: minStock ? parseInt(minStock) : 0,
+        availStock: availStock ? parseInt(availStock) : 0,
         cycleTime: cycleTime,
+
+        // Boolean conversion
         processOrderRequired: processOrderRequired === "true",
-        processId,
-        processDesc,
+        instructionRequired: instructionRequired === "true",
+
+        // अगर processOrderRequired "false" है, तो processId को null कर दें
+        processId: processOrderRequired === "true" ? processId || null : null,
+        processDesc:
+          processOrderRequired === "true" ? processDesc || null : null,
+
         type: "part",
         submittedBy: req.user.id,
       },
     });
+
+    // इमेजेस हैंडल करना
     if (getPartImages && getPartImages.length > 0) {
       const imagePromises = getPartImages.map((img) =>
         prisma.partImage.create({
@@ -4249,16 +4361,17 @@ const updatePartNumber = async (req, res) => {
       );
       await Promise.all(imagePromises);
     }
+
     return res.status(200).json({
       message: "Part updated successfully!",
     });
   } catch (error) {
+    console.error("Update Error:", error); // एरर चेक करने के लिए console log जोड़ें
     return res
       .status(500)
-      .json({ message: "Something went wrong . please try again later ." });
+      .json({ message: "Something went wrong. Please try again later." });
   }
 };
-
 const updateProductNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -6933,7 +7046,7 @@ const customOrderSchedule = async (req, res) => {
             order_id_part_id_order_type: {
               order_id: orderData.id,
               part_id: orderData.productId,
-              order_type: "Custom Order",
+              order_type: "CustomOrder",
             },
           },
           update: {
@@ -6945,7 +7058,7 @@ const customOrderSchedule = async (req, res) => {
           },
           create: {
             order_id: orderData.id,
-            order_type: "Custom Order",
+            order_type: "CustomOrder",
             part_id: orderData.productId, // Parent ki ID
             quantity: orderData.productQuantity,
             scheduleQuantity: orderData.productQuantity,
@@ -7489,9 +7602,15 @@ const scheduleStockOrdersList = async (req, res) => {
       } else {
         orderDetails = customMap.get(schedule.order_id);
       }
-
+      console.log("schedule", schedule);
+      let displayCompletedBy = schedule.completed_by;
+      if (schedule.completedByEmployee) {
+        displayCompletedBy =
+          `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim();
+      }
       return {
         ...schedule,
+        completed_by: displayCompletedBy,
         order: orderDetails,
         partDetails: {
           // PRIORITY LOGIC: Agar customPart hai toh wahan se, nahi toh part (library) se
@@ -12713,9 +12832,9 @@ const productionEfficieny = async (req, res) => {
 
       const current = processMap.get(key);
       const partCost = item.part?.cost || 0;
-      const scrapCost = partCost * (item.scrapQuantity || 0);
-      const supplierReturnCost = partCost * (item.remainingQty || 0);
-
+      const scrapQty = item.scrapQuantity || 0;
+      const scrapCost = partCost * scrapQty;
+      const supplierReturnCost = partCost * scrapQty;
       current.completed += item.completedQuantity || 0;
       current.scheduled += item.scheduleQuantity || 0;
       current.scrapCost += scrapCost;
