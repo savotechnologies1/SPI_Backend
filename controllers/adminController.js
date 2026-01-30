@@ -640,7 +640,7 @@ const supplierDetail = async (req, res) => {
 
 const editSupplierDetail = async (req, res) => {
   try {
-    const { firstName, lastName, email, address, billingTerms } = req.body;
+    const { firstName, lastName,companyName, email, address, billingTerms } = req.body;
     const id = req.params?.id;
     const existingCustomer = await prisma.suppliers.findFirst({
       where: {
@@ -664,6 +664,7 @@ const editSupplierDetail = async (req, res) => {
           firstName: firstName,
           lastName: lastName,
           email: email,
+          companyName:companyName,
           address: address,
           billingTerms: billingTerms,
         },
