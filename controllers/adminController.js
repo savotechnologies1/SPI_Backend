@@ -500,53 +500,59 @@ const deleteCustomer = async (req, res) => {
   } finally {
   }
 };
-
 const addSupplier = async (req, res) => {
   const errors = validationResult(req);
   const checkValid = await checkValidations(errors);
+
   if (checkValid.type === "error") {
     return res.status(400).send({
       message: checkValid.errors.msg,
     });
   }
+
   try {
-    const { firstName, lastName, email, address, billingTerms } = req.body;
+    const { firstName, lastName, email, companyName, address, billingTerms } =
+      req.body;
     const getId = uuidv4().slice(0, 6);
-    const existingCustomer = await prisma.suppliers.findFirst({
+
+    // Check for existing supplier by email
+    const existingSupplier = await prisma.suppliers.findFirst({
       where: {
         isDeleted: false,
         email: email,
       },
     });
-    if (existingCustomer) {
+
+    if (existingSupplier) {
       return res.status(400).json({
-        message: "Supplier with this email  already exists.",
+        message: "Supplier with this email already exists.",
       });
     }
-    await prisma.suppliers
-      .create({
-        data: {
-          id: getId,
-          firstName: firstName,
-          lastName: lastName,
-          email: email,
-          address: address,
-          billingTerms: billingTerms,
-          createdBy: req.user.id,
-        },
-      })
-      .then();
+
+    // Create supplier
+    await prisma.suppliers.create({
+      data: {
+        id: getId,
+        firstName,
+        lastName,
+        companyName,
+        email,
+        address,
+        billingTerms: billingTerms, // Ensure it's stored as a number if necessary
+        createdBy: req.user.id,
+      },
+    });
 
     return res.status(201).json({
       message: "Supplier added successfully!",
     });
   } catch (error) {
+    console.error("Add Supplier Error:", error);
     return res.status(500).send({
-      message: "Something went wrong. Please try again later.",
+      message: "Internal Server Error. Please try again later.",
     });
   }
 };
-
 const supplierList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -7532,6 +7538,253 @@ const customOrderSchedule = async (req, res) => {
 //   }
 // };
 
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     // Search Logic: Dono tables mein search karega
+//     if (search) {
+//       const searchTerm = search.trim();
+//       whereClause.OR = [
+//         { part: { partNumber: { contains: searchTerm } } },
+//         { customPart: { partNumber: { contains: searchTerm } } },
+//       ];
+//     }
+
+//     // 1. Fetch Schedules (Include dono parts)
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           part: { include: { process: true } }, // Stock/Library Part
+//           customPart: { include: { process: true } }, // Manual/Custom Part
+//           completedByEmployee: { select: { firstName: true, lastName: true } },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({ where: whereClause }),
+//     ]);
+
+//     // 2. Lookup IDs for Orders
+//     const stockOrderIds = [];
+//     const customOrderIds = [];
+
+//     filteredSchedules.forEach((s) => {
+//       const type = s.order_type?.replace(/\s/g, "");
+//       if (type === "StockOrder" && s.order_id) stockOrderIds.push(s.order_id);
+//       if (type === "CustomOrder" && s.order_id) customOrderIds.push(s.order_id);
+//     });
+
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
+//         : [],
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : [],
+//     ]);
+
+//     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     // 3. Final Formatting with Priority Logic
+//     const finalData = filteredSchedules.map((schedule) => {
+//       const type = schedule.order_type?.replace(/\s/g, "");
+//       let orderDetails = null;
+
+//       if (type === "StockOrder") {
+//         orderDetails = stockMap.get(schedule.order_id);
+//       } else {
+//         orderDetails = customMap.get(schedule.order_id);
+//       }
+//       console.log("schedule", schedule);
+//       let displayCompletedBy = schedule.completed_by;
+//       if (schedule.completedByEmployee) {
+//         displayCompletedBy =
+//           `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim();
+//       }
+//       return {
+//         ...schedule,
+//         completed_by: displayCompletedBy,
+//         order: orderDetails,
+//         partDetails: {
+//           // PRIORITY LOGIC: Agar customPart hai toh wahan se, nahi toh part (library) se
+//           partNumber:
+//             schedule.customPart?.partNumber ||
+//             schedule.part?.partNumber ||
+//             "N/A",
+
+//           description:
+//             schedule.part?.partDescription ||
+//             (schedule.customPart ? "Manual Entry" : "N/A"),
+
+//           source: schedule.customPart ? "Manual" : "Library",
+
+//           // Process Name lookup
+//           processName:
+//             schedule.customPart?.process?.processName ||
+//             schedule.part?.process?.processName ||
+//             "No Process",
+//         },
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Orders retrieved successfully",
+//       data: finalData,
+//       pagination: await pagination({
+//         page: paginationData.page,
+//         pageSize: paginationData.pageSize,
+//         total: totalCount,
+//       }),
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
+
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     if (search) {
+//       const searchTerm = search.trim();
+//       whereClause.OR = [
+//         { part: { partNumber: { contains: searchTerm } } },
+//         { customPart: { partNumber: { contains: searchTerm } } },
+//       ];
+//     }
+
+//     // 1. Fetch Schedules
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           part: { include: { process: true } },
+//           customPart: { include: { process: true } },
+//           // Include the actual employee linked via completed_EmpId
+
+//           completedByEmployee: {
+//             select: { firstName: true, lastName: true },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({ where: whereClause }),
+//     ]);
+
+//     // 2. Lookup Orders
+//     const stockOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type?.replace(/\s/g, "") === "StockOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+//     const customOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type?.replace(/\s/g, "") === "CustomOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
+//         : [],
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : [],
+//     ]);
+
+//     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     // 3. Final Formatting
+//     const finalData = filteredSchedules.map((schedule) => {
+//       const type = schedule.order_type?.replace(/\s/g, "");
+//       const orderDetails =
+//         type === "StockOrder"
+//           ? stockMap.get(schedule.order_id)
+//           : customMap.get(schedule.order_id);
+
+//       // --- LOGIC FOR COMPLETED BY ---
+//       const employeeFullName = schedule.completedByEmployee
+//         ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
+//         : null;
+//       console.log("employeeFullNameemployeeFullName", employeeFullName);
+//       let displayCompletedBy = schedule.completed_by; // Defaults to string stored (e.g., "Admin")
+//       console.log("displayCompletedBydisplayCompletedBy", displayCompletedBy);
+//       if (schedule.completed_by === "Admin") {
+//         // If Admin clicked it, show "Admin (Worker Name)"
+//         displayCompletedBy = employeeFullName ? employeeFullName : "Admin";
+//       } else if (employeeFullName) {
+//         // If it's a regular user name or null, use the Employee Relation name for accuracy
+//         displayCompletedBy = employeeFullName;
+//       }
+
+//       return {
+//         ...schedule,
+//         completed_by: displayCompletedBy, // Updated display string
+//         workerName: employeeFullName, // Original worker for reference
+//         order: orderDetails,
+//         partDetails: {
+//           partNumber:
+//             schedule.customPart?.partNumber ||
+//             schedule.part?.partNumber ||
+//             "N/A",
+//           description:
+//             schedule.part?.partDescription ||
+//             (schedule.customPart ? "Manual Entry" : "N/A"),
+//           source: schedule.customPart ? "Manual" : "Library",
+//           processName:
+//             schedule.customPart?.process?.processName ||
+//             schedule.part?.process?.processName ||
+//             "No Process",
+//         },
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Orders retrieved successfully",
+//       data: finalData,
+//       pagination: await pagination({
+//         page: paginationData.page,
+//         pageSize: paginationData.pageSize,
+//         total: totalCount,
+//       }),
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
@@ -7542,7 +7795,6 @@ const scheduleStockOrdersList = async (req, res) => {
       whereClause.order_type = order_type;
     }
 
-    // Search Logic: Dono tables mein search karega
     if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
@@ -7551,7 +7803,7 @@ const scheduleStockOrdersList = async (req, res) => {
       ];
     }
 
-    // 1. Fetch Schedules (Include dono parts)
+    // 1. Fetch Schedules
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: whereClause,
@@ -7559,23 +7811,56 @@ const scheduleStockOrdersList = async (req, res) => {
         take: paginationData.pageSize,
         orderBy: { createdAt: "desc" },
         include: {
-          part: { include: { process: true } }, // Stock/Library Part
-          customPart: { include: { process: true } }, // Manual/Custom Part
-          completedByEmployee: { select: { firstName: true, lastName: true } },
+          part: { include: { process: true } },
+          customPart: { include: { process: true } },
+          completedByEmployee: {
+            select: { firstName: true, lastName: true, id: true },
+          },
         },
       }),
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
 
-    // 2. Lookup IDs for Orders
-    const stockOrderIds = [];
-    const customOrderIds = [];
+    // --- WISE LOGIC FOR ADMIN vs EMPLOYEE NAMES ---
+    // Extract unique IDs from 'completed_by' to look up their names
+    const performerIds = [
+      ...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean)),
+    ];
 
-    filteredSchedules.forEach((s) => {
-      const type = s.order_type?.replace(/\s/g, "");
-      if (type === "StockOrder" && s.order_id) stockOrderIds.push(s.order_id);
-      if (type === "CustomOrder" && s.order_id) customOrderIds.push(s.order_id);
-    });
+    const [admins, employees] = await Promise.all([
+      prisma.admin.findMany({
+        where: { id: { in: performerIds } },
+        select: { id: true, name: true },
+      }),
+      prisma.employee.findMany({
+        where: { id: { in: performerIds } },
+        select: { id: true, firstName: true, lastName: true },
+      }),
+    ]);
+
+    // Create a mapping of ID -> Name
+    const nameMap = new Map();
+    admins.forEach((a) => nameMap.set(a.id, `Admin (${a.name})`));
+    employees.forEach((e) =>
+      nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()),
+    );
+    // ----------------------------------------------
+
+    // 2. Lookup Orders (Existing logic)
+    const stockOrderIds = [
+      ...new Set(
+        filteredSchedules
+          .filter((s) => s.order_type === "StockOrder")
+          .map((s) => s.order_id),
+      ),
+    ];
+    const customOrderIds = [
+      ...new Set(
+        filteredSchedules
+          .filter((s) => s.order_type === "CustomOrder")
+          .map((s) => s.order_id),
+      ),
+    ];
 
     const [stockOrders, customOrders] = await Promise.all([
       stockOrderIds.length > 0
@@ -7592,40 +7877,38 @@ const scheduleStockOrdersList = async (req, res) => {
     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
     const customMap = new Map(customOrders.map((o) => [o.id, o]));
 
-    // 3. Final Formatting with Priority Logic
+    // 3. Final Formatting (Keeping all fields same)
     const finalData = filteredSchedules.map((schedule) => {
       const type = schedule.order_type?.replace(/\s/g, "");
-      let orderDetails = null;
+      const orderDetails =
+        type === "StockOrder"
+          ? stockMap.get(schedule.order_id)
+          : customMap.get(schedule.order_id);
 
-      if (type === "StockOrder") {
-        orderDetails = stockMap.get(schedule.order_id);
-      } else {
-        orderDetails = customMap.get(schedule.order_id);
-      }
-      console.log("schedule", schedule);
-      let displayCompletedBy = schedule.completed_by;
-      if (schedule.completedByEmployee) {
-        displayCompletedBy =
-          `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim();
-      }
+      // Resolve the completed_by string using the nameMap we built
+      const displayCompletedBy =
+        nameMap.get(schedule.completed_by) || schedule.completed_by || "N/A";
+
+      // Station worker name for record
+      const stationWorkerName = schedule.completedByEmployee
+        ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
+        : "N/A";
+
       return {
         ...schedule,
+        // Corrected completed_by (Now shows Name or Admin Name instead of UUID)
         completed_by: displayCompletedBy,
+        completedEmployeeName: stationWorkerName,
         order: orderDetails,
         partDetails: {
-          // PRIORITY LOGIC: Agar customPart hai toh wahan se, nahi toh part (library) se
           partNumber:
             schedule.customPart?.partNumber ||
             schedule.part?.partNumber ||
             "N/A",
-
           description:
             schedule.part?.partDescription ||
             (schedule.customPart ? "Manual Entry" : "N/A"),
-
           source: schedule.customPart ? "Manual" : "Library",
-
-          // Process Name lookup
           processName:
             schedule.customPart?.process?.processName ||
             schedule.part?.process?.processName ||
@@ -12548,28 +12831,26 @@ const dailySchedule = async (req, res) => {
 //     return res.status(500).json({ message: "Server Error", error });
 //   }
 // };
-
 const capacityStatus = async (req, res) => {
   try {
+    // 1. Fetch all active processes
     const getProcess = await prisma.process.findMany({
       where: { isDeleted: false },
     });
 
+    // 2. Fetch all schedules (including completed for accurate average)
     const scheduleData = await prisma.stockOrderSchedule.findMany({
-      where: {
-        isDeleted: false,
-        NOT: { status: "completed" },
-      },
+      where: { isDeleted: false },
       include: {
-        process: { select: { id: true, processName: true } },
+        process: { select: { id: true, processName: true, machineName: true } },
         part: { select: { partNumber: true, cycleTime: true } },
         StockOrder: { select: { orderDate: true } },
       },
     });
 
+    // 3. Process each schedule to calculate load and actual completion
     const scheduleDataWithLoad = await Promise.all(
       scheduleData.map(async (item) => {
-        // 🔹 1. Try from productionResponse
         const productionResponses = await prisma.productionResponse.findMany({
           where: {
             orderId: item.stockOrderId || item.order_id,
@@ -12579,45 +12860,31 @@ const capacityStatus = async (req, res) => {
           },
         });
 
-        // ⏱ cycle time
-        let totalCycleTime = 0;
-        productionResponses.forEach((p) => {
-          if (p.cycleTimeStart) {
-            const start = new Date(p.cycleTimeStart);
-            const end = p.cycleTimeEnd ? new Date(p.cycleTimeEnd) : new Date();
-            totalCycleTime += (end - start) / (1000 * 60);
-          }
-        });
-
-        // 🔹 2. completed qty from production response
+        // Calculate completed qty from production logs
         const productionCompletedQty = productionResponses.reduce(
           (sum, p) => sum + Number(p.completedQuantity || 0),
           0,
         );
 
-        // 🔹 3. FALLBACK → StockOrderSchedule.completedQuantity
+        // Fallback to schedule field if no logs found
         const completedQty =
           productionCompletedQty > 0
             ? productionCompletedQty
             : Number(item.completedQuantity || 0);
 
-        const calculatedCycleTimePerPart =
-          completedQty > 0 ? totalCycleTime / completedQty : 0;
-
         const cycleTimeFromPart = Number(item.part?.cycleTime || 0);
         const scheduleQuantity = Number(item.scheduleQuantity || 0);
-
         const loadTime = cycleTimeFromPart * scheduleQuantity;
-
+        console.log("itemitem", item);
         return {
           id: item.id,
           processId: item.process?.id,
-          process: item.process,
-          part: item.part,
+          processName: item.process?.processName || "Unknown",
+          machineName: item.process?.machineName || "Unknown",
+          partNumber: item.part?.partNumber || "N/A",
+          cycleTimeFromPart: cycleTimeFromPart, // 👈 Added for Table
           scheduleQuantity,
           completedQty,
-          cycleTimeFromPart,
-          calculatedCycleTimePerPart,
           loadTime,
           status: item.status,
           order_date: item.StockOrder?.orderDate || item.order_date,
@@ -12625,35 +12892,32 @@ const capacityStatus = async (req, res) => {
       }),
     );
 
-    // 🔹 Aggregation
+    // 4. Aggregate data for Charts
     const barChartData = {};
     const processCompletion = {};
+    let grandTotalQty = 0;
+    let grandCompletedQty = 0;
 
     scheduleDataWithLoad.forEach((item) => {
-      const processName = item.process?.processName || "Unknown";
+      const pName = `${item.processName} (${item.machineName})`;
 
-      if (!barChartData[processName]) {
-        barChartData[processName] = 0;
+      if (!barChartData[pName]) barChartData[pName] = 0;
+      barChartData[pName] += item.loadTime;
+
+      if (!processCompletion[pName]) {
+        processCompletion[pName] = { completed: 0, total: 0 };
       }
-      barChartData[processName] += item.loadTime;
+      processCompletion[pName].completed += item.completedQty;
+      processCompletion[pName].total += item.scheduleQuantity;
 
-      if (!processCompletion[processName]) {
-        processCompletion[processName] = { completed: 0, total: 0 };
-      }
-
-      processCompletion[processName].completed += item.completedQty;
-      processCompletion[processName].total += item.scheduleQuantity;
+      grandTotalQty += item.scheduleQuantity;
+      grandCompletedQty += item.completedQty;
     });
 
-    const barChartFormatted = {
-      labels: Object.keys(barChartData),
-      datasets: [
-        {
-          label: "Load Time (minutes)",
-          data: Object.values(barChartData),
-        },
-      ],
-    };
+    const overallAverage =
+      grandTotalQty > 0
+        ? ((grandCompletedQty / grandTotalQty) * 100).toFixed(2)
+        : "0.00";
 
     const processCompletionPercentage = Object.entries(processCompletion).map(
       ([processName, v]) => ({
@@ -12667,17 +12931,22 @@ const capacityStatus = async (req, res) => {
 
     return res.status(200).json({
       message: "Capacity Status Data",
-      data: getProcess,
-      scheduleData: scheduleDataWithLoad,
-      barChartData: barChartFormatted,
+      overallAverage,
+      scheduleData: scheduleDataWithLoad, // 👈 List for the table
+      barChartData: {
+        labels: Object.keys(barChartData),
+        datasets: [
+          { label: "Load Time (min)", data: Object.values(barChartData) },
+        ],
+      },
       processCompletion: processCompletionPercentage,
+      data: getProcess,
     });
   } catch (error) {
     console.error("capacityStatus error:", error);
-    return res.status(500).json({
-      message: "Server Error",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
   }
 };
 

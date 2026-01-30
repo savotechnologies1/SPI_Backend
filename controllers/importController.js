@@ -326,9 +326,7 @@ const importParts = async (req, res) => {
             where: {
               OR: [
                 // 1. अगर पूरा नाम firstName में मैच हो जाए
-                { firstName: { contains: csvCompName } },
-                // 2. अगर पूरा नाम lastName में मैच हो जाए
-                { lastName: { contains: csvCompName } },
+                { companyName: { contains: csvCompName } },
                 // 3. अगर पहला हिस्सा firstName में और आखिरी lastName में हो
                 {
                   AND: [
@@ -727,8 +725,8 @@ const importProductTree = async (req, res) => {
           const foundSupplier = await prisma.suppliers.findFirst({
             where: {
               OR: [
-                { firstName: { contains: csvCompName } }, // पूरा नाम firstName में हो
-                { lastName: { contains: csvCompName } }, // पूरा नाम lastName में हो
+                { companyName: { contains: csvCompName } }, // पूरा नाम firstName में हो
+
                 {
                   AND: [
                     { firstName: { contains: fPart } }, // पहला हिस्सा firstName में
@@ -760,6 +758,7 @@ const importProductTree = async (req, res) => {
           leadTime: parseInt(d.leadTime) || 0,
           supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
           companyName: supplierId, // यहाँ ID स्टोर कर रहे हैं
+          cycleTime: d.cycleTime, // यहाँ ID स्टोर कर रहे हैं
           minStock: parseInt(d.minStock) || 0,
           availStock: parseInt(d.availStock) || 0,
           processId: mainProcId,
@@ -1032,6 +1031,7 @@ const importSupp = async (req, res) => {
                     firstName: row.firstName,
                     lastName: row.lastName,
                     email: row.email,
+                    companyName: row.companyName,
                     address: row.address,
                     billingTerms: row.billingTerms,
                     createdBy: req.user.id,
