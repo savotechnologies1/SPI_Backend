@@ -31,7 +31,7 @@ const login = async (req, res) => {
     }
     const { userName, password } = req.body;
     const user = await prisma.admin.findUnique({
-      where: { email: userName },
+      where: { email: userName.trim() },
       select: {
         id: true,
         email: true,
@@ -714,6 +714,7 @@ const selectSupplier = async (req, res) => {
         id: true,
         firstName: true,
         lastName: true,
+        companyName:true,
         email: true,
       },
     });
@@ -721,6 +722,7 @@ const selectSupplier = async (req, res) => {
     const formattedSuppliers = suppliers.map((supplier) => ({
       id: supplier.id,
       name: `${supplier.firstName} ${supplier.lastName}`,
+      companyName:supplier.companyName
     }));
     res.status(200).json(formattedSuppliers);
   } catch (error) {
@@ -3957,8 +3959,7 @@ const partDetail = async (req, res) => {
         },
         supplier: {
           select: {
-            firstName: true,
-            lastName: true,
+           companyName:true
           },
         },
         partImages: {
@@ -4134,8 +4135,7 @@ const getSingleProductTree = async (req, res) => {
         supplier: {
           // Relation का नाम यहाँ supplier है
           select: {
-            firstName: true,
-            lastName: true,
+           companyName:true
           },
         },
       },
@@ -4187,7 +4187,7 @@ const getSingleProductTree = async (req, res) => {
 
     // Supplier का नाम सुरक्षित तरीके से तैयार करें
     const fullName = productInfo.supplier
-      ? `${productInfo.supplier.firstName || ""} ${productInfo.supplier.lastName || ""}`.trim()
+      ? `${productInfo.supplier.companyName || ""} `.trim()
       : "";
 
     const result = {
@@ -7119,7 +7119,7 @@ const customOrderSchedule = async (req, res) => {
                 type === "Existing" || type === "Library"
                   ? part_id
                   : `custom-${customPartId}`,
-              order_type: "Custom Order",
+              order_type: "CustomOrder",
             },
           },
           update: {
@@ -7130,7 +7130,7 @@ const customOrderSchedule = async (req, res) => {
           },
           create: {
             order_id: order_id,
-            order_type: "Custom Order",
+            order_type: "CustomOrder",
             part_id: type === "Existing" || type === "Library" ? part_id : null,
             customPartId:
               type === "New" || type === "Manual" ? customPartId : null,
