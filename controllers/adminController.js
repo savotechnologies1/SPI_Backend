@@ -7821,7 +7821,7 @@ const scheduleStockOrdersList = async (req, res) => {
       }),
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
-
+console.log('filteredSchedulesfilteredSchedules',filteredSchedules)
     // --- WISE LOGIC FOR ADMIN vs EMPLOYEE NAMES ---
     // Extract unique IDs from 'completed_by' to look up their names
     const performerIds = [

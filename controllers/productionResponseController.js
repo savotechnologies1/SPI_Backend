@@ -32150,6 +32150,11 @@ const allScrapEntires = async (req, res) => {
               part_id: true,
               partNumber: true,
               partDescription: true,
+              supplier:{
+                select:{
+                    companyName:true
+                }
+              },
               // Yahan hum check kar rahe hain ki ye part kab-kab order hua
               supplier_orders: {
                 where: { isDeleted: false },
@@ -35571,7 +35576,6 @@ const customerRelation = async (req, res) => {
 //   }
 // };
 // 31 jabend
-
 const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
@@ -35581,22 +35585,21 @@ const getScheduleProcessInformation = async (req, res) => {
       return res.status(400).json({ message: "processId and stationUserId are required." });
     }
 
-    // Helper: Find Hierarchy Depth (How deep is the component tree)
-    const getPartDepth = async (partId, currentDepth = 0) => {
-      if (!partId) return currentDepth;
+    // --- HELPER 1: Hierarchy Depth (Child = 0, Parent = 1...) ---
+    const getPartDepth = async (partId) => {
+      if (!partId) return 0;
       const components = await prisma.productTree.findMany({
         where: { product_id: partId, isDeleted: false },
       });
-      if (components.length === 0) return currentDepth;
+      if (components.length === 0) return 0;
       const depths = await Promise.all(
-        components.map((c) => getPartDepth(c.part_id, currentDepth + 1))
+        components.map((c) => getPartDepth(c.part_id))
       );
-      return Math.max(...depths);
+      return 1 + Math.max(...depths);
     };
-const aa =await prisma.stockOrderSchedule.findMany()
-console.log('aaaa',aa)
-    // Helper: Fetch Job Details with Part/CustomPart Number
-    const findAndStitchJob = async (scheduleId, partId) => {
+
+    // --- HELPER 2: Job Details & Work Instructions ---
+    const findAndStitchJob = async (scheduleId, partId, processId) => {
       const schedule = await prisma.stockOrderSchedule.findUnique({
         where: { id: scheduleId },
         include: {
@@ -35609,11 +35612,7 @@ console.log('aaaa',aa)
             },
           },
           customPart: {
-            select: {
-              id: true,
-              partNumber: true,
-              process: { select: { id: true, processName: true, machineName: true } },
-            },
+            select: { id: true, partNumber: true }
           },
           process: { select: { processName: true, machineName: true } },
         },
@@ -35621,14 +35620,12 @@ console.log('aaaa',aa)
 
       if (!schedule) return null;
 
-      // Identify Part Number from either Standard or Custom Part
       const partNumber = schedule.part?.partNumber || schedule.customPart?.partNumber || "N/A";
-
       let finalSteps = [];
       let instructionTitle = "";
 
+      // Work Instructions Logic
       if (partId) {
-        // 1. Try WorkInstruction Table
         const masterInstruction = await prisma.workInstruction.findFirst({
           where: { productId: partId, processId: processId, isDeleted: false },
           include: {
@@ -35647,7 +35644,6 @@ console.log('aaaa',aa)
           finalSteps = masterInstruction.steps;
           instructionTitle = masterInstruction.instructionTitle;
         } else {
-          // 2. Try WorkInstructionApply Table
           const appliedRecord = await prisma.workInstructionApply.findFirst({
             where: { productId: partId, isDeleted: false },
           });
@@ -35665,14 +35661,8 @@ console.log('aaaa',aa)
         }
       }
 
-      // Dynamic Order Table selection (Handling both 'StockOrder' and 'Custom Order')
-      const isStockOrder = schedule.order_type.replace(/\s/g, '').toLowerCase() === "stockorder";
-      const orderTable = isStockOrder ? prisma.stockOrder : prisma.customOrder;
-      
-      const orderData = await orderTable.findUnique({ 
-        where: { id: schedule.order_id },
-        include: isStockOrder ? {} : { product: { select: { partNumber: true } } }
-      });
+      const orderTable = schedule.order_type === "StockOrder" ? prisma.stockOrder : prisma.customOrder;
+      const orderData = await orderTable.findUnique({ where: { id: schedule.order_id } });
 
       return { 
         ...schedule, 
@@ -35683,29 +35673,20 @@ console.log('aaaa',aa)
       };
     };
 
-    // 1. Fetch Candidates (Jobs that are not deleted)
+    // 1. Fetch Candidates (New/Progress)
     const candidates = await prisma.stockOrderSchedule.findMany({
-      where: {
-        processId,
-        isDeleted: false,
-        // नोट: अगर आप 'completed' जॉब भी देखना चाहते हैं, तो status filter हटा दें 
-        // या उसमें "completed" जोड़ें। फ़िलहाल मैं इसे "new" और "progress" रख रहा हूँ।
-        status: { in: ["new", "progress"] }, 
-      },
+      where: { processId, isDeleted: false, status: { in: ["new", "progress"] } },
     });
 
-    console.log(`Found ${candidates.length} candidates for process ${processId}`);
-
-    // 2. Add Depth to each candidate
+    // 2. Add Depth & Sort
     const candidatesWithDepth = await Promise.all(
       candidates.map(async (job) => {
         const effectivePartId = job.part_id || job.customPartId;
-        const depth = effectivePartId ? await getPartDepth(effectivePartId) : 0;
+        const depth = await getPartDepth(effectivePartId);
         return { ...job, depth, effectivePartId };
       })
     );
 
-    // Sort: Progress first, then Depth (simple to complex), then by Date
     const sortedCandidates = candidatesWithDepth.sort((a, b) => {
       if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
       if (a.depth !== b.depth) return a.depth - b.depth;
@@ -35714,16 +35695,11 @@ console.log('aaaa',aa)
 
     let nextJob = null;
 
-    // 3. Readiness Loop
+    // 3. Smart Readiness Loop (Checking Child Parts)
     for (const job of sortedCandidates) {
-      // अगर रिमेनिंग क्वांटिटी 0 है, तो उसे 'completed' मार्क करें और स्किप करें
       if (job.remainingQty <= 0) {
-        console.log(`Skipping Job ${job.id}: Remaining Qty is 0`);
         if (job.status !== "completed") {
-            await prisma.stockOrderSchedule.update({
-                where: { id: job.id },
-                data: { status: "completed", completed_date: new Date() },
-            });
+          await prisma.stockOrderSchedule.update({ where: { id: job.id }, data: { status: "completed" } });
         }
         continue;
       }
@@ -35731,64 +35707,58 @@ console.log('aaaa',aa)
       const currentId = job.effectivePartId;
       if (!currentId) continue;
 
-      // Check if Child Components (from Product Tree) are ready
       const childComponents = await prisma.productTree.findMany({
         where: { product_id: currentId, isDeleted: false },
       });
 
-  if (childComponents.length > 0) {
-        let maxPossibleToProduce = job.remainingQty;
-        console.log(`Checking readiness for Job: ${job.id}, Parent Part: ${currentId}`);
+      let isJobReady = true;
 
+      if (childComponents.length > 0) {
         for (const component of childComponents) {
-        const childSchedules = await prisma.stockOrderSchedule.findMany({
-  where: { 
-    // order_id: job.order_id, // REMOVE THIS LINE
-    isDeleted: false,
-    status: 'completed', // You should probably only count completed ones
-    OR: [
-      { part_id: component.part_id },
-      { customPartId: component.part_id }
-    ]
-  },})
-const totalCompletedChildQty = await prisma.stockOrderSchedule.aggregate({
-  where: {
-    isDeleted: false,
-    status: "completed",
-    OR: [
-      { part_id: component.part_id },
-      { customPartId: component.part_id }
-    ]
-  },
-  _sum: { completedQuantity: true }
-});
+          // Check in same order
+          const orderSpecific = await prisma.stockOrderSchedule.aggregate({
+            where: {
+              order_id: job.order_id,
+              isDeleted: false,
+              status: "completed",
+              OR: [{ part_id: component.part_id }, { customPartId: component.part_id }]
+            },
+            _sum: { completedQuantity: true }
+          });
 
-const completedQty = totalCompletedChildQty._sum.completedQuantity || 0;
-          const unitsPossibleWithThisChild = Math.floor(totalCompletedChildQty / (component.partQuantity || 1));
-          
-          console.log(`Component ID: ${component.part_id}`);
-          console.log(`- Required per parent: ${component.partQuantity}`);
-          console.log(`- Total Completed in DB: ${totalCompletedChildQty}`);
-          console.log(`- Possible to make: ${unitsPossibleWithThisChild}`);
+          let completedQty = orderSpecific._sum.completedQuantity || 0;
 
-          maxPossibleToProduce = Math.min(maxPossibleToProduce, unitsPossibleWithThisChild);
-        }
+          // Global Stock Fallback
+          if (completedQty < (component.partQuantity || 1)) {
+            const globalStock = await prisma.stockOrderSchedule.aggregate({
+              where: {
+                isDeleted: false,
+                status: "completed",
+                OR: [{ part_id: component.part_id }, { customPartId: component.part_id }]
+              },
+              _sum: { completedQuantity: true }
+            });
+            completedQty = globalStock._sum.completedQuantity || 0;
+          }
 
-        if (maxPossibleToProduce <= 0) {
-          console.log(`!!! Skipping Job ${job.id}: Not enough child components completed (Possible: ${maxPossibleToProduce})`);
-          continue;
+          if (completedQty < (component.partQuantity || 1)) {
+            isJobReady = false;
+            break;
+          }
         }
       }
-      // If all checks pass, stitch the job data
-      nextJob = await findAndStitchJob(job.id, currentId);
-      if (nextJob) break;
+
+      if (isJobReady) {
+        nextJob = await findAndStitchJob(job.id, currentId, processId);
+        if (nextJob) break;
+      }
     }
 
     if (!nextJob) {
-      return res.status(404).json({ message: "No jobs are currently ready to be processed." });
+      return res.status(404).json({ message: "No jobs are currently ready (Waiting for child parts)." });
     }
 
-    // 4. Fetch additional production stats
+    // 4. Final Stats & CycleTime Logic
     const [lastProduction, stats] = await Promise.all([
       prisma.productionResponse.findFirst({
         where: { processId, stationUserId, isDeleted: false },
@@ -35798,7 +35768,7 @@ const completedQty = totalCompletedChildQty._sum.completedQuantity || 0;
       prisma.stockOrderSchedule.aggregate({
         where: {
           order_id: nextJob.order_id,
-          OR: [{ part_id: nextJob.part_id }, { customPartId: nextJob.customPartId }],
+          part_id: nextJob.part_id,
           processId,
           isDeleted: false,
           completed_EmpId: stationUserId,
@@ -35807,21 +35777,91 @@ const completedQty = totalCompletedChildQty._sum.completedQuantity || 0;
       }),
     ]);
 
+    // Final Response with CycleTime
     return res.status(200).json({
       message: "Next job found successfully.",
       data: {
         ...nextJob,
         productionId: lastProduction?.id || null,
         employeeInfo: lastProduction?.employeeInfo || null,
-        cycleTime: lastProduction?.cycleTimeStart || null,
+        cycleTime: lastProduction?.cycleTimeStart || null, // CycleTime यहाँ से मिल रहा है
         employeeCompletedQty: stats._sum.completedQuantity || 0,
         employeeScrapQty: stats._sum.scrapQuantity || 0,
       },
     });
+
   } catch (error) {
-    console.error("Error in getScheduleProcessInformation:", error);
+    console.error("Error:", error);
     return res.status(500).json({ message: "Internal Server Error.", error: error.message });
   }
+};
+
+// --- HELPER FUNCTIONS (Stitching & Stats) ---
+
+const findAndStitchJob = async (scheduleId, partId, processId) => {
+  const schedule = await prisma.stockOrderSchedule.findUnique({
+    where: { id: scheduleId },
+    include: {
+      part: { select: { part_id: true, partNumber: true, partDescription: true } },
+      customPart: { select: { id: true, partNumber: true } },
+      process: { select: { processName: true, machineName: true } },
+    },
+  });
+
+  if (!schedule) return null;
+
+  const partNumber = schedule.part?.partNumber || schedule.customPart?.partNumber || "N/A";
+
+  // Instructions
+  let finalSteps = [];
+  let instructionTitle = "";
+  const master = await prisma.workInstruction.findFirst({
+    where: { productId: partId, processId: processId, isDeleted: false },
+    include: { steps: { where: { isDeleted: false }, orderBy: { stepNumber: "asc" }, include: { images: true, videos: true } } },
+  });
+
+  if (master) {
+    finalSteps = master.steps;
+    instructionTitle = master.instructionTitle;
+  }
+
+  // Stock vs Custom Order Table Selection
+  const orderType = schedule.order_type;
+  const isStock = orderType === "StockOrder";
+  const orderData = await (isStock ? prisma.stockOrder : prisma.customOrder).findUnique({
+    where: { id: schedule.order_id },
+    include: isStock ? {} : { product: { select: { partNumber: true } } }
+  });
+
+  return { ...schedule, partNumber, order: orderData, workInstructionSteps: finalSteps, instructionTitle };
+};
+
+const getFinalStats = async (nextJob, processId, stationUserId) => {
+  const [lastProd, stats] = await Promise.all([
+    prisma.productionResponse.findFirst({
+      where: { processId, stationUserId, isDeleted: false },
+      orderBy: { cycleTimeStart: "desc" },
+      include: { employeeInfo: true },
+    }),
+    prisma.stockOrderSchedule.aggregate({
+      where: {
+        order_id: nextJob.order_id,
+        OR: [{ part_id: nextJob.part_id }, { customPartId: nextJob.customPartId }],
+        processId,
+        isDeleted: false,
+        completed_EmpId: stationUserId,
+      },
+      _sum: { completedQuantity: true, scrapQuantity: true },
+    }),
+  ]);
+
+  return {
+    ...nextJob,
+    productionId: lastProd?.id || null,
+    employeeInfo: lastProd?.employeeInfo || null,
+    employeeCompletedQty: stats._sum.completedQuantity || 0,
+    employeeScrapQty: stats._sum.scrapQuantity || 0,
+  };
 };
 const checkTraningStatus = async (req, res) => {
   try {
