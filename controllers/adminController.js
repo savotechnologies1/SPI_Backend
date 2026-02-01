@@ -8584,7 +8584,6 @@ const getLowStockParts = async (req, res) => {
           type: true,
           createdAt: true,
           companyName: true, // ये Supplier ID है
-          // 🔥 यहाँ से Supplier का Email और बाकी जानकारी आएगी
           supplier: {
             select: {
               email: true,
@@ -11464,122 +11463,137 @@ const cycleTimeComparisionData = async (req, res) => {
       return res.status(400).json({ error: "partId is required" });
     }
 
-    // 1. सही डेट रेंज सेट करना
-    const start = startDate
-      ? new Date(startDate)
-      : new Date(new Date().setDate(new Date().getDate() - 30));
-    const end = endDate ? new Date(endDate) : new Date();
-
-    if (isNaN(start) || isNaN(end)) {
-      return res.status(400).json({ error: "Invalid date format" });
-    }
-
-    // ================================
-    // 1️⃣ Process-wise Cycle Time (Added Date & Part Filter)
-    // ================================
-    const productionResponses = await prisma.productionResponse.findMany({
+    // 1. पार्ट की जानकारी निकालें (ID या Part Number से)
+    const partInfo = await prisma.partNumber.findFirst({
       where: {
-        partId: partId,
-        isDeleted: false,
-        createdAt: { gte: start, lte: end }, // ✅ डेट फिल्टर जोड़ा
-      },
-      include: {
-        process: { select: { processName: true, machineName: true } },
-        PartNumber: { select: { cycleTime: true } },
+        OR: [{ part_id: partId }, { partNumber: partId }],
       },
     });
 
-    const grouped = {};
+    if (!partInfo) {
+      console.log("❌ Part Not Found in DB for input:", partId);
+      return res.status(404).json({ error: "Part not found" });
+    }
+
+    const actualPartId = partInfo.part_id;
+
+    // 2. डेट रेंज सेटिंग (FIXED: End Date को दिन के आखिरी समय तक सेट करना)
+    let start = startDate ? new Date(startDate) : new Date();
+    if (!startDate) start.setDate(start.getDate() - 30);
+    start.setHours(0, 0, 0, 0); // दिन की शुरुआत
+
+    let end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999); // ✅ FIXED: दिन का अंत (इससे आज का डेटा भी आएगा)
+
+    console.log(`🔍 Searching Part: ${partInfo.partNumber} (${actualPartId})`);
+    console.log(`📅 From: ${start.toISOString()} To: ${end.toISOString()}`);
+
+    // ==========================================
+    // 1️⃣ Process-wise Cycle Time
+    // ==========================================
+      const productionResponses1 = await prisma.productionResponse.findMany()
+      console.log('productionResponses1',productionResponses1)
+   const productionResponses = await prisma.productionResponse.findMany({
+  where: {
+    partId: actualPartId,
+    isDeleted: false,
+    // Test: Comment these out to see if data appears
+    createdAt: { 
+      gte: start, 
+      lte: end 
+    },
+  },
+  include: {
+    process: true,
+    PartNumber: true,
+  },
+});
+
+    console.log("📊 Production Responses found:", productionResponses.length);
+
+    const processGrouped = {};
     productionResponses.forEach((resp) => {
-      if (!grouped[resp.processId]) {
-        grouped[resp.processId] = {
-          processName: resp.process?.processName,
-          machineName: resp.process?.machineName,
-          manualCTs: [],
-          idealCT: resp.PartNumber?.cycleTime
-            ? Number(resp.PartNumber.cycleTime) / 60
-            : 0,
+      const pid = resp.processId;
+      if (!processGrouped[pid]) {
+        processGrouped[pid] = {
+          processName: resp.process?.processName || "Unknown",
+          machineName: resp.process?.machineName || "N/A",
+          durations: [],
+          idealCT: resp.PartNumber?.cycleTime ? Number(resp.PartNumber.cycleTime) / 60 : 0,
         };
       }
       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
-        const ct =
-          (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
-          1000 /
-          60;
-        grouped[resp.processId].manualCTs.push(ct);
+        const diff = (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) / 1000 / 60;
+        if (diff > 0) processGrouped[pid].durations.push(diff);
       }
     });
 
-    const processWiseCT = Object.values(grouped).map((p) => ({
+    const processWiseCT = Object.values(processGrouped).map((p) => ({
       processName: p.processName,
       machineName: p.machineName,
-      manualCT:
-        p.manualCTs.length > 0
-          ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
-          : 0,
+      manualCT: p.durations.length > 0 ? p.durations.reduce((a, b) => a + b, 0) / p.durations.length : 0,
       idealCT: p.idealCT,
     }));
 
-    // ================================
-    // 2️⃣ Step-wise Cycle Time (Added PartId & Date Filter)
-    // cycleTimeComparisionData के अंदर Step-wise query:
+    // ==========================================
+    // 2️⃣ Step-wise Cycle Time
+    // ==========================================
     const stepTrackings = await prisma.productionStepTracking.findMany({
       where: {
         status: "completed",
-        workInstructionStep: {
-          processId: processId,
-        },
+        partId: actualPartId,
+        stepStartTime: { gte: start, lte: end },
+        ...(processId && processId !== "undefined" && {
+          workInstructionStep: { processId: processId },
+        }),
       },
       include: {
         workInstructionStep: true,
       },
     });
-    console.log("stepTrackingsstepTrackings", stepTrackings);
+
+    console.log("📑 Step Trackings found:", stepTrackings.length);
+
     const stepGrouped = {};
     stepTrackings.forEach((st) => {
-      const duration =
-        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
-      const stepId = st.workInstructionStep?.id;
-      if (!stepId) return;
+      if (!st.stepStartTime || !st.stepEndTime) return;
+      const duration = (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
+      const stepId = st.workInstructionStepId;
 
       if (!stepGrouped[stepId]) {
         stepGrouped[stepId] = {
-          stepId,
-          stepTitle: st.workInstructionStep.title,
-          stepNumber: st.workInstructionStep.stepNumber,
+          stepTitle: st.workInstructionStep?.title || `Step ${st.workInstructionStep?.stepNumber}`,
+          stepNumber: st.workInstructionStep?.stepNumber || 0,
           durations: [],
         };
       }
-      stepGrouped[stepId].durations.push(duration);
+      if (duration > 0) stepGrouped[stepId].durations.push(duration);
     });
 
-    const stepAverages = Object.values(stepGrouped).map((s) => ({
-      stepId: s.stepId,
-      stepTitle: s.stepTitle,
-      stepNumber: s.stepNumber,
-      averageDuration:
-        s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
-      count: s.durations.length,
-    }));
-
-    const overallAverage =
-      stepAverages.length > 0
-        ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
-          stepAverages.length
-        : 0;
+    const stepAverages = Object.values(stepGrouped)
+      .sort((a, b) => a.stepNumber - b.stepNumber)
+      .map((s) => ({
+        stepTitle: s.stepTitle,
+        stepNumber: s.stepNumber,
+        averageDuration: s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+        count: s.durations.length,
+      }));
 
     res.json({
-      message: "Cycle Time Comparison fetched successfully",
-      data: { processWiseCT, stepWiseCT: { stepAverages, overallAverage } },
+      success: true,
+      data: {
+        processWiseCT,
+        stepWiseCT: {
+          stepAverages,
+          totalStepDuration: stepAverages.reduce((sum, s) => sum + s.averageDuration, 0),
+        },
+      },
     });
   } catch (error) {
-    console.error("cycleTimeComparisionData error:", error);
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    console.error("🔥 API Error:", error);
+    res.status(500).json({ error: "Server Error", details: error.message });
   }
 };
-
 // ordersController.js
 
 // import { PrismaClient } from '@prisma/client';

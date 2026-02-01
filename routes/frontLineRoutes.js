@@ -61,6 +61,7 @@ const {
   cycleTimeComparisionData,
   deleteFixedCost,
   getParts,
+  getLowStockParts,
 } = require("../controllers/adminController");
 const {
   stationSendNotification,
@@ -268,6 +269,7 @@ router.put(
   validateToken,
   updateStepTime,
 );
+router.get("/supplier-inventory", getLowStockParts);
 router.put("/complete-traning/:id", validateToken, completeTraning);
 router.put("/scrap-order/:id", validateToken, scrapScheduleOrder);
 router.post("/production/:id/scan", processBarcodeScan);
