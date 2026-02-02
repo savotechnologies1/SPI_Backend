@@ -39,6 +39,7 @@ const {
   stationSendNotification,
   getStationNotifications,
   changeStationNotification,
+  getTrainingScheduleInformation,
 } = require("../controllers/productionResponseController");
 const {
   selectSupplier,
@@ -108,5 +109,5 @@ router.patch(
   validateToken,
   changeStationNotification,
 );
-
+router.get("/get-training-schedule/:id", validateToken, getTrainingScheduleInformation);
 module.exports = router;

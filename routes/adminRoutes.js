@@ -169,6 +169,7 @@ const {
   customerRelation,
   qualityPerformance,
   checkTraningStatus,
+  getTrainingScheduleInformation,
 } = require("../controllers/productionResponseController");
 const {
   importProcess,
@@ -416,8 +417,8 @@ router.get(
   getScheduleProcessInformation,
 );
 router.put("/complete-order/:id", adminValidateToken, completeScheduleOrder);
-router.put(
-  "/production-response/update-step-time/:id",
+router.post(
+  "/production-response/update-step-time",
   adminValidateToken,
   updateStepTime,
 );
@@ -492,6 +493,7 @@ router.get("/schedule-inventory", scheudleInventory);
 router.get("/get-labour-forcast", getLabourForcast);
 router.get("/business-analysis", businessAnalysisApi);
 router.get("/trainig-status", adminValidateToken, checkTraningStatus);
+router.get("/get-training-schedule/:id", adminValidateToken, getTrainingScheduleInformation);
 router.get("/product-parts/:id", adminValidateToken, getProductParts);
 router.post("/send-order-to-supplier", adminValidateToken, sendOrderToSupplier);
 module.exports = router;
