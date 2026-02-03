@@ -158,7 +158,7 @@ router.get(
   scheduleStockOrdersList,
 );
 
-router.get("/supplier-inventory", getSupplierInventory);
+router.get("/supplier-inventory", getLowStockParts);
 router.patch("/delete-supplier-invetory/:id", deleteSupplierInventory);
 router.post("/send-notification", validateToken, stationSendNotification);
 router.get("/all-station-notification", validateToken, getStationNotifications);
