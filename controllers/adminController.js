@@ -12,7 +12,7 @@ const { checkValidations } = require("../functions/checkvalidation");
 const prisma = require("../config/prisma");
 const { sendMail } = require("../functions/mailer");
 const moment = require("moment");
-const moment1 = require('moment-timezone');
+const moment1 = require("moment-timezone");
 const {
   startOfMonth,
   endOfMonth,
@@ -641,7 +641,8 @@ const supplierDetail = async (req, res) => {
 
 const editSupplierDetail = async (req, res) => {
   try {
-    const { firstName, lastName,companyName, email, address, billingTerms } = req.body;
+    const { firstName, lastName, companyName, email, address, billingTerms } =
+      req.body;
     const id = req.params?.id;
     const existingCustomer = await prisma.suppliers.findFirst({
       where: {
@@ -665,7 +666,7 @@ const editSupplierDetail = async (req, res) => {
           firstName: firstName,
           lastName: lastName,
           email: email,
-          companyName:companyName,
+          companyName: companyName,
           address: address,
           billingTerms: billingTerms,
         },
@@ -715,7 +716,7 @@ const selectSupplier = async (req, res) => {
         id: true,
         firstName: true,
         lastName: true,
-        companyName:true,
+        companyName: true,
         email: true,
       },
     });
@@ -723,7 +724,7 @@ const selectSupplier = async (req, res) => {
     const formattedSuppliers = suppliers.map((supplier) => ({
       id: supplier.id,
       name: `${supplier.firstName} ${supplier.lastName}`,
-      companyName:supplier.companyName
+      companyName: supplier.companyName,
     }));
     res.status(200).json(formattedSuppliers);
   } catch (error) {
@@ -1886,7 +1887,6 @@ const sendMailToEmplyee = async (req, res) => {
 // };
 // 2/2/2026
 
-
 const createStockOrder = async (req, res) => {
   try {
     const {
@@ -1905,7 +1905,7 @@ const createStockOrder = async (req, res) => {
 
     // 1. Timezone Handle Karein
     // Agar client ne timezone nahi bheja toh default UTC rakhein
-    const clientTimezone = timezone || "UTC"; 
+    const clientTimezone = timezone || "UTC";
 
     // Date ko client ke timezone ke according parse karke ISO format mein convert karein
     // Isse database mein exact wahi point of time save hoga jo user ne dekha
@@ -1948,7 +1948,7 @@ const createStockOrder = async (req, res) => {
       data: {
         orderNumber,
         orderDate: finalOrderDate, // Client ke timezone wali date
-        shipDate: finalShipDate,   // Client ke timezone wali date
+        shipDate: finalShipDate, // Client ke timezone wali date
         productQuantity: parseInt(productQuantity, 10),
         productNumber: req.body.productNumber,
         productDescription: req.body.productDescription,
@@ -1963,8 +1963,8 @@ const createStockOrder = async (req, res) => {
       },
     });
 
-    res.status(201).json({ 
-      message: `Stock order added successfully according to ${clientTimezone} time!` 
+    res.status(201).json({
+      message: `Stock order added successfully according to ${clientTimezone} time!`,
     });
   } catch (error) {
     console.error("Error creating stock order:", error);
@@ -4046,7 +4046,7 @@ const partDetail = async (req, res) => {
         },
         supplier: {
           select: {
-           companyName:true
+            companyName: true,
           },
         },
         partImages: {
@@ -4222,7 +4222,7 @@ const getSingleProductTree = async (req, res) => {
         supplier: {
           // Relation का नाम यहाँ supplier है
           select: {
-           companyName:true
+            companyName: true,
           },
         },
       },
@@ -7873,6 +7873,158 @@ const customOrderSchedule = async (req, res) => {
 //     return res.status(500).json({ success: false, error: error.message });
 //   }
 // };
+
+// 3-2/2026
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+
+//     if (search) {
+//       const searchTerm = search.trim();
+//       whereClause.OR = [
+//         { part: { partNumber: { contains: searchTerm } } },
+//         { customPart: { partNumber: { contains: searchTerm } } },
+//       ];
+//     }
+
+//     // 1. Fetch Schedules
+//     const [filteredSchedules, totalCount] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: whereClause,
+//         skip: paginationData.skip,
+//         take: paginationData.pageSize,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           part: { include: { process: true } },
+//           customPart: { include: { process: true } },
+//           completedByEmployee: {
+//             select: { firstName: true, lastName: true, id: true },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.count({ where: whereClause }),
+//     ]);
+// console.log('filteredSchedulesfilteredSchedules',filteredSchedules)
+//     // --- WISE LOGIC FOR ADMIN vs EMPLOYEE NAMES ---
+//     // Extract unique IDs from 'completed_by' to look up their names
+//     const performerIds = [
+//       ...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean)),
+//     ];
+
+//     const [admins, employees] = await Promise.all([
+//       prisma.admin.findMany({
+//         where: { id: { in: performerIds } },
+//         select: { id: true, name: true },
+//       }),
+//       prisma.employee.findMany({
+//         where: { id: { in: performerIds } },
+//         select: { id: true, firstName: true, lastName: true },
+//       }),
+//     ]);
+
+//     // Create a mapping of ID -> Name
+//     const nameMap = new Map();
+//     admins.forEach((a) => nameMap.set(a.id, `Admin (${a.name})`));
+//     employees.forEach((e) =>
+//       nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()),
+//     );
+//     // ----------------------------------------------
+
+//     // 2. Lookup Orders (Existing logic)
+//     const stockOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type === "StockOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+//     const customOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type === "CustomOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
+//         : [],
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : [],
+//     ]);
+
+//     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     // 3. Final Formatting (Keeping all fields same)
+//     const finalData = filteredSchedules.map((schedule) => {
+//       const type = schedule.order_type?.replace(/\s/g, "");
+//       const orderDetails =
+//         type === "StockOrder"
+//           ? stockMap.get(schedule.order_id)
+//           : customMap.get(schedule.order_id);
+
+//       // Resolve the completed_by string using the nameMap we built
+//       const displayCompletedBy =
+//         nameMap.get(schedule.completed_by) || schedule.completed_by || "N/A";
+
+//       // Station worker name for record
+//       const stationWorkerName = schedule.completedByEmployee
+//         ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
+//         : "N/A";
+
+//       return {
+//         ...schedule,
+//         // Corrected completed_by (Now shows Name or Admin Name instead of UUID)
+//         completed_by: displayCompletedBy,
+//         completedEmployeeName: stationWorkerName,
+//         order: orderDetails,
+//         partDetails: {
+//           partNumber:
+//             schedule.customPart?.partNumber ||
+//             schedule.part?.partNumber ||
+//             "N/A",
+//           description:
+//             schedule.part?.partDescription ||
+//             (schedule.customPart ? "Manual Entry" : "N/A"),
+//           source: schedule.customPart ? "Manual" : "Library",
+//           processName:
+//             schedule.customPart?.process?.processName ||
+//             schedule.part?.process?.processName ||
+//             "No Process",
+//         },
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Orders retrieved successfully",
+//       data: finalData,
+//       pagination: await pagination({
+//         page: paginationData.page,
+//         pageSize: paginationData.pageSize,
+//         total: totalCount,
+//       }),
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
+
+// 3-2-2026
+
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
@@ -7885,9 +8037,29 @@ const scheduleStockOrdersList = async (req, res) => {
 
     if (search) {
       const searchTerm = search.trim();
+      // Yaha humne partNumber, status aur processName teeno ko OR mein daal diya hai
       whereClause.OR = [
         { part: { partNumber: { contains: searchTerm } } },
-        { customPart: { partNumber: { contains: searchTerm } } },
+        {
+          customPart: {
+            partNumber: { contains: searchTerm },
+          },
+        },
+        { status: { contains: searchTerm } },
+        {
+          part: {
+            process: {
+              processName: { contains: searchTerm },
+            },
+          },
+        },
+        {
+          customPart: {
+            process: {
+              processName: { contains: searchTerm },
+            },
+          },
+        },
       ];
     }
 
@@ -7908,13 +8080,13 @@ const scheduleStockOrdersList = async (req, res) => {
       }),
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
-console.log('filteredSchedulesfilteredSchedules',filteredSchedules)
-    // --- WISE LOGIC FOR ADMIN vs EMPLOYEE NAMES ---
-    // Extract unique IDs from 'completed_by' to look up their names
+
+    // ... baaki ka logic (nameMap, stockOrders lookup, finalData mapping) same rahega ...
+    // (Existing logic continues)
+
     const performerIds = [
       ...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean)),
     ];
-
     const [admins, employees] = await Promise.all([
       prisma.admin.findMany({
         where: { id: { in: performerIds } },
@@ -7926,15 +8098,12 @@ console.log('filteredSchedulesfilteredSchedules',filteredSchedules)
       }),
     ]);
 
-    // Create a mapping of ID -> Name
     const nameMap = new Map();
     admins.forEach((a) => nameMap.set(a.id, `Admin (${a.name})`));
     employees.forEach((e) =>
       nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()),
     );
-    // ----------------------------------------------
 
-    // 2. Lookup Orders (Existing logic)
     const stockOrderIds = [
       ...new Set(
         filteredSchedules
@@ -7965,26 +8134,20 @@ console.log('filteredSchedulesfilteredSchedules',filteredSchedules)
     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
     const customMap = new Map(customOrders.map((o) => [o.id, o]));
 
-    // 3. Final Formatting (Keeping all fields same)
     const finalData = filteredSchedules.map((schedule) => {
       const type = schedule.order_type?.replace(/\s/g, "");
       const orderDetails =
         type === "StockOrder"
           ? stockMap.get(schedule.order_id)
           : customMap.get(schedule.order_id);
-
-      // Resolve the completed_by string using the nameMap we built
       const displayCompletedBy =
         nameMap.get(schedule.completed_by) || schedule.completed_by || "N/A";
-
-      // Station worker name for record
       const stationWorkerName = schedule.completedByEmployee
         ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
         : "N/A";
 
       return {
         ...schedule,
-        // Corrected completed_by (Now shows Name or Admin Name instead of UUID)
         completed_by: displayCompletedBy,
         completedEmployeeName: stationWorkerName,
         order: orderDetails,
@@ -10990,24 +11153,149 @@ const monitorChartsData = async (req, res) => {
 //     });
 //   }
 // };
+
+// const getDiveApi = async (req, res) => {
+//   try {
+//     const { processId, startDate, endDate, employeeId } = req.query;
+//     const start = startDate ? new Date(startDate) : new Date();
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = endDate ? new Date(endDate) : new Date();
+//     end.setHours(23, 59, 59, 999);
+
+//     const filterCondition = {
+//       isDeleted: false,
+//       ...(processId && processId !== "All" && { processId }),
+//       createdAt: {
+//         gte: start,
+//         lte: end,
+//       },
+//     };
+
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: filterCondition,
+//       include: {
+//         process: true,
+//         part: true,
+//         completedByEmployee: true,
+//       },
+//     });
+
+//     const employeeMap = {};
+//     const orderData = schedules.map((order) => {
+//       const scheduled = Number(order.scheduleQuantity || 0);
+//       const actual = Number(order.completedQuantity || 0);
+//       const scrap = Number(order.scrapQuantity || 0);
+//       const cycleTime = Number(order.process?.cycleTime || 0);
+
+//       const productivity =
+//         scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
+//       const efficiency = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+//       const empName = order.completedByEmployee
+//         ? `${order.completedByEmployee.firstName} ${order.completedByEmployee.lastName}`
+//         : "Admin";
+//       const empKey = `${order.completedByEmployee?.id || "un"}_${
+//         order.process?.id
+//       }`;
+//       if (order.completedByEmployee) {
+//         if (!employeeMap[empKey]) {
+//           employeeMap[empKey] = {
+//             processName: order.process?.processName,
+//             employeeName: empName,
+//             totalScheduled: 0,
+//             totalCompleted: 0,
+//             totalScrap: 0,
+//             totalCT: 0,
+//             count: 0,
+//           };
+//         }
+//         employeeMap[empKey].totalScheduled += scheduled;
+//         employeeMap[empKey].totalCompleted += actual;
+//         employeeMap[empKey].totalScrap += scrap;
+//         employeeMap[empKey].totalCT += cycleTime;
+//         employeeMap[empKey].count += 1;
+//       }
+
+//       return {
+//         orderType: order.order_type || "StockOrder",
+//         processName: order.process?.processName || "N/A",
+//         machineName: order.process?.machineName || "N/A",
+//         partNumber: order.part?.partNumber || "N/A",
+//         scheduled,
+//         actual,
+//         scrap,
+//         productivity: productivity.toFixed(1) + "%",
+//         efficiency: efficiency.toFixed(1) + "%",
+//         avgCycleTime: cycleTime + " min",
+//         employee: empName,
+//       };
+//     });
+
+//     const productivity = Object.values(employeeMap).map((emp) => ({
+//       processName: emp.processName,
+//       machineName: emp.machineName,
+//       employeeName: emp.employeeName,
+//       Qty: emp.totalCompleted,
+//       Scrap: emp.totalScrap,
+//       CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0",
+//       Eff:
+//         emp.totalScheduled > 0
+//           ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1) + "%"
+//           : "0.0%",
+//       Prod:
+//         emp.totalScheduled > 0
+//           ? (
+//               ((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) *
+//               100
+//             ).toFixed(1) + "%"
+//           : "0.0%",
+//     }));
+
+//     res.json({
+//       message: "Data fetched successfully",
+//       processId: processId || "All",
+//       totalRecords: orderData.length,
+//       data: orderData,
+//       productivity,
+//     });
+//   } catch (error) {
+//     console.error("Error fetching productivity:", error);
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
+
 const getDiveApi = async (req, res) => {
   try {
-    const { processId, startDate, endDate, employeeId } = req.query;
+    const { processId, startDate, endDate, employeeId, partId } = req.query;
+
+    // Date range
     const start = startDate ? new Date(startDate) : new Date();
     start.setHours(0, 0, 0, 0);
 
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
+    // Filters
     const filterCondition = {
       isDeleted: false,
+
       ...(processId && processId !== "All" && { processId }),
+
+      ...(partId && partId !== "All" && { part_id: partId }),
+      ...(employeeId &&
+        employeeId !== "All" && {
+          completedByEmployeeId: employeeId,
+        }),
+
       createdAt: {
         gte: start,
         lte: end,
       },
     };
 
+    // Fetch data
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
@@ -11015,9 +11303,13 @@ const getDiveApi = async (req, res) => {
         part: true,
         completedByEmployee: true,
       },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
     const employeeMap = {};
+
     const orderData = schedules.map((order) => {
       const scheduled = Number(order.scheduleQuantity || 0);
       const actual = Number(order.completedQuantity || 0);
@@ -11026,36 +11318,41 @@ const getDiveApi = async (req, res) => {
 
       const productivity =
         scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
+
       const efficiency = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+
       const empName = order.completedByEmployee
         ? `${order.completedByEmployee.firstName} ${order.completedByEmployee.lastName}`
         : "Admin";
-      const empKey = `${order.completedByEmployee?.id || "un"}_${
-        order.process?.id
+
+      const empKey = `${order.completedByEmployee?.id || "admin"}_${
+        order.process?.id || "process"
       }`;
-      if (order.completedByEmployee) {
-        if (!employeeMap[empKey]) {
-          employeeMap[empKey] = {
-            processName: order.process?.processName,
-            employeeName: empName,
-            totalScheduled: 0,
-            totalCompleted: 0,
-            totalScrap: 0,
-            totalCT: 0,
-            count: 0,
-          };
-        }
-        employeeMap[empKey].totalScheduled += scheduled;
-        employeeMap[empKey].totalCompleted += actual;
-        employeeMap[empKey].totalScrap += scrap;
-        employeeMap[empKey].totalCT += cycleTime;
-        employeeMap[empKey].count += 1;
+
+      if (!employeeMap[empKey]) {
+        employeeMap[empKey] = {
+          processName: order.process?.processName || "N/A",
+          machineName: order.process?.machineName || "N/A",
+          employeeName: empName,
+          totalScheduled: 0,
+          totalCompleted: 0,
+          totalScrap: 0,
+          totalCT: 0,
+          count: 0,
+        };
       }
+
+      employeeMap[empKey].totalScheduled += scheduled;
+      employeeMap[empKey].totalCompleted += actual;
+      employeeMap[empKey].totalScrap += scrap;
+      employeeMap[empKey].totalCT += cycleTime;
+      employeeMap[empKey].count += 1;
 
       return {
         orderType: order.order_type || "StockOrder",
         processName: order.process?.processName || "N/A",
         machineName: order.process?.machineName || "N/A",
+        partId: order.part_id, // <--- YE ADD KAREIN (Filter ke liye zaroori hai)
         partNumber: order.part?.partNumber || "N/A",
         scheduled,
         actual,
@@ -11064,9 +11361,11 @@ const getDiveApi = async (req, res) => {
         efficiency: efficiency.toFixed(1) + "%",
         avgCycleTime: cycleTime + " min",
         employee: empName,
+        createdAt: order.createdAt,
       };
     });
 
+    // Productivity summary (Employee wise)
     const productivity = Object.values(employeeMap).map((emp) => ({
       processName: emp.processName,
       machineName: emp.machineName,
@@ -11087,20 +11386,26 @@ const getDiveApi = async (req, res) => {
           : "0.0%",
     }));
 
-    res.json({
+    res.status(200).json({
       message: "Data fetched successfully",
-      processId: processId || "All",
+      filters: {
+        processId: processId || "All",
+        partId: partId || "All",
+        employeeId: employeeId || "All",
+      },
       totalRecords: orderData.length,
       data: orderData,
       productivity,
     });
   } catch (error) {
-    console.error("Error fetching productivity:", error);
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    console.error("Error fetching dive data:", error);
+    res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
+
 // controllers/cycleTimeController.js
 // const cycleTimeComparisionData = async (req, res) => {
 //   try {
@@ -11401,14 +11706,16 @@ const cycleTimeComparisionData = async (req, res) => {
     }
 
     const today = new Date().toISOString().split("T")[0];
-    startDate = startDate ;
-    endDate = endDate ;
+    startDate = startDate;
+    endDate = endDate;
 
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     if (isNaN(start) || isNaN(end)) {
-      return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD)" });
+      return res
+        .status(400)
+        .json({ error: "Invalid date format (YYYY-MM-DD)" });
     }
 
     // ================================
@@ -11420,7 +11727,7 @@ const cycleTimeComparisionData = async (req, res) => {
         isDeleted: false,
       },
       include: {
-        process: { select: { processName: true,machineName: true  } },
+        process: { select: { processName: true, machineName: true } },
         PartNumber: { select: { cycleTime: true } },
       },
     });
@@ -11462,14 +11769,12 @@ const cycleTimeComparisionData = async (req, res) => {
         status: "completed",
         stepStartTime: { not: null },
         stepEndTime: { not: null },
-
       },
       include: {
-        productionResponse:{
-          select:{
-            partId:true,
-
-          }
+        productionResponse: {
+          select: {
+            partId: true,
+          },
         },
         workInstructionStep: {
           select: {
@@ -11480,15 +11785,13 @@ const cycleTimeComparisionData = async (req, res) => {
         },
       },
     });
-    console.log('stepTrackingsstepTrackings',stepTrackings)
+    console.log("stepTrackingsstepTrackings", stepTrackings);
 
     const stepGrouped = {};
 
     stepTrackings.forEach((st) => {
       const duration =
-        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) /
-        1000 /
-        60;
+        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
 
       const stepId = st.workInstructionStep?.id;
       if (!stepId) return;
@@ -11540,8 +11843,6 @@ const cycleTimeComparisionData = async (req, res) => {
   }
 };
 
-
-
 // const cycleTimeComparisionData = async (req, res) => {
 //   try {
 //     let { startDate, endDate, partId, processId } = req.query;
@@ -11585,9 +11886,9 @@ const cycleTimeComparisionData = async (req, res) => {
 //     partId: actualPartId,
 //     isDeleted: false,
 //     // Test: Comment these out to see if data appears
-//     createdAt: { 
-//       gte: start, 
-//       lte: end 
+//     createdAt: {
+//       gte: start,
+//       lte: end
 //     },
 //   },
 //   include: {
@@ -11681,10 +11982,6 @@ const cycleTimeComparisionData = async (req, res) => {
 //     res.status(500).json({ error: "Server Error", details: error.message });
 //   }
 // };
-
-
-
-
 
 // ordersController.js
 
@@ -12248,7 +12545,12 @@ const dashBoardData = async (req, res) => {
         completedByEmployee: { select: { fullName: true, email: true } },
         part: { select: { partNumber: true, cost: true } },
         process: {
-          select: { processName: true, ratePerHour: true, cycleTime: true,machineName:true },
+          select: {
+            processName: true,
+            ratePerHour: true,
+            cycleTime: true,
+            machineName: true,
+          },
         },
       },
       orderBy: { order_date: "desc" },
@@ -12441,26 +12743,59 @@ const dashBoardData = async (req, res) => {
     const fulfilledOrdersData = await prisma.stockOrderSchedule.findMany({
       where: { isDeleted: false, status: "completed" },
       include: {
-        StockOrder: { select: { orderNumber: true } },
-        CustomOrder: { select: { orderNumber: true } },
         part: { select: { partNumber: true } },
         completedByEmployee: { select: { fullName: true } },
       },
     });
 
+    // 2. In schedules mein se saari Order IDs nikaalein
+    const stockOrderIds = fulfilledOrdersData
+      .filter((o) => (o.order_type || "").toLowerCase() === "stockorder")
+      .map((o) => o.order_id);
+
+    const customOrderIds = fulfilledOrdersData
+      .filter((o) => (o.order_type || "").toLowerCase() === "customorder")
+      .map((o) => o.order_id);
+
+    // 3. Dono tables se Order Numbers fetch karein
+    const [stockOrdersList, customOrdersList] = await Promise.all([
+      prisma.stockOrder.findMany({
+        where: { id: { in: stockOrderIds } },
+        select: { id: true, orderNumber: true },
+      }),
+      prisma.customOrder.findMany({
+        where: { id: { in: customOrderIds } },
+        select: { id: true, orderNumber: true },
+      }),
+    ]);
+
+    // 4. Quick lookup ke liye Map banayein
+    const stockMap = Object.fromEntries(
+      stockOrdersList.map((s) => [s.id, s.orderNumber]),
+    );
+    const customMap = Object.fromEntries(
+      customOrdersList.map((c) => [c.id, c.orderNumber]),
+    );
+
+    // 5. Final Mapping
     const fulfilledOrders = fulfilledOrdersData.map((o) => {
+      const type = (o.order_type || "").toLowerCase();
       const nameParts = o.completedByEmployee?.fullName?.split(" ") || [];
-      const type = o.order_type ? o.order_type.toLowerCase() : "";
+
+      // Order Number nikaalne ka logic
+      let orderNo = "N/A";
+      if (type === "stockorder") {
+        orderNo = stockMap[o.order_id] || o.order_id;
+      } else {
+        orderNo = customMap[o.order_id] || o.order_id;
+      }
 
       return {
         date: o.order_date,
-        order:
-          type === "StockOrder"
-            ? o.StockOrder?.orderNumber
-            : o.CustomOrder?.orderNumber || o.order_id,
+        order: orderNo,
         firstName: nameParts[0] || "",
         lastName: nameParts[1] || "",
-        product: o.part?.partNumber || "",
+        product: o.part?.partNumber || "N/A",
         qty: o.completedQuantity ?? 0,
       };
     });
@@ -13526,7 +13861,7 @@ const getParts = async (req, res) => {
   try {
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
-      select: { part_id: true, partDescription: true },
+      select: { part_id: true, partDescription: true, partNumber: true },
     });
     res.json(parts);
   } catch (error) {
@@ -14011,38 +14346,38 @@ const getLabourForcast = async (req, res) => {
     console.log("getInventorygetInventory", getInventory);
 
     // const getInvData = getInventory.map((item)=>item.availStock)
-const forecastData = orderDetail.map((order) => {
-  // matchingInventory ko handle karein (agar use karna ho aage)
-  const matchingInventory = getInventory.find(
-    (inv) => inv.part_id === order.part_id,
-  );
+    const forecastData = orderDetail.map((order) => {
+      // matchingInventory ko handle karein (agar use karna ho aage)
+      const matchingInventory = getInventory.find(
+        (inv) => inv.part_id === order.part_id,
+      );
 
-  // order.part ke aage ?. lagayein taaki null hone par error na aaye
-  const available = order.part?.availStock || 0; 
-  const need = order.scheduleQuantity || 0;
-  
-  // order.process ke aage bhi ?. lagayein safety ke liye
-  const cycleTimeStr = order.process?.cycleTime || "0";
-  const cycleTime = parseFloat(cycleTimeStr);
+      // order.part ke aage ?. lagayein taaki null hone par error na aaye
+      const available = order.part?.availStock || 0;
+      const need = order.scheduleQuantity || 0;
 
-  const processTime = cycleTime / 60;
-  console.log("processTime:", processTime);
+      // order.process ke aage bhi ?. lagayein safety ke liye
+      const cycleTimeStr = order.process?.cycleTime || "0";
+      const cycleTime = parseFloat(cycleTimeStr);
 
-  return {
-    // Yahan bhi ?. use karein taaki crash na ho
-    product_name: order.part?.partNumber || "Part Not Found",
-    sub_name: order.process?.processName || "No Process Assigned",
-    Available: available,
-    Need: need,
-    Forc: null,
-    cycleTime: processTime,
-    Hr_Need: null,
-  };
-});
+      const processTime = cycleTime / 60;
+      console.log("processTime:", processTime);
+
+      return {
+        // Yahan bhi ?. use karein taaki crash na ho
+        product_name: order.part?.partNumber || "Part Not Found",
+        sub_name: order.process?.processName || "No Process Assigned",
+        Available: available,
+        Need: need,
+        Forc: null,
+        cycleTime: processTime,
+        Hr_Need: null,
+      };
+    });
 
     res.status(200).json({ data: forecastData });
   } catch (error) {
-    console.log('errorerror',error)
+    console.log("errorerror", error);
     res.status(500).json({
       message: "Something went wrong while fetching forecast data.",
       error: error.message,
