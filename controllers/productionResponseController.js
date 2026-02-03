@@ -34374,7 +34374,762 @@ const getInventory = async (req, res) => {
 //         console.error("Error:", error);
 //         res.status(500).json({ message: "Internal Server Error", details: error.message });
 //     }
+// // };
+// const customerRelation = async (req, res) => {
+//   try {
+//     let { startDate, endDate } = req.query;
+
+//     const now = new Date();
+//     const todayStr = now.toISOString().split("T")[0];
+
+//     if (!startDate) startDate = todayStr;
+//     if (!endDate) endDate = todayStr;
+
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     // 1. Fetch Orders (Stock and Custom)
+//     const [stockOrders, customOrders, allSchedules] = await Promise.all([
+//       prisma.stockOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true },
+//       }),
+//       prisma.customOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true, product: true },
+//       }),
+//       // Backup: Saare schedules fetch karein agar relation empty aaye
+//       prisma.stockOrderSchedule.findMany({
+//         where: { isDeleted: false },
+//       }),
+//     ]);
+
+//     const openOrders = [];
+//     const fulfilledOrders = [];
+//     const performance = [];
+
+//     const processOrders = (orders, type) => {
+//       orders.forEach((order) => {
+//         const nameParts = (order.customerName || "N/A").split(" ");
+//         const firstName = nameParts[0];
+//         const lastName = nameParts.slice(1).join(" ") || "";
+
+//         // Logic: Agar Prisma relation empty hai, toh manual filter lagao order.id par
+//         const schedules =
+//           order.schedules.length > 0
+//             ? order.schedules
+//             : allSchedules.filter((s) => s.order_id === order.id);
+
+//         const totalScheduled = schedules.reduce(
+//           (sum, s) => sum + (s.scheduleQuantity || 0),
+//           0,
+//         );
+//         const totalCompleted = schedules.reduce(
+//           (sum, s) => sum + (s.completedQuantity || 0),
+//           0,
+//         );
+//         const totalScrap = schedules.reduce(
+//           (sum, s) => sum + (s.scrapQuantity || 0),
+//           0,
+//         );
+
+//         const productNum =
+//           type === "Stock"
+//             ? order.productDescription || order.productNumber
+//             : order.partNumber ||
+//               order.product?.partDescription ||
+//               "Custom Item";
+
+//         // Date formatting for UI
+//         const displayDate = order.createdAt.toISOString().split("T")[0];
+
+//         const commonData = {
+//           Date: displayDate,
+//           "Order Number": order.orderNumber,
+//           "Order Type": type,
+//           "First Name": firstName,
+//           "Last Name": lastName,
+//           Product: productNum,
+//           "Order Quantity": order.productQuantity || 0,
+//           "Scheduled Quantity": totalScheduled,
+//         };
+
+//         // A. Open Orders
+//         if (order.status.toLowerCase() !== "completed") {
+//           openOrders.push({
+//             ...commonData,
+//             Status: order.status || "Scheduled",
+//           });
+//         } else {
+//           // B. Fulfilled Orders
+//           fulfilledOrders.push({
+//             ...commonData,
+//             "Completed Quantity": totalCompleted,
+//             Status: "Completed",
+//           });
+//         }
+
+//         // C. Performance
+//         performance.push({
+//           Date: displayDate,
+//           "Order Number": order.orderNumber,
+//           Customer: order.customerName,
+//           Type: type,
+//           Scheduled: totalScheduled,
+//           "Total Completed": totalCompleted,
+//           "Total Scrap": totalScrap,
+//           Efficiency:
+//             order.productQuantity > 0
+//               ? ((totalCompleted / order.productQuantity) * 100).toFixed(2) +
+//                 "%"
+//               : "0%",
+//         });
+//       });
+//     };
+
+//     processOrders(stockOrders, "Stock");
+//     processOrders(customOrders, "Custom");
+
+//     // Scrap Entries (Correcting Supplier Name logic)
+//     const scrapData = await prisma.scapEntries.findMany({
+//       where: {
+//         scrapStatus: true,
+//         createdAt: { gte: start, lte: end },
+//       },
+//       include: {
+//         PartNumber: { include: { supplier: true } },
+//         supplier: true,
+//       },
+//     });
+
+//     const formattedScrap = scrapData.map((entry) => ({
+//       "Part Number": entry.PartNumber?.partNumber || "N/A",
+//       "Return Quantity": entry.returnQuantity || 0,
+//       "Supplier Company Name":
+//         entry.supplier?.companyName ||
+//         entry.PartNumber?.supplier?.companyName ||
+//         "N/A",
+//     }));
+
+//     return res.status(200).json({
+//       message: "Success",
+//       data: {
+//         openOrders,
+//         fulfilledOrders,
+//         performance,
+//         scapEntries: formattedScrap,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
 // };
+
+// const customerRelation = async (req, res) => {
+//   try {
+//     let { startDate, endDate } = req.query;
+
+//     const now = new Date();
+//     const todayStr = now.toISOString().split("T")[0];
+
+//     if (!startDate) startDate = todayStr;
+//     if (!endDate) endDate = todayStr;
+
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     // Fetch Orders
+//     // Tip: Agar aapko wo orders bhi chahiye jo purane create hue the par aaj complete hue hain,
+//     // toh aapko 'updatedAt' ya ek 'completionDate' column use karna chahiye.
+//     const qq = await prisma.stockOrder.findMany()
+//     console.log('qqqqqqqq',qq)
+//     const [stockOrders, customOrders] = await Promise.all([
+//       prisma.stockOrder.findMany({
+//         where: { 
+//           isDeleted: false,
+//           // Yahan dhyan dein: createdAt purane orders ko filter kar sakta hai
+//           createdAt: { gte: start, lte: end } 
+//         },
+//         include: { schedules: true },
+//       }),
+//       prisma.customOrder.findMany({
+//         where: { 
+//           isDeleted: false,
+//           createdAt: { gte: start, lte: end } 
+//         },
+//         include: { schedules: true, product: true },
+//       }),
+//     ]);
+//     console.log('stockOrdersstockOrders',stockOrders)
+
+//     const openOrders = [];
+//     const fulfilledOrders = [];
+//     const performance = [];
+
+//     const processOrders = (orders, type) => {
+//       orders.forEach((order) => {
+//         console.log('orderorder',order)
+//         // Status normalization
+//         const currentStatus = (order.status || "").toLowerCase().trim();
+        
+//         const nameParts = (order.customerName || "N/A").split(" ");
+//         const firstName = nameParts[0];
+//         const lastName = nameParts.slice(1).join(" ") || "";
+
+//         // Schedules logic
+//         const schedules = order.schedules || [];
+//         const totalScheduled = schedules.reduce((sum, s) => sum + (s.scheduleQuantity || 0), 0);
+//         const totalCompleted = schedules.reduce((sum, s) => sum + (s.completedQuantity || 0), 0);
+//         const totalScrap = schedules.reduce((sum, s) => sum + (s.scrapQuantity || 0), 0);
+
+//         const productNum = type === "Stock"
+//             ? order.productDescription || order.productNumber
+//             : order.partNumber || order.product?.partDescription || "Custom Item";
+
+//         const displayDate = order.createdAt.toISOString().split("T")[0];
+
+//         const commonData = {
+//           Date: displayDate,
+//           "Order Number": order.orderNumber,
+//           "Order Type": type,
+//           "First Name": firstName,
+//           "Last Name": lastName,
+//           Product: productNum,
+//           "Order Quantity": order.productQuantity || 0,
+//           "Scheduled Quantity": totalScheduled,
+//         };
+
+//         // Yahan 'completed' ki spelling check karein jo DB mein hai
+//         if (currentStatus === "completed" || currentStatus === "complete") {
+//           fulfilledOrders.push({
+//             ...commonData,
+//             "Completed Quantity": totalCompleted,
+//             Status: "Completed",
+//           });
+//         } else {
+//           openOrders.push({
+//             ...commonData,
+//             Status: order.status || "Scheduled",
+//           });
+//         }
+
+//         performance.push({
+//           Date: displayDate,
+//           "Order Number": order.orderNumber,
+//           Customer: order.customerName,
+//           Type: type,
+//           Scheduled: totalScheduled,
+//           "Total Completed": totalCompleted,
+//           "Total Scrap": totalScrap,
+//           Efficiency: order.productQuantity > 0
+//               ? ((totalCompleted / order.productQuantity) * 100).toFixed(2) + "%"
+//               : "0%",
+//         });
+//       });
+//     };
+
+//     processOrders(stockOrders, "Stock");
+//     processOrders(customOrders, "Custom");
+
+//     // Scrap Entries Logic (As it is)
+//     const scrapData = await prisma.scapEntries.findMany({
+//       where: {
+//         scrapStatus: true,
+//         createdAt: { gte: start, lte: end },
+//       },
+//       include: {
+//         PartNumber: { include: { supplier: true } },
+//         supplier: true,
+//       },
+//     });
+
+//     const formattedScrap = scrapData.map((entry) => ({
+//       "Part Number": entry.PartNumber?.partNumber || "N/A",
+//       "Return Quantity": entry.returnQuantity || 0,
+//       "Supplier Company Name": entry.supplier?.companyName || entry.PartNumber?.supplier?.companyName || "N/A",
+//     }));
+
+//     return res.status(200).json({
+//       message: "Success",
+//       data: {
+//         openOrders,
+//         fulfilledOrders,
+//         performance,
+//         scapEntries: formattedScrap,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
+
+
+// const customerRelation = async (req, res) => {
+//   try {
+//     let { startDate, endDate } = req.query;
+
+//     const now = new Date();
+//     const todayStr = now.toISOString().split("T")[0];
+
+//     if (!startDate) startDate = todayStr;
+//     if (!endDate) endDate = todayStr;
+
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     // 1. Fetch data from all necessary tables
+//     const [allSchedules, stockOrders, customOrders, scrapData] = await Promise.all([
+//       // Completed orders ke liye schedules ko priority dena
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//         //   status: { in: ["completed", "complete", "Completed", "Complete"] },
+//           updatedAt: { gte: start, lte: end }, // Aaj jo complete hue
+//           isDeleted: false,
+//         },
+//         include: {
+//           StockOrder: true,
+//           CustomOrder: { include: { product: true } },
+//         },
+//       }),
+//       // Open Orders aur Performance ke liye purana logic
+//       prisma.stockOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true },
+//       }),
+//       prisma.customOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true, product: true },
+//       }),
+//       // Scrap Entries
+//       prisma.scapEntries.findMany({
+//         where: { scrapStatus: true, createdAt: { gte: start, lte: end } },
+//         include: { PartNumber: { include: { supplier: true } }, supplier: true },
+//       }),
+//     ]);
+//       console.log('allSchedulesallSchedules',allSchedules)
+
+//     const openOrders = [];
+//     const fulfilledOrders = [];
+//     const performance = [];
+
+//     // --- LOGIC 1: FULFILLED ORDERS (From StockOrderSchedule) ---
+//     allSchedules.forEach((sch) => {
+//       const isStock = sch.order_type?.toLowerCase().includes("stock") || !!sch.StockOrder;
+//       const orderRef = isStock ? sch.StockOrder : sch.CustomOrder;
+
+//       if (orderRef) {
+//         const nameParts = (orderRef.customerName || "N/A").split(" ");
+//         fulfilledOrders.push({
+//           Date: sch.updatedAt.toISOString().split("T")[0],
+//           "Order Number": orderRef.orderNumber || "N/A",
+//           "Order Type": isStock ? "Stock" : "Custom",
+//           "First Name": nameParts[0],
+//           "Last Name": nameParts.slice(1).join(" ") || "",
+//           Product: isStock 
+//             ? (orderRef.productDescription || orderRef.productNumber) 
+//             : (orderRef.partNumber || orderRef.product?.partDescription || "Custom Item"),
+//           "Order Quantity": sch.quantity || 0,
+//           "Scheduled Quantity": sch.scheduleQuantity || 0,
+//           "Completed Quantity": sch.completedQuantity || 0,
+//           Status: "Completed",
+//         });
+//       }
+//     });
+
+//     // --- LOGIC 2: OPEN ORDERS & PERFORMANCE (From Orders) ---
+//     const processOrders = (orders, type) => {
+//       orders.forEach((order) => {
+//         const nameParts = (order.customerName || "N/A").split(" ");
+//         const schedules = order.schedules || [];
+        
+//         const totalScheduled = schedules.reduce((sum, s) => sum + (s.scheduleQuantity || 0), 0);
+//         const totalCompleted = schedules.reduce((sum, s) => sum + (s.completedQuantity || 0), 0);
+//         const totalScrap = schedules.reduce((sum, s) => sum + (s.scrapQuantity || 0), 0);
+
+//         const commonData = {
+//           Date: order.createdAt.toISOString().split("T")[0],
+//           "Order Number": order.orderNumber,
+//           "Order Type": type,
+//           "First Name": nameParts[0],
+//           "Last Name": nameParts.slice(1).join(" ") || "",
+//           Product: type === "Stock" 
+//             ? (order.productDescription || order.productNumber) 
+//             : (order.partNumber || order.product?.partDescription || "Custom Item"),
+//           "Order Quantity": order.productQuantity || 0,
+//           "Scheduled Quantity": totalScheduled,
+//         };
+
+//         // Sirf unhe open mein daalein jo completed nahi hain
+//         const status = (order.status || "").toLowerCase();
+//         if (status !== "completed" && status !== "complete") {
+//           openOrders.push({
+//             ...commonData,
+//             Status: order.status || "Scheduled",
+//           });
+//         }
+
+//         // Performance Report
+//         performance.push({
+//           Date: commonData.Date,
+//           "Order Number": order.orderNumber,
+//           Customer: order.customerName,
+//           Type: type,
+//           Scheduled: totalScheduled,
+//           "Total Completed": totalCompleted,
+//           "Total Scrap": totalScrap,
+//           Efficiency: order.productQuantity > 0
+//               ? ((totalCompleted / order.productQuantity) * 100).toFixed(2) + "%"
+//               : "0%",
+//         });
+//       });
+//     };
+
+//     processOrders(stockOrders, "Stock");
+//     processOrders(customOrders, "Custom");
+
+//     // --- LOGIC 3: SCRAP ENTRIES ---
+//     const formattedScrap = scrapData.map((entry) => ({
+//       "Part Number": entry.PartNumber?.partNumber || "N/A",
+//       "Return Quantity": entry.returnQuantity || 0,
+//       "Supplier Company Name": entry.supplier?.companyName || entry.PartNumber?.supplier?.companyName || "N/A",
+//     }));
+
+//     return res.status(200).json({
+//       message: "Success",
+//       data: {
+//         openOrders,
+//         fulfilledOrders,
+//         performance,
+//         scapEntries: formattedScrap,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
+
+// const customerRelation = async (req, res) => {
+//   try {
+//     let { startDate, endDate } = req.query;
+
+//     const now = new Date();
+//     const todayStr = now.toISOString().split("T")[0];
+
+//     if (!startDate) startDate = todayStr;
+//     if (!endDate) endDate = todayStr;
+
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     // 1. Fetch data
+//     const [allSchedules, stockOrders, customOrders, scrapData] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//           updatedAt: { gte: start, lte: end },
+//           isDeleted: false,
+//         },
+//         include: {
+//           StockOrder: true,
+//           CustomOrder: { include: { product: true } },
+//         },
+//       }),
+//       prisma.stockOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true },
+//       }),
+//       prisma.customOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { schedules: true, product: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { scrapStatus: true, createdAt: { gte: start, lte: end } },
+//         include: { PartNumber: { include: { supplier: true } }, supplier: true },
+//       }),
+//     ]);
+
+//     const openOrders = [];
+//     const fulfilledOrders = [];
+//     const performance = [];
+
+//     // --- LOGIC 1: FULFILLED ORDERS (From StockOrderSchedule) ---
+//     allSchedules.forEach((sch) => {
+//       // Check status strictly
+//       const schStatus = (sch.status || "").toLowerCase().trim();
+//       console.log('schschsch',sch)
+//       // Agar status completed hai tabhi fulfilled mein daalein
+//       if (schStatus === "completed" || schStatus === "complete") {
+        
+//         const isStock = sch.order_type?.toLowerCase().includes("stock") || !!sch.StockOrder;
+        
+//         // Agar relation null hai toh orders list mein se dhunde (Fallback)
+//         let orderRef = isStock ? sch.StockOrder : sch.CustomOrder;
+        
+//         if (!orderRef) {
+//             if (isStock) {
+//                 orderRef = stockOrders.find(o => o.id === sch.order_id || o.id === sch.stockOrderId);
+//             } else {
+//                 orderRef = customOrders.find(o => o.id === sch.order_id || o.id === sch.customOrderId);
+//             }
+//         }
+
+//         const nameParts = (orderRef?.customerName || "N/A").split(" ");
+        
+//         fulfilledOrders.push({
+//           Date: sch.updatedAt.toISOString().split("T")[0],
+//           "Order Number": orderRef?.orderNumber || "N/A",
+//           "Order Type": isStock ? "Stock" : "Custom",
+//           "First Name": nameParts[0],
+//           "Last Name": nameParts.slice(1).join(" ") || "",
+//           Product: isStock 
+//             ? (orderRef?.productDescription || orderRef?.productNumber || "Stock Item") 
+//             : (orderRef?.partNumber || orderRef?.product?.partDescription || "Custom Item"),
+//           "Order Quantity": sch.quantity || 0,
+//           "Scheduled Quantity": sch.scheduleQuantity || 0,
+//           "Completed Quantity": sch.completedQuantity || 0,
+//           Status: "Completed",
+//         });
+//       }
+//     });
+
+//     // --- LOGIC 2: OPEN ORDERS & PERFORMANCE ---
+//     const processOrders = (orders, type) => {
+//       orders.forEach((order) => {
+//         const nameParts = (order.customerName || "N/A").split(" ");
+//         const schedules = order.schedules || [];
+        
+//         const totalScheduled = schedules.reduce((sum, s) => sum + (s.scheduleQuantity || 0), 0);
+//         const totalCompleted = schedules.reduce((sum, s) => sum + (s.completedQuantity || 0), 0);
+//         const totalScrap = schedules.reduce((sum, s) => sum + (s.scrapQuantity || 0), 0);
+
+//         const commonData = {
+//           Date: order.createdAt.toISOString().split("T")[0],
+//           "Order Number": order.orderNumber,
+//           "Order Type": type,
+//           "First Name": nameParts[0],
+//           "Last Name": nameParts.slice(1).join(" ") || "",
+//           Product: type === "Stock" 
+//             ? (order.productDescription || order.productNumber) 
+//             : (order.partNumber || order.product?.partDescription || "Custom Item"),
+//           "Order Quantity": order.productQuantity || 0,
+//           "Scheduled Quantity": totalScheduled,
+//         };
+
+//         // Agar order completed nahi hai toh Open Orders mein daalein
+//         const status = (order.status || "").toLowerCase().trim();
+//         if (status !== "completed" && status !== "complete") {
+//           openOrders.push({
+//             ...commonData,
+//             Status: order.status || "Scheduled",
+//           });
+//         }
+
+//         // Performance hamesha sabke liye dikhayenge
+//         performance.push({
+//           Date: commonData.Date,
+//           "Order Number": order.orderNumber,
+//           Customer: order.customerName,
+//           Type: type,
+//           Scheduled: totalScheduled,
+//           "Total Completed": totalCompleted,
+//           "Total Scrap": totalScrap,
+//           Efficiency: order.productQuantity > 0
+//               ? ((totalCompleted / order.productQuantity) * 100).toFixed(2) + "%"
+//               : "0%",
+//         });
+//       });
+//     };
+
+//     processOrders(stockOrders, "Stock");
+//     processOrders(customOrders, "Custom");
+
+//     // --- SCRAP LOGIC ---
+//     const formattedScrap = scrapData.map((entry) => ({
+//       "Part Number": entry.PartNumber?.partNumber || "N/A",
+//       "Return Quantity": entry.returnQuantity || 0,
+//       "Supplier Company Name": entry.supplier?.companyName || entry.PartNumber?.supplier?.companyName || "N/A",
+//     }));
+
+//     return res.status(200).json({
+//       message: "Success",
+//       data: {
+//         openOrders,
+//         fulfilledOrders,
+//         performance,
+//         scapEntries: formattedScrap,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
+
+
+
+// const customerRelation = async (req, res) => {
+//   try {
+//     let { startDate, endDate } = req.query;
+
+//     const now = new Date();
+//     const todayStr = now.toISOString().split("T")[0];
+
+//     if (!startDate) startDate = todayStr;
+//     if (!endDate) endDate = todayStr;
+
+//     const start = new Date(startDate);
+//     start.setHours(0, 0, 0, 0);
+
+//     const end = new Date(endDate);
+//     end.setHours(23, 59, 59, 999);
+
+//     // 1. Fetch data
+//     const [allSchedules, stockOrders, customOrders, scrapData] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//           updatedAt: { gte: start, lte: end },
+//           isDeleted: false,
+//         },
+//         include: {
+//           StockOrder: true,
+//           CustomOrder: { include: { product: true } },
+//         },
+//       }),
+//       prisma.stockOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//       }),
+//       prisma.customOrder.findMany({
+//         where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//         include: { product: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { scrapStatus: true, createdAt: { gte: start, lte: end } },
+//         include: { PartNumber: { include: { supplier: true } }, supplier: true },
+//       }),
+//     ]);
+
+//     const fulfilledOrders = [];
+//     const openOrders = [];
+//     const performance = [];
+
+//     // --- LOGIC 1: FULFILLED ORDERS (From StockOrderSchedule) ---
+//     allSchedules.forEach((sch) => {
+//       const schStatus = (sch.status || "").toLowerCase().trim();
+
+//       // Check if it's completed
+//       if (schStatus === "completed" || schStatus === "complete") {
+//         const isStock = sch.order_type?.toLowerCase().includes("stock") || !!sch.StockOrder;
+        
+//         // --- RELATION FALLBACK LOGIC ---
+//         // Agar sch.StockOrder null hai, toh stockOrders array mein dhoondo
+//         let orderRef = isStock ? sch.StockOrder : sch.CustomOrder;
+// console.log('orderRef',orderRef)
+// console.log('schschsch',sch)
+//         if (!orderRef) {
+//           if (isStock) {
+//             orderRef = stockOrders.find(o => o.id === sch.order_id || o.id === sch.stockOrderId);
+//           } else {
+//             orderRef = customOrders.find(o => o.id === sch.order_id || o.id === sch.customOrderId);
+//           }
+//         }
+
+//         // --- NAME AND ORDER NUMBER EXTRACTION ---
+//         const customerName = orderRef?.customerName || "N/A";
+//         const nameParts = customerName.trim().split(" ");
+//         const firstName = nameParts[0] || "N/A";
+//         const lastName = nameParts.slice(1).join(" ") || "";
+
+//         fulfilledOrders.push({
+//           Date: sch.updatedAt.toISOString().split("T")[0],
+//           "Order Number": orderRef?.orderNumber || "N/A", // Order Number yahan se aayega
+//           "Order Type": isStock ? "Stock" : "Custom",
+//           "First Name": firstName, // First Name
+//           "Last Name": lastName,   // Last Name
+//           Product: isStock 
+//             ? (orderRef?.productDescription || orderRef?.productNumber || "Stock Item") 
+//             : (orderRef?.partNumber || orderRef?.product?.partDescription || "Custom Item"),
+//           "Order Quantity": sch.quantity || 0,
+//           "Scheduled Quantity": sch.scheduleQuantity || 0,
+//           "Completed Quantity": sch.completedQuantity || 0,
+//           Status: "Completed",
+//         });
+//       }
+//     });
+
+//     // --- LOGIC 2: OPEN ORDERS & PERFORMANCE (Aapka Pehle wala logic) ---
+//     // (Note: Hum stockOrders aur customOrders pe loop chala kar Open orders nikal rahe hain)
+//     const processRemaining = (orders, type) => {
+//       orders.forEach((order) => {
+//         const status = (order.status || "").toLowerCase().trim();
+//         const nameParts = (order.customerName || "N/A").trim().split(" ");
+//         console.log('orderorder',order)
+//         const commonData = {
+//           Date: order.createdAt.toISOString().split("T")[0],
+//           "Order Number": order.orderNumber,
+//           "Order Type": type,
+//           "First Name": nameParts[0],
+//           "Last Name": nameParts.slice(1).join(" ") || "",
+//           Product: type === "Stock" 
+//             ? (order.productDescription || order.productNumber) 
+//             : (order.partNumber || order.product?.partDescription || "Custom Item"),
+//           "Order Quantity": order.productQuantity || 0,
+//         };
+
+//         if (status !== "completed" && status !== "complete") {
+//           openOrders.push({ ...commonData, Status: order.status || "In Progress" });
+//         }
+
+//         // Performance Logic (Simplified for brevity)
+//         performance.push({
+//           Date: commonData.Date,
+//           "Order Number": order.orderNumber,
+//           Customer: order.customerName,
+//           Type: type,
+//           Efficiency: "Check Report"
+//         });
+//       });
+//     };
+
+//     processRemaining(stockOrders, "Stock");
+//     processRemaining(customOrders, "Custom");
+
+//     // SCRAP
+//     const formattedScrap = scrapData.map(entry => ({
+//       "Part Number": entry.PartNumber?.partNumber || "N/A",
+//       "Return Quantity": entry.returnQuantity || 0,
+//       "Supplier Company Name": entry.supplier?.companyName || "N/A",
+//     }));
+
+//     return res.status(200).json({
+//       message: "Success",
+//       data: {
+//         openOrders,
+//         fulfilledOrders, // Isme ab Order Number aur Names aayenge
+//         performance,
+//         scapEntries: formattedScrap,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// };
+
+
 const customerRelation = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
@@ -34391,127 +35146,105 @@ const customerRelation = async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    // 1. Fetch Orders (Stock and Custom)
-    const [stockOrders, customOrders, allSchedules] = await Promise.all([
-      prisma.stockOrder.findMany({
-        where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-        include: { schedules: true },
-      }),
-      prisma.customOrder.findMany({
-        where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-        include: { schedules: true, product: true },
-      }),
-      // Backup: Saare schedules fetch karein agar relation empty aaye
-      prisma.stockOrderSchedule.findMany({
-        where: { isDeleted: false },
-      }),
+    // 1. Aaj update hue saare schedules fetch karein
+    const allSchedules = await prisma.stockOrderSchedule.findMany({
+      where: {
+        updatedAt: { gte: start, lte: end },
+        isDeleted: false,
+      },
+      include: {
+        StockOrder: true,
+        CustomOrder: { include: { product: true } },
+      },
+    });
+
+    // 2. Identify unique Order IDs (un orders ke liye jo schedules mein hain par relation null aa rahi hai)
+    const stockOrderIds = [...new Set(allSchedules.filter(s => s.order_type.toLowerCase().includes("stock")).map(s => s.order_id))];
+    const customOrderIds = [...new Set(allSchedules.filter(s => !s.order_type.toLowerCase().includes("stock")).map(s => s.order_id))];
+
+    // 3. Fetch missing order details (Chahe wo kabhi bhi create hue hon)
+    const [extraStockOrders, extraCustomOrders] = await Promise.all([
+      prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } }),
+      prisma.customOrder.findMany({ where: { id: { in: customOrderIds } }, include: { product: true } }),
     ]);
+
+    // Sabhi orders ko ek lookup object mein daal dein taaki fast search ho sake
+    const stockLookup = Object.fromEntries(extraStockOrders.map(o => [o.id, o]));
+    const customLookup = Object.fromEntries(extraCustomOrders.map(o => [o.id, o]));
 
     const openOrders = [];
     const fulfilledOrders = [];
     const performance = [];
 
-    const processOrders = (orders, type) => {
-      orders.forEach((order) => {
-        const nameParts = (order.customerName || "N/A").split(" ");
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(" ") || "";
+    // --- LOGIC: PROCESS SCHEDULES ---
+    allSchedules.forEach((sch) => {
+      const schStatus = (sch.status || "").toLowerCase().trim();
+      const isStock = sch.order_type?.toLowerCase().includes("stock");
+      
+      // Order reference dhundein (Direct relation ya Lookup)
+      const orderRef = isStock 
+        ? (sch.StockOrder || stockLookup[sch.order_id]) 
+        : (sch.CustomOrder || customLookup[sch.order_id]);
 
-        // Logic: Agar Prisma relation empty hai, toh manual filter lagao order.id par
-        const schedules =
-          order.schedules.length > 0
-            ? order.schedules
-            : allSchedules.filter((s) => s.order_id === order.id);
+      if (!orderRef) return; // Agar order database mein hi nahi hai
 
-        const totalScheduled = schedules.reduce(
-          (sum, s) => sum + (s.scheduleQuantity || 0),
-          0,
-        );
-        const totalCompleted = schedules.reduce(
-          (sum, s) => sum + (s.completedQuantity || 0),
-          0,
-        );
-        const totalScrap = schedules.reduce(
-          (sum, s) => sum + (s.scrapQuantity || 0),
-          0,
-        );
+      const nameParts = (orderRef.customerName || "N/A").trim().split(" ");
+      const firstName = nameParts[0] || "N/A";
+      const lastName = nameParts.slice(1).join(" ") || "";
 
-        const productNum =
-          type === "Stock"
-            ? order.productDescription || order.productNumber
-            : order.partNumber ||
-              order.product?.partDescription ||
-              "Custom Item";
+      const commonData = {
+        Date: sch.updatedAt.toISOString().split("T")[0],
+        "Order Number": orderRef.orderNumber || "N/A",
+        "Order Type": isStock ? "Stock" : "Custom",
+        "First Name": firstName,
+        "Last Name": lastName,
+        Product: isStock 
+            ? (orderRef.productDescription || orderRef.productNumber || "Stock Item") 
+            : (orderRef.partNumber || orderRef.product?.partDescription || "Custom Item"),
+        "Order Quantity": orderRef.productQuantity || 0,
+        "Scheduled Quantity": sch.scheduleQuantity || 0,
+        "Completed Quantity": sch.completedQuantity || 0,
+      };
 
-        // Date formatting for UI
-        const displayDate = order.createdAt.toISOString().split("T")[0];
-
-        const commonData = {
-          Date: displayDate,
-          "Order Number": order.orderNumber,
-          "Order Type": type,
-          "First Name": firstName,
-          "Last Name": lastName,
-          Product: productNum,
-          "Order Quantity": order.productQuantity || 0,
-          "Scheduled Quantity": totalScheduled,
-        };
-
-        // A. Open Orders
-        if (order.status.toLowerCase() !== "completed") {
-          openOrders.push({
-            ...commonData,
-            Status: order.status || "Scheduled",
-          });
-        } else {
-          // B. Fulfilled Orders
-          fulfilledOrders.push({
-            ...commonData,
-            "Completed Quantity": totalCompleted,
-            Status: "Completed",
-          });
-        }
-
-        // C. Performance
-        performance.push({
-          Date: displayDate,
-          "Order Number": order.orderNumber,
-          Customer: order.customerName,
-          Type: type,
-          Scheduled: totalScheduled,
-          "Total Completed": totalCompleted,
-          "Total Scrap": totalScrap,
-          Efficiency:
-            order.productQuantity > 0
-              ? ((totalCompleted / order.productQuantity) * 100).toFixed(2) +
-                "%"
-              : "0%",
+      // A. Fulfilled (Completed)
+      if (schStatus === "completed" || schStatus === "complete") {
+        fulfilledOrders.push({
+          ...commonData,
+          Status: "Completed",
         });
+      } else {
+        // B. Open Orders
+        openOrders.push({
+          ...commonData,
+          Status: sch.status || "In Progress",
+        });
+      }
+
+      // C. Performance
+      performance.push({
+        Date: commonData.Date,
+        "Order Number": orderRef.orderNumber,
+        Customer: orderRef.customerName,
+        Type: isStock ? "Stock" : "Custom",
+        Scheduled: sch.scheduleQuantity || 0,
+        "Total Completed": sch.completedQuantity || 0,
+        "Total Scrap": sch.scrapQuantity || 0,
+        Efficiency: orderRef.productQuantity > 0
+            ? ((sch.completedQuantity / orderRef.productQuantity) * 100).toFixed(2) + "%"
+            : "0%",
       });
-    };
+    });
 
-    processOrders(stockOrders, "Stock");
-    processOrders(customOrders, "Custom");
-
-    // Scrap Entries (Correcting Supplier Name logic)
+    // --- SCRAP LOGIC ---
     const scrapData = await prisma.scapEntries.findMany({
-      where: {
-        scrapStatus: true,
-        createdAt: { gte: start, lte: end },
-      },
-      include: {
-        PartNumber: { include: { supplier: true } },
-        supplier: true,
-      },
+      where: { scrapStatus: true, createdAt: { gte: start, lte: end } },
+      include: { PartNumber: { include: { supplier: true } }, supplier: true },
     });
 
     const formattedScrap = scrapData.map((entry) => ({
       "Part Number": entry.PartNumber?.partNumber || "N/A",
       "Return Quantity": entry.returnQuantity || 0,
-      "Supplier Company Name":
-        entry.supplier?.companyName ||
-        entry.PartNumber?.supplier?.companyName ||
-        "N/A",
+      "Supplier Company Name": entry.supplier?.companyName || entry.PartNumber?.supplier?.companyName || "N/A",
     }));
 
     return res.status(200).json({
@@ -34525,9 +35258,16 @@ const customerRelation = async (req, res) => {
     });
   } catch (error) {
     console.error("API Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+
+
+
+
+
+
 // const getScheduleProcessInformation = async (req, res) => {
 //   try {
 //     const { id: processId } = req.params;
