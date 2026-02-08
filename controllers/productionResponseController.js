@@ -31911,28 +31911,136 @@ const deleteScheduleOrder = async (req, res) => {
 //     return res.status(500).json({ error: "Internal server error" });
 //   }
 // };
+// 2/7/26
+// const scrapEntry = async (req, res) => {
+//   try {
+//     const {
+//       type,
+//       partId,
+//       productId, // productId ko bhi destructure kar lete hain
+//       processId, // processId ko bhi
+//       returnQuantity,
+//       scrapStatus,
+//       supplierId,
+//       returnSupplierQty,
+//     } = req.body;
 
+//     // --- Pehle Stock Check Kar Lete Hain ---
+//     const part = await prisma.partNumber.findUnique({
+//       where: { part_id: partId },
+//       select: { availStock: true },
+//     });
+
+//     if (!part) {
+//       return res.status(404).json({ error: "Part not found" });
+//     }
+
+//     if ((part.availStock ?? 0) < Number(returnQuantity)) {
+//       return res.status(400).json({
+//         message: "Insufficient stock to scrap the requested quantity",
+//       });
+//     }
+
+//     // --- Prisma ke liye Sahi Data Object Banayein ---
+//     const dataForPrisma = {
+//       type,
+//       returnQuantity: Number(returnQuantity),
+//       scrapStatus: scrapStatus === "yes",
+//       returnSupplierQty: returnSupplierQty
+//         ? Number(returnSupplierQty)
+//         : undefined,
+//     };
+
+//     // SOLUTION 1: Relation ko ID se "connect" karein, direct ID na dein
+//     if (partId) {
+//       dataForPrisma.PartNumber = { connect: { part_id: partId } };
+//     }
+//     if (supplierId) {
+//       dataForPrisma.supplier = { connect: { id: supplierId } };
+//     }
+//     if (processId) {
+//       dataForPrisma.process = { connect: { id: processId } };
+//     }
+//     if (productId) {
+//       // Assuming you have a 'Product' relation in your schema
+//       // dataForPrisma.Product = { connect: { id: productId } };
+//     }
+
+//     // SOLUTION 2 & 3: User ke role ke basis par creator ko connect karein
+//     // Yeh maante hue ki aapke auth middleware se req.user.role set hota hai
+//     if (req.user && req.user.role === "superAdmin") {
+//       dataForPrisma.createdByAdmin = {
+//         connect: { id: req.user.id },
+//       };
+//     } else if (
+//       req.user &&
+//       ["employee", "Shop_Floor", "Frontline_Manager"].includes(req.user.role)
+//     ) {
+//       dataForPrisma.createdByEmployee = {
+//         connect: { id: req.user.id },
+//       };
+//     } else {
+//       return res
+//         .status(403)
+//         .json({ message: "User role not authorized for this action." });
+//     }
+
+//     // --- Ab Transaction Run Karein ---
+//     const [newEntry] = await prisma.$transaction([
+//       prisma.scapEntries.create({
+//         // Yahaan pehle se banaya hua object use karein
+//         data: dataForPrisma,
+//       }),
+//       prisma.partNumber.update({
+//         where: { part_id: partId },
+//         data: {
+//           availStock: {
+//             decrement: Number(returnQuantity),
+//           },
+//         },
+//       }),
+//     ]);
+
+//     return res.status(201).json({
+//       message: "Scrap entry created and stock updated",
+//       data: newEntry,
+//     });
+//   } catch (error) {
+//     console.error("Error creating scrap entry:", error);
+
+//     // Prisma ke specific error ko handle karein for better messages
+//     if (error.code === "P2025") {
+//       return res.status(404).json({
+//         error:
+//           "Operation failed: A record to connect was not found (e.g., invalid partId, supplierId, or userId).",
+//       });
+//     }
+
+//     return res.status(500).json({ error: "Internal server error" });
+//   }
+// };
+// 2/7/26
 const scrapEntry = async (req, res) => {
   try {
     const {
       type,
       partId,
-      productId, // productId ko bhi destructure kar lete hain
-      processId, // processId ko bhi
+      productId,
+      processId,
       returnQuantity,
       scrapStatus,
-      supplierId,
+      customerId, // supplierId ki jagah customerId
       returnSupplierQty,
     } = req.body;
 
-    // --- Pehle Stock Check Kar Lete Hain ---
+    // --- 1. Stock Check ---
     const part = await prisma.partNumber.findUnique({
       where: { part_id: partId },
       select: { availStock: true },
     });
 
     if (!part) {
-      return res.status(404).json({ error: "Part not found" });
+      return res.status(404).json({ error: "Product/Part not found" });
     }
 
     if ((part.availStock ?? 0) < Number(returnQuantity)) {
@@ -31941,7 +32049,7 @@ const scrapEntry = async (req, res) => {
       });
     }
 
-    // --- Prisma ke liye Sahi Data Object Banayein ---
+    // --- 2. Prisma Data Object Taiyar Karna ---
     const dataForPrisma = {
       type,
       returnQuantity: Number(returnQuantity),
@@ -31951,23 +32059,21 @@ const scrapEntry = async (req, res) => {
         : undefined,
     };
 
-    // SOLUTION 1: Relation ko ID se "connect" karein, direct ID na dein
+    // Relations Connect karna
     if (partId) {
       dataForPrisma.PartNumber = { connect: { part_id: partId } };
     }
-    if (supplierId) {
-      dataForPrisma.supplier = { connect: { id: supplierId } };
+    
+    // YAHAN BADLAV KIYA GAYA HAI: Supplier ki jagah Customer connect kiya
+    if (customerId) {
+      dataForPrisma.customers = { connect: { id: customerId } };
     }
+
     if (processId) {
       dataForPrisma.process = { connect: { id: processId } };
     }
-    if (productId) {
-      // Assuming you have a 'Product' relation in your schema
-      // dataForPrisma.Product = { connect: { id: productId } };
-    }
 
-    // SOLUTION 2 & 3: User ke role ke basis par creator ko connect karein
-    // Yeh maante hue ki aapke auth middleware se req.user.role set hota hai
+    // --- 3. CreatedBy Logic (Admin vs Employee) ---
     if (req.user && req.user.role === "superAdmin") {
       dataForPrisma.createdByAdmin = {
         connect: { id: req.user.id },
@@ -31985,10 +32091,9 @@ const scrapEntry = async (req, res) => {
         .json({ message: "User role not authorized for this action." });
     }
 
-    // --- Ab Transaction Run Karein ---
+    // --- 4. Transaction (Entry Create + Stock Update) ---
     const [newEntry] = await prisma.$transaction([
       prisma.scapEntries.create({
-        // Yahaan pehle se banaya hua object use karein
         data: dataForPrisma,
       }),
       prisma.partNumber.update({
@@ -32002,24 +32107,21 @@ const scrapEntry = async (req, res) => {
     ]);
 
     return res.status(201).json({
-      message: "Scrap entry created and stock updated",
+      message: "Scrap entry created for customer and stock updated",
       data: newEntry,
     });
   } catch (error) {
     console.error("Error creating scrap entry:", error);
 
-    // Prisma ke specific error ko handle karein for better messages
     if (error.code === "P2025") {
       return res.status(404).json({
-        error:
-          "Operation failed: A record to connect was not found (e.g., invalid partId, supplierId, or userId).",
+        error: "Operation failed: A record to connect was not found (invalid IDs).",
       });
     }
 
     return res.status(500).json({ error: "Internal server error" });
   }
 };
-
 const completeScheduleOrderViaGet = async (req, res) => {
   try {
     const { id, orderId, partId, employeeId, productId } = req.query;
@@ -32860,6 +32962,147 @@ const changeStationNotification = async (req, res) => {
 //     });
 //   }
 // };
+
+// 2/7/2026
+// const qualityPerformance = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     let whereCondition = { isDeleted: false };
+//     let scrapWhereCondition = { isDeleted: false };
+
+//     if (startDate && endDate) {
+//       const start = new Date(new Date(startDate).setHours(0, 0, 0, 0));
+//       const end = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+//       whereCondition.createdAt = { gte: start, lte: end };
+//       scrapWhereCondition.createdAt = { gte: start, lte: end };
+//     }
+
+//     // 1. Fetch Schedule Data
+//     const rawData = await prisma.stockOrderSchedule.findMany({
+//       where: whereCondition,
+//       select: {
+//         scrapQuantity: true,
+//         scheduleQuantity: true,
+//         createdAt: true,
+
+//         part: {
+//           select: {
+//             part_id: true,
+//             partNumber: true,
+//             partDescription: true,
+//             process: {
+//               select: {
+//                 processName: true,
+//                 machineName: true,
+//               },
+//             },
+//           },
+//         },
+//       },
+//     });
+//     console.log("rawDatarawData", rawData);
+//     const scrapEntriesRecords = await prisma.scapEntries.findMany({
+//       where: scrapWhereCondition,
+//       include: {
+//         PartNumber: {
+//           select: {
+//             part_id: true,
+//             partNumber: true,
+//             partDescription: true,
+//             process: {
+//               select: {
+//                 processName: true,
+//                 machineName: true,
+//               },
+//             },
+//           },
+//         },
+//       },
+//     });
+
+//     const mergedMap = new Map();
+
+//     const updateMap = (id, partInfo, scrapQty, scheduleQty, date) => {
+//       if (!mergedMap.has(id)) {
+//         mergedMap.set(id, {
+//           partId: id,
+//           partNumber: partInfo?.partNumber || "Unknown",
+//           partDescription: partInfo?.partDescription || "",
+//           processName: partInfo?.process?.processName || "",
+//           machineName: partInfo?.process?.machineName || "",
+//           scrapQuantity: Number(scrapQty) || 0,
+//           scheduleQuantity: Number(scheduleQty) || 0,
+//           latestDate: date,
+//           isChild: false,
+//         });
+//       } else {
+//         const existing = mergedMap.get(id);
+//         existing.scrapQuantity += Number(scrapQty) || 0;
+//         existing.scheduleQuantity += Number(scheduleQty) || 0;
+//         if (date > existing.latestDate) existing.latestDate = date;
+//       }
+//     };
+
+//     // --- Process Schedule Records ---
+//     rawData.forEach((item) => {
+//       if (item.part) {
+//         updateMap(
+//           item.part.part_id,
+//           item.part,
+//           item.scrapQuantity || 0,
+//           item.scheduleQuantity || 0,
+//           item.createdAt,
+//         );
+//       }
+//     });
+
+//     // --- Process Scrap Entries Records ---
+//     scrapEntriesRecords.forEach((scrap) => {
+//       const partInfo = scrap.PartNumber;
+//       const key = scrap.partId || partInfo?.part_id;
+
+//       if (key) {
+//         const sQty =
+//           Number(scrap.scrapQuantity) ||
+//           Number(scrap.returnQuantity) ||
+//           Number(scrap.quantity) ||
+//           0;
+
+//         updateMap(key, partInfo, sQty, 0, scrap.createdAt);
+//       }
+//     });
+
+//     const data = Array.from(mergedMap.values());
+
+// const filteredData = data.filter(item => item.scrapQuantity > 0);
+// filteredData.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
+
+// const totalScrapQty = filteredData.reduce(
+//   (acc, item) => acc + item.scrapQuantity,
+//   0
+// );
+// return res.status(200).json({
+//   success: true,
+//   message: "Quality performance data retrieved successfully!",
+//   totalScrapQty,
+//   totalEntries: filteredData.length,
+//   data: filteredData,
+// });
+
+//   } catch (error) {
+//     console.error("Error in qualityPerformance:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// 2/7/2026
+
+
 const qualityPerformance = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -32881,43 +33124,35 @@ const qualityPerformance = async (req, res) => {
         scrapQuantity: true,
         scheduleQuantity: true,
         createdAt: true,
-
         part: {
           select: {
             part_id: true,
             partNumber: true,
             partDescription: true,
             process: {
-              select: {
-                processName: true,
-                machineName: true,
-              },
-            },
-          },
-        },
-      },
-    });
-    console.log("rawDatarawData", rawData);
-    const scrapEntriesRecords = await prisma.scapEntries.findMany({
-      where: scrapWhereCondition,
-      include: {
-        PartNumber: {
-          select: {
-            part_id: true,
-            partNumber: true,
-            partDescription: true,
-            process: {
-              select: {
-                processName: true,
-                machineName: true,
-              },
+              select: { processName: true, machineName: true },
             },
           },
         },
       },
     });
 
+    // 2. Fetch Scrap Entries (Added supplier and customers include)
+    const aa = await prisma.scapEntries.findMany();
+    console.log('aaaaaaaaaaaaaaaaaaaa',aa)
+    const scrapEntriesRecords = await prisma.scapEntries.findMany({
+      where: scrapWhereCondition,
+      include: {
+        PartNumber: true,
+        supplier: { select: { firstName: true,lastName:true } }, // Added
+        customers: { select: { firstName: true ,lastName:true } },       // Added
+      },
+    });
+console.log('scrapEntriesRecords',scrapEntriesRecords)
     const mergedMap = new Map();
+    // Naye arrays supplier aur customer specific data ke liye
+    const supplierScrapDetails = [];
+    const customerScrapDetails = [];
 
     const updateMap = (id, partInfo, scrapQty, scheduleQty, date) => {
       if (!mergedMap.has(id)) {
@@ -32940,52 +33175,63 @@ const qualityPerformance = async (req, res) => {
       }
     };
 
-    // --- Process Schedule Records ---
+    // Existing Logic for Schedule
     rawData.forEach((item) => {
       if (item.part) {
-        updateMap(
-          item.part.part_id,
-          item.part,
-          item.scrapQuantity || 0,
-          item.scheduleQuantity || 0,
-          item.createdAt,
-        );
+        updateMap(item.part.part_id, item.part, item.scrapQuantity || 0, item.scheduleQuantity || 0, item.createdAt);
       }
     });
 
-    // --- Process Scrap Entries Records ---
+    // Modified Logic for Scrap Entries (Without changing existing mergedMap)
     scrapEntriesRecords.forEach((scrap) => {
       const partInfo = scrap.PartNumber;
       const key = scrap.partId || partInfo?.part_id;
+      const sQty = Number(scrap.scrapQuantity) || Number(scrap.returnQuantity) || 0;
 
       if (key) {
-        const sQty =
-          Number(scrap.scrapQuantity) ||
-          Number(scrap.returnQuantity) ||
-          Number(scrap.quantity) ||
-          0;
-
+        // 1. Existing Map Update (Don't change this)
         updateMap(key, partInfo, sQty, 0, scrap.createdAt);
+
+        // 2. NEW: Categorize into Supplier object
+        if (scrap.supplierId || scrap.returnSupplierId) {
+          supplierScrapDetails.push({
+            partNumber: partInfo?.partNumber,
+            supplierName: scrap.supplier?.firstName || "N/A",
+            quantity: sQty,
+            date: scrap.createdAt,
+            type: scrap.type || "Supplier Return"
+          });
+        }
+
+        // 3. NEW: Categorize into Customer object
+        if (scrap.customersId) {
+          customerScrapDetails.push({
+            partNumber: partInfo?.partNumber,
+            customerName: scrap.customers?.firstName || "N/A",
+            quantity: sQty,
+            date: scrap.createdAt,
+            type: scrap.type || "Customer Return"
+          });
+        }
       }
     });
 
     const data = Array.from(mergedMap.values());
+    const filteredData = data.filter(item => item.scrapQuantity > 0);
+    filteredData.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
 
-    // Sort by Scrap Quantity descending (Highest scrap at the top)
-    data.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
-
-    const totalScrapQty = data.reduce(
-      (acc, item) => acc + item.scrapQuantity,
-      0,
-    );
+    const totalScrapQty = filteredData.reduce((acc, item) => acc + item.scrapQuantity, 0);
 
     return res.status(200).json({
       success: true,
       message: "Quality performance data retrieved successfully!",
       totalScrapQty,
-      totalEntries: data.length,
-      data,
+      totalEntries: filteredData.length,
+      data: filteredData, // Existing merged data
+      supplierScrapDetails, // NEW: Specific supplier scrap
+      customerScrapDetails, // NEW: Specific customer scrap
     });
+
   } catch (error) {
     console.error("Error in qualityPerformance:", error);
     return res.status(500).json({
@@ -32993,6 +33239,58 @@ const qualityPerformance = async (req, res) => {
       message: "Internal Server Error",
       error: error.message,
     });
+  }
+};
+
+
+
+
+
+
+
+const approveTimeSheet = async (req, res) => {
+  try {
+    const { employeeId, date } = req.body; // Frontend se employeeId aur date (YYYY-MM-DD) bhejenge
+
+    if (!employeeId || !date) {
+      return res.status(400).json({ message: "Employee ID and Date are required" });
+    }
+
+    // Us din ki start aur end range banayein
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+console.log('employeeIdemployeeId',employeeId)
+    // Prisma updateMany ka use karke us din ke saare events ko approve karein
+    const updatedRecords = await prisma.timeClock.updateMany({
+      where: {
+        employee: {
+            email:employeeId
+        },
+        isDeleted: false,
+        timestamp: {
+          gte: startOfDay.toISOString(),
+          lte: endOfDay.toISOString(),
+        },
+      },
+      data: {
+        status: "APPROVED", // Status update kar rahe hain
+      },
+    });
+
+    if (updatedRecords.count === 0) {
+      return res.status(404).json({ message: "No records found to approve for this date." });
+    }
+
+    return res.status(200).json({
+      message: `Timesheet approved successfully for ${date}`,
+      count: updatedRecords.count,
+    });
+  } catch (error) {
+    console.error("Error approving timesheet:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 // const supplierReturn = async (req, res) => {
@@ -38246,4 +38544,5 @@ module.exports = {
   customerRelation,
   checkTraningStatus,
   getTrainingScheduleInformation,
+  approveTimeSheet
 };

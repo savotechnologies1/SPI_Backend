@@ -170,6 +170,7 @@ const {
   qualityPerformance,
   checkTraningStatus,
   getTrainingScheduleInformation,
+  approveTimeSheet,
 } = require("../controllers/productionResponseController");
 const {
   importProcess,
@@ -458,6 +459,7 @@ router.patch(
   changeVacationRequestStatus,
 );
 router.get("/all-time-clock-list", adminValidateToken, timeClockList);
+router.post("/approve-timesheet", adminValidateToken, approveTimeSheet);
 router.post("/send-email-to-employee", adminValidateToken, sendMailToEmplyee);
 router.post("/send-vacation-status", adminValidateToken, sendVacationStatus);
 router.get("/live-production", getLiveProduction);

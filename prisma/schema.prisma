@@ -104,6 +104,7 @@ model TimeClock {
   isDeleted  Boolean?           @default(false)
   timezone   String?            @db.VarChar(50)
   employee   employee           @relation(fields: [employeeId], references: [id])
+  status     String   @default("PENDING")
 
   @@index([employeeId], map: "TimeClock_employeeId_fkey")
 }
