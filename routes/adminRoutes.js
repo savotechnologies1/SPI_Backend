@@ -101,7 +101,6 @@ const {
   fixedDataList,
   getFixedCostGraph,
   getParts,
-  revenueApi,
   scheudleInventory,
   getLabourForcast,
   deleteFixedCost,
@@ -110,6 +109,9 @@ const {
   getProductParts,
   getLowStockParts,
   sendOrderToSupplier,
+  updateInventoryData,
+  revenueApi,
+  revenueApi1,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -490,12 +492,17 @@ router.post("/product-tree/import", adminValidateToken, importProductTree);
 router.post("/emp/import", adminValidateToken, importEmp);
 router.post("/cust/import", adminValidateToken, importCust);
 router.post("/supp/import", adminValidateToken, importSupp);
-router.get("/revenue-api", revenueApi);
+router.get("/revenue-api", revenueApi1);
 router.get("/schedule-inventory", scheudleInventory);
+router.put("/update-inventory", updateInventoryData);
 router.get("/get-labour-forcast", getLabourForcast);
 router.get("/business-analysis", businessAnalysisApi);
 router.get("/trainig-status", adminValidateToken, checkTraningStatus);
-router.get("/get-training-schedule/:id", adminValidateToken, getTrainingScheduleInformation);
+router.get(
+  "/get-training-schedule/:id",
+  adminValidateToken,
+  getTrainingScheduleInformation,
+);
 router.get("/product-parts/:id", adminValidateToken, getProductParts);
 router.post("/send-order-to-supplier", adminValidateToken, sendOrderToSupplier);
 module.exports = router;
