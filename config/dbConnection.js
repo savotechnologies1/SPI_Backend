@@ -15,7 +15,7 @@ const connectDB = async () => {
           email: "spiadmin@gmail.com",
           password: convertedPass,
           roles: "superAdmin",
-          phoneNumber: "+911111111111",
+          phoneNumber: "+9111117777",
         },
       });
     }
