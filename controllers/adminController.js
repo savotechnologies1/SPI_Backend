@@ -15196,13 +15196,337 @@ const dailySchedule = async (req, res) => {
       .json({ message: "Something went wrong.", error: error.message });
   }
 };
+// const capacityStatus = async (req, res) => {
+//   try {
+//     // Get all processes
+//     const getProcess = await prisma.process.findMany({});
 
+//     // Get schedule data
+//     let scheduleData = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         NOT: {
+//           status: "completed", // completed exclude kar diya
+//         },
+//       },
+//       include: {
+//         process: { select: { processName: true } },
+//         part: { select: { partNumber: true, cycleTime: true } },
+//         StockOrder: { select: { orderDate: true } },
+//       },
+//     });
+//     console.log("scheduleDatascheduleData", scheduleData);
+
+//     // Fetch ProductionResponse for each schedule item
+//     const scheduleDataWithLoad = await Promise.all(
+//       scheduleData.map(async (item) => {
+//         // Get all production responses for this schedule
+//         const productionResponses = await prisma.productionResponse.findMany({
+//           where: {
+//             orderId: item.stockOrderId || item.order_id,
+//             partId: item.part_id,
+//             processId: item.processId,
+//             isDeleted: false,
+//           },
+//         });
+
+//         // Calculate total cycle time (sum of all responses)
+//         let totalCycleTime = 0;
+//         productionResponses.forEach((prod) => {
+//           const start = prod.cycleTimeStart
+//             ? new Date(prod.cycleTimeStart)
+//             : null;
+//           const end = prod.cycleTimeEnd
+//             ? new Date(prod.cycleTimeEnd)
+//             : new Date();
+
+//           if (start) {
+//             const diffInMinutes = (end - start) / (1000 * 60);
+//             totalCycleTime += diffInMinutes;
+//           }
+//         });
+
+//         // Per part cycle time = totalCycleTime / totalCompletedQty
+//         const completedQty = productionResponses.reduce(
+//           (sum, p) => sum + (p.completedQuantity || 0),
+//           0
+//         );
+
+//         const cycleTime = scheduleData;
+//         console.log("cycleTimecycleTime", cycleTime);
+
+//         const cycleTimePerPart =
+//           completedQty > 0 ? totalCycleTime / completedQty : 0;
+
+//         const scheduleQuantity = item.scheduleQuantity || 0;
+//         const loadTime = cycleTimePerPart * scheduleQuantity;
+
+//         return {
+//           id: item.id,
+//           process: item.process,
+//           part: item.part,
+//           cycleTimePerPart, // ⬅️ one part ka avg time
+//           scheduleQuantity,
+//           loadTime, // ⬅️ total load time (min)
+//           order_date: item.StockOrder?.orderDate || item.order_date,
+//         };
+//       })
+//     );
+
+//     return res.status(200).json({
+//       message: "All Process",
+//       data: getProcess,
+//       scheduleData: scheduleDataWithLoad,
+//     });
+//   } catch (error) {
+//     console.log("Error in capacityStatus:", error);
+//     return res.status(500).json({ message: "Server Error", error });
+//   }
+// };
+// const capacityStatus = async (req, res) => {
+//   try {
+//     const getProcess = await prisma.process.findMany({});
+
+//     let scheduleData = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         NOT: {
+//           status: "completed",
+//         },
+//       },
+//       include: {
+//         process: { select: { processName: true } },
+//         part: { select: { partNumber: true, cycleTime: true } },
+//         StockOrder: { select: { orderDate: true } },
+//       },
+//     });
+
+//     const scheduleDataWithLoad = await Promise.all(
+//       scheduleData.map(async (item) => {
+//         const productionResponses = await prisma.productionResponse.findMany({
+//           where: {
+//             orderId: item.stockOrderId || item.order_id,
+//             partId: item.part_id,
+//             processId: item.processId,
+//             isDeleted: false,
+//           },
+//         });
+
+//         let totalCycleTime = 0;
+//         productionResponses.forEach((prod) => {
+//           const start = prod.cycleTimeStart
+//             ? new Date(prod.cycleTimeStart)
+//             : null;
+//           const end = prod.cycleTimeEnd
+//             ? new Date(prod.cycleTimeEnd)
+//             : new Date();
+
+//           if (start) {
+//             const diffInMinutes = (end - start) / (1000 * 60);
+//             totalCycleTime += diffInMinutes;
+//           }
+//         });
+
+//         const completedQty = productionResponses.reduce(
+//           (sum, p) => sum + (p.completedQuantity || 0),
+//           0
+//         );
+
+//         const calculatedCycleTimePerPart =
+//           completedQty > 0 ? totalCycleTime / completedQty : 0;
+
+//         const cycleTimeFromPart = item.part?.cycleTime
+//           ? parseFloat(item.part.cycleTime)
+//           : 0;
+
+//         const scheduleQuantity = item.scheduleQuantity || 0;
+//         const status = item.status;
+
+//         const loadTime = cycleTimeFromPart * scheduleQuantity;
+
+//         return {
+//           id: item.id,
+//           process: item.process,
+//           part: item.part,
+//           cycleTimeFromPart,
+//           calculatedCycleTimePerPart,
+//           scheduleQuantity,
+//           status,
+//           loadTime,
+//           order_date: item.StockOrder?.orderDate || item.order_date,
+//         };
+//       })
+//     );
+
+//     // 🔹 Aggregate data for BarChart
+//     const barChartData = {};
+//     scheduleDataWithLoad.forEach((item) => {
+//       const processName = item.process?.processName || "Unknown";
+//       if (!barChartData[processName]) {
+//         barChartData[processName] = 0;
+//       }
+//       barChartData[processName] += item.loadTime; // total load per process
+//     });
+
+//     const barChartFormatted = {
+//       labels: Object.keys(barChartData),
+//       datasets: [
+//         {
+//           label: "Load Time (minutes)",
+//           data: Object.values(barChartData),
+//         },
+//       ],
+//     };
+
+//     return res.status(200).json({
+//       message: "Capacity Status Data",
+//       data: getProcess,
+//       scheduleData: scheduleDataWithLoad,
+//       barChartData: barChartFormatted, // 👈 new field
+//     });
+//   } catch (error) {
+//     console.log("Error in capacityStatus:", error);
+//     return res.status(500).json({ message: "Server Error", error });
+//   }
+// };
+
+// const capacityStatus = async (req, res) => {
+//   try {
+//     const getProcess = await prisma.process.findMany({});
+
+//     let scheduleData = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         NOT: {
+//           status: "completed",
+//         },
+//       },
+//       include: {
+//         process: { select: { processName: true, id: true } },
+//         part: { select: { partNumber: true, cycleTime: true } },
+//         StockOrder: { select: { orderDate: true } },
+//       },
+//     });
+
+//     const scheduleDataWithLoad = await Promise.all(
+//       scheduleData.map(async (item) => {
+//         console.log("itemitem", item);
+//         const productionResponses = await prisma.productionResponse.findMany({
+//           where: {
+//             orderId: item.stockOrderId || item.order_id,
+//             partId: item.part_id,
+//             processId: item.processId,
+//             isDeleted: false,
+//           },
+//         });
+
+//         let totalCycleTime = 0;
+//         productionResponses.forEach((prod) => {
+//           const start = prod.cycleTimeStart
+//             ? new Date(prod.cycleTimeStart)
+//             : null;
+//           const end = prod.cycleTimeEnd
+//             ? new Date(prod.cycleTimeEnd)
+//             : new Date();
+
+//           if (start) {
+//             const diffInMinutes = (end - start) / (1000 * 60);
+//             totalCycleTime += diffInMinutes;
+//           }
+//         });
+
+//         const completedQty = productionResponses.reduce(
+//           (sum, p) => sum + (p.completedQuantity || 0),
+//           0,
+//         );
+
+//         const calculatedCycleTimePerPart =
+//           completedQty > 0 ? totalCycleTime / completedQty : 0;
+
+//         const cycleTimeFromPart = item.part?.cycleTime
+//           ? parseFloat(item.part.cycleTime)
+//           : 0;
+
+//         const scheduleQuantity = item.scheduleQuantity || 0;
+//         const status = item.status;
+//         const loadTime = cycleTimeFromPart * scheduleQuantity;
+
+//         return {
+//           id: item.id,
+//           processId: item.process?.id,
+//           process: item.process,
+//           part: item.part,
+//           cycleTimeFromPart,
+//           calculatedCycleTimePerPart,
+//           scheduleQuantity,
+//           completedQty,
+//           status,
+//           loadTime,
+//           order_date: item.StockOrder?.orderDate || item.order_date,
+//         };
+//       }),
+//     );
+
+//     const barChartData = {};
+//     const processCompletion = {};
+
+//     scheduleDataWithLoad.forEach((item) => {
+//       const processName = item.process?.processName || "Unknown";
+
+//       if (!barChartData[processName]) {
+//         barChartData[processName] = 0;
+//       }
+//       barChartData[processName] += item.loadTime;
+
+//       if (!processCompletion[processName]) {
+//         processCompletion[processName] = { completed: 0, total: 0 };
+//       }
+//       processCompletion[processName].completed += item.completedQty;
+//       processCompletion[processName].total += item.scheduleQuantity;
+//     });
+
+//     const barChartFormatted = {
+//       labels: Object.keys(barChartData),
+//       datasets: [
+//         {
+//           label: "Load Time (minutes)",
+//           data: Object.values(barChartData),
+//         },
+//       ],
+//     };
+
+//     const processCompletionPercentage = Object.entries(processCompletion).map(
+//       ([processName, values]) => ({
+//         processName,
+//         completionPercentage:
+//           values.total > 0
+//             ? ((values.completed / values.total) * 100).toFixed(2)
+//             : "0.00",
+//         completed: values.completed,
+//         total: values.total,
+//       }),
+//     );
+
+//     return res.status(200).json({
+//       message: "Capacity Status Data",
+//       data: getProcess,
+//       scheduleData: scheduleDataWithLoad,
+//       barChartData: barChartFormatted, // 👈 existing
+//       processCompletion: processCompletionPercentage, // 👈 new field add kiya
+//     });
+//   } catch (error) {
+//     console.log("Error in capacityStatus:", error);
+//     return res.status(500).json({ message: "Server Error", error });
+//   }
+// };
 const capacityStatus = async (req, res) => {
   try {
+    // 1. Fetch all active processes
     const getProcess = await prisma.process.findMany({
       where: { isDeleted: false },
     });
-)
+
+    // 2. Fetch all schedules (including completed for accurate average)
     const scheduleData = await prisma.stockOrderSchedule.findMany({
       where: { isDeleted: false },
       include: {
@@ -15212,6 +15536,7 @@ const capacityStatus = async (req, res) => {
       },
     });
 
+    // 3. Process each schedule to calculate load and actual completion
     const scheduleDataWithLoad = await Promise.all(
       scheduleData.map(async (item) => {
         const productionResponses = await prisma.productionResponse.findMany({
@@ -15222,6 +15547,8 @@ const capacityStatus = async (req, res) => {
             isDeleted: false,
           },
         });
+
+        // Calculate completed qty from production logs
         const productionCompletedQty = productionResponses.reduce(
           (sum, p) => sum + Number(p.completedQuantity || 0),
           0,
@@ -15293,7 +15620,7 @@ const capacityStatus = async (req, res) => {
     return res.status(200).json({
       message: "Capacity Status Data",
       overallAverage,
-      scheduleData: scheduleDataWithLoad, // 👈 List for the table
+      scheduleData: scheduleDataWithLoad,
       barChartData: {
         labels: Object.keys(barChartData),
         datasets: [
@@ -15310,7 +15637,6 @@ const capacityStatus = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
-
 
 const productionEfficieny = async (req, res) => {
   try {
