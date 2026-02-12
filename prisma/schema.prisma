@@ -747,7 +747,7 @@ model scapEntries {
   updatedAt              DateTime                 @updatedAt
   isDeleted              Boolean                  @default(false)
   type                   String?                  @db.VarChar(36)
-  defectDesc             String?                  @db.VarChar(36)
+  defectDesc             String?                  @db.VarChar(250)
   returnSupplierId       String?                  @db.VarChar(100)
   supplierId             String?                  @db.VarChar(100)
   createdByAdminId       String?                  @db.Char(36)

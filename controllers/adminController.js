@@ -14985,25 +14985,45 @@ const dashBoardData = async (req, res) => {
         include: { part: true },
       });
 
-    const [currSched, lastSched] = await Promise.all([
-      fetchSchedules(currentStart, currentEnd),
-      fetchSchedules(lastMonthStart, lastMonthEnd),
-    ]);
+    // ✅ Naya Helper: Scrap Entries fetch karne ke liye
+    const fetchScrapEntries = async (start, end) =>
+      await prisma.scapEntries.findMany({
+        where: { isDeleted: false, createdAt: { gte: start, lte: end } },
+        include: { PartNumber: true },
+      });
+    const [currSched, lastSched, currScrapEntries, lastScrapEntries] =
+      await Promise.all([
+        fetchSchedules(currentStart, currentEnd),
+        fetchSchedules(lastMonthStart, lastMonthEnd),
+        fetchScrapEntries(currentStart, currentEnd), // ✅ Fetch current month entries
+        fetchScrapEntries(lastMonthStart, lastMonthEnd), // ✅ Fetch last month entries
+      ]);
 
-    const getTotals = (recs) => {
+    const getTotals = (recs, entries) => {
       let prod = 0,
         sQty = 0,
         sCost = 0;
+
+      // 1. Production Schedules se scrap nikalna
       recs.forEach((r) => {
         prod += (r.completedQuantity || 0) - (r.scrapQuantity || 0);
         sQty += r.scrapQuantity || 0;
         sCost += (r.scrapQuantity || 0) * (parseFloat(r.part?.cost) || 0);
       });
+
+      // 2. ✅ Scrap Entries se additional scrap nikalna (Supplier/Customer/Ad-hoc)
+      entries.forEach((e) => {
+        const qty = Number(e.returnQuantity) || 0;
+        const cost = parseFloat(e.PartNumber?.cost) || 0;
+        sQty += qty;
+        sCost += qty * cost;
+      });
+
       return { prod, sQty, sCost };
     };
 
-    const cT = getTotals(currSched);
-    const lT = getTotals(lastSched);
+    const cT = getTotals(currSched, currScrapEntries);
+    const lT = getTotals(lastSched, lastScrapEntries);
 
     // 6. FULFILLED & OPEN ORDERS
     const fulfilledRaw = await prisma.stockOrderSchedule.findMany({
@@ -15078,6 +15098,7 @@ const dashBoardData = async (req, res) => {
         scrapIndicator: getStats(cT.sQty, lT.sQty, true).indicator,
       },
       openOrders: { total: openOrdersList.length, list: openOrdersList },
+      totalOrders: openOrdersList.length,
       fulfilledOrders,
     });
   } catch (error) {
@@ -15087,19 +15108,15 @@ const dashBoardData = async (req, res) => {
 };
 const dailySchedule = async (req, res) => {
   try {
-    const { date, process } = req.query; // get date & process from frontend
+    const { date, process } = req.query;
 
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
-
-    // Convert to start and end of day
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
-
-    // Build dynamic where clause
     const whereClause = {
       isDeleted: false,
       createdAt: { gte: startOfDay, lte: endOfDay },
@@ -15108,8 +15125,6 @@ const dailySchedule = async (req, res) => {
     if (process) {
       whereClause.part = { processId: process };
     }
-
-    // Fetch schedules
     const filteredSchedules = await prisma.stockOrderSchedule.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
@@ -15134,11 +15149,8 @@ const dailySchedule = async (req, res) => {
         .status(200)
         .json({ message: "No scheduled orders found.", data: [] });
     }
-
-    // Separate Stock and Custom Orders
     const stockOrderIds = [];
     const customOrderIds = [];
-
     filteredSchedules.forEach((schedule) => {
       if (schedule.order_type === "StockOrder" && schedule.order_id)
         stockOrderIds.push(schedule.order_id);
@@ -15824,7 +15836,6 @@ const capacityStatus = async (req, res) => {
 //       .json({ message: "Server Error", error: error.message });
 //   }
 // };
-
 const productionEfficieny = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -15840,21 +15851,29 @@ const productionEfficieny = async (req, res) => {
       }
     }
 
-    const schedules = await prisma.stockOrderSchedule.findMany({
-      where: { isDeleted: false, ...dateFilter },
-      select: {
-        createdAt: true,
-        completedQuantity: true,
-        scheduleQuantity: true,
-        scrapQuantity: true,
-        part: { select: { cost: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const [schedules, scrapEntries] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: { isDeleted: false, ...dateFilter },
+        select: {
+          createdAt: true,
+          completedQuantity: true,
+          scheduleQuantity: true,
+          scrapQuantity: true,
+          part: { select: { cost: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.scapEntries.findMany({
+        where: { isDeleted: false, ...dateFilter },
+        select: {
+          createdAt: true,
+          returnQuantity: true,
+          PartNumber: { select: { cost: true } },
+        },
+      }),
+    ]);
 
-    // --- Total Number of Orders ---
-    const totalOrders = schedules.length; // Records ki total count
-
+    const totalOrders = schedules.length;
     const dailyMap = new Map();
     let totalCompleted = 0;
     let totalScrapCost = 0;
@@ -15865,13 +15884,17 @@ const productionEfficieny = async (req, res) => {
       if (!dailyMap.has(dateKey)) {
         dailyMap.set(dateKey, { date: dateKey, completed: 0 });
       }
-
       const current = dailyMap.get(dateKey);
       current.completed += item.completedQuantity || 0;
-
       totalCompleted += item.completedQuantity || 0;
-      const partCost = item.part?.cost || 0;
+      const partCost = parseFloat(item.part?.cost || 0);
       totalScrapCost += partCost * (item.scrapQuantity || 0);
+    });
+
+    scrapEntries.forEach((entry) => {
+      const entryCost = parseFloat(entry.PartNumber?.cost || 0);
+      const entryQty = Number(entry.returnQuantity) || 0;
+      totalScrapCost += entryCost * entryQty;
     });
 
     const graphData = Array.from(dailyMap.values()).sort(
@@ -15882,18 +15905,88 @@ const productionEfficieny = async (req, res) => {
       message: "Production Quantity Data",
       data: graphData,
       totals: {
-        totalOrders, // Nayi field: Total Orders Count
+        totalOrders,
         totalCompleted,
+        // Isme ab dono tables (Production + Scrap Entries) ka cost hai
         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
       },
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error in productionEfficiency:", error);
     return res
       .status(500)
       .json({ message: "Server Error", error: error.message });
   }
 };
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     const dateFilter = {};
+//     if (startDate || endDate) {
+//       dateFilter.createdAt = {};
+//       if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+//       if (endDate) {
+//         const end = new Date(endDate);
+//         end.setHours(23, 59, 59, 999);
+//         dateFilter.createdAt.lte = end;
+//       }
+//     }
+
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false, ...dateFilter },
+//       select: {
+//         createdAt: true,
+//         completedQuantity: true,
+//         scheduleQuantity: true,
+//         scrapQuantity: true,
+//         part: { select: { cost: true } },
+//       },
+//       orderBy: { createdAt: "asc" },
+//     });
+
+//     // --- Total Number of Orders ---
+//     const totalOrders = schedules.length; // Records ki total count
+
+//     const dailyMap = new Map();
+//     let totalCompleted = 0;
+//     let totalScrapCost = 0;
+
+//     schedules.forEach((item) => {
+//       const dateKey = item.createdAt.toISOString().split("T")[0];
+
+//       if (!dailyMap.has(dateKey)) {
+//         dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+//       }
+
+//       const current = dailyMap.get(dateKey);
+//       current.completed += item.completedQuantity || 0;
+
+//       totalCompleted += item.completedQuantity || 0;
+//       const partCost = item.part?.cost || 0;
+//       totalScrapCost += partCost * (item.scrapQuantity || 0);
+//     });
+
+//     const graphData = Array.from(dailyMap.values()).sort(
+//       (a, b) => new Date(a.date) - new Date(b.date),
+//     );
+
+//     return res.status(200).json({
+//       message: "Production Quantity Data",
+//       data: graphData,
+//       totals: {
+//         totalOrders, // Nayi field: Total Orders Count
+//         totalCompleted,
+//         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Server Error", error: error.message });
+//   }
+// };
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;

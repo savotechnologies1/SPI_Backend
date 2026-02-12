@@ -40,10 +40,12 @@ const {
   getStationNotifications,
   changeStationNotification,
   getTrainingScheduleInformation,
+  getScrapEntryById,
 } = require("../controllers/productionResponseController");
 const {
   selectSupplier,
   allEmployeeTimeLine,
+  selectCustomerForStockOrder,
 } = require("../controllers/adminController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -87,6 +89,7 @@ router.get("/select-supplier", validateToken, selectSupplier);
 router.get("/select-schedule-part-number", selectScheudlePartNumber);
 router.post("/add-scrap-entry", validateToken, scrapEntry);
 router.get("/all-scrap-entry", validateToken, allScrapEntires);
+router.get("/scrap-entry-detail/:id", getScrapEntryById);
 router.get(
   "/select-schedule-product-number",
   validateToken,
@@ -109,5 +112,15 @@ router.patch(
   validateToken,
   changeStationNotification,
 );
-router.get("/get-training-schedule/:id", validateToken, getTrainingScheduleInformation);
+router.get(
+  "/get-training-schedule/:id",
+  validateToken,
+  getTrainingScheduleInformation,
+);
+
+router.get(
+  "/select-customer-for-stock-order",
+  validateToken,
+  selectCustomerForStockOrder,
+);
 module.exports = router;
