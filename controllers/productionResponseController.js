@@ -2940,12 +2940,12 @@ const allScrapEntires = async (req, res) => {
     if (filterScrap && filterScrap.toLowerCase() !== "all")
       condition.type = filterScrap;
 
-    // if (user?.role === "Shop_Floor" && user?.id) {
-    //   condition.OR = [
-    //     { createdByEmployeeId: user.id },
-    //     { employeeId: user.id },
-    //   ];
-    // }
+    if (user?.role === "Shop_Floor" && user?.id) {
+      condition.OR = [
+        { createdByEmployeeId: user.id },
+        { employeeId: user.id },
+      ];
+    }
 
     if (search) {
       condition.OR = [
@@ -3266,10 +3266,20 @@ const getStationNotifications = async (req, res) => {
 
     const notifications = await prisma.stationNotification.findMany({
       where: whereCondition,
+      select: {
+        id: true,
+        employeeId: true,
+        comment: true,
+        enqueryImg: true,
+        status: true,
+        createdAt: true,
+        isDeleted: true,
+        createdBy: true,
+        stationUserId: true,
+      },
       orderBy: { createdAt: "desc" },
     });
 
-    // Counts logic
     const countWhereCondition = {
       isDeleted: false,
       ...(userRole !== "superAdmin" && { createdBy: userId }),
@@ -3294,7 +3304,6 @@ const getStationNotifications = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching notifications:", error);
     return res.status(500).json({
       error: "Internal server error",
       details: error.message,
