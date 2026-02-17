@@ -247,7 +247,11 @@ router.put(
   deleteWorkInstruction,
 );
 
-router.get("/get-training-schedule/:id", validateToken, getTrainingScheduleInformation);
+router.get(
+  "/get-training-schedule/:id",
+  validateToken,
+  getTrainingScheduleInformation,
+);
 // router.get("/profile-detail", validateToken, profileDetail);
 // router.put("/profile-update", validateToken, updateProfileApi);
 // router.put("/delete-profile-image", validateToken, deleteProfileImage);

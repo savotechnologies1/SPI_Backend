@@ -7,106 +7,6 @@ const { sendMail } = require("../functions/mailer");
 const { generateRandomOTP, fileUploadFunc } = require("../functions/common");
 const { v4: uuidv4 } = require("uuid");
 
-// const login = async (req, res) => {
-//   try {
-//     const errors = validationResult(req);
-//     const checkValid = await checkValidations(errors);
-//     if (checkValid.type === "error") {
-//       return res.status(400).send({
-//         message: checkValid.errors.msg,
-//       });
-//     }
-//     const { userName, password } = req.body;
-//     const user = await prisma.employee.findUnique({
-//       where: { email: userName, role: "Shop_Floor" },
-//       select: {
-//         id: true,
-//         email: true,
-//         status: true,
-//         password: true,
-//         role: true,
-//         tokens: true,
-//         isDeleted: true,
-//       },
-//     });
-
-//     if (!user || user.password !== md5(password) || user.isDeleted) {
-//       return res.status(400).send({ message: "Invalid Username and Password" });
-//     }
-//     if (user.status !== "active") {
-//       return res
-//         .status(400)
-//         .send({ message: "You don't have permission to login ." });
-//     }
-
-//     const token = jwt.sign(
-//       { id: user.id, email: user.email, role: user.role },
-//       process.env.ACCESS_TOKEN_SECRET,
-//       {
-//         expiresIn: "30d",
-//       }
-//     );
-
-//     await prisma.employee.update({
-//       where: { id: user.id },
-//       data: {
-//         tokens: Array.isArray(user.tokens) ? [...user.tokens, token] : [token],
-//       },
-//     });
-
-//     return res.status(201).json({
-//       message: "You have successfully login !",
-//       token,
-//     });
-//   } catch (error) {
-//     console.error("Login error:", error);
-//     return res.status(500).json({
-//       message: "Something went wrong.",
-//     });
-//   }
-// };
-
-// const sendForgotPasswordOTP = async (req, res) => {
-//   try {
-//     const errors = validationResult(req);
-//     const checkValid = await checkValidations(errors);
-//     if (checkValid.type === "error") {
-//       return res.status(400).send({ message: checkValid.errors.msg });
-//     }
-//     const { email } = req.body;
-//     const user = await prisma.employee.findFirst({
-//       where: {
-//         email: email.toLowerCase().trim(),
-//         isDeleted: false,
-//       },
-//     });
-
-//     if (!user) {
-//       return res.status(400).send({ message: "Employee not found" });
-//     }
-
-//     const otp = generateRandomOTP();
-
-//     await sendMail("otp-verify", { "%otp%": otp }, user.email);
-
-//     await prisma.employee.update({
-//       where: { id: user.id },
-//       data: { otp },
-//     });
-
-//     return res.status(200).json({
-//       id: user.id,
-//       email: user.email,
-//       message: "OTP sent Successfully",
-//     });
-//   } catch (error) {
-//     return res.status(500).json({
-//       message: "Something went wrong",
-//       error: error.message,
-//     });
-//   }
-// };
-
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -118,8 +18,6 @@ const login = async (req, res) => {
     }
 
     const { userName, password } = req.body;
-
-    // Employee find karo
     const user = await prisma.employee.findUnique({
       where: { email: userName, role: "Shop_Floor" },
       select: {
@@ -133,33 +31,26 @@ const login = async (req, res) => {
       },
     });
 
-    // Invalid username/password or deleted user
     if (!user || user.password !== md5(password) || user.isDeleted) {
       return res.status(400).send({ message: "Invalid Username and Password" });
     }
-
-    // Valid statuses list
     const allowedStatuses = ["active", "pending", "banned", "rejected"];
-
-    // Agar user.status allowed list me hi nahi hai
     if (!allowedStatuses.includes(user.status?.toLowerCase())) {
       return res.status(400).send({
         message: `Your account status '${user.status}' is not valid for login.`,
       });
     }
 
-    // Sirf active user ko login allow hoga
     if (user.status.toLowerCase() !== "active") {
       return res.status(403).send({
         message: `Your account status is '${user.status}'. You cannot login.`,
       });
     }
 
-    // Token generate
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
 
     await prisma.employee.update({
@@ -174,7 +65,6 @@ const login = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error("Login error:", error);
     return res.status(500).json({
       message: "Something went wrong.",
     });
@@ -254,7 +144,6 @@ const validOtp = async (req, res) => {
     }
 
     if (new Date() > user.otpExpiresAt) {
-      console.log("3999999999");
       await prisma.employee.update({
         where: { id: user.id },
         data: { otp: null, otpExpiresAt: null },
@@ -376,7 +265,6 @@ const checkToken = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in checkToken:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -415,24 +303,21 @@ const employeeTimeLineDetail = async (req, res) => {
 
 const getEmployeeStatus = async (req, res) => {
   try {
-    // हम मान रहे हैं कि प्रमाणीकरण (authentication) से हमें यूजर ID मिल रही है
     const employeeId = req.user?.id;
 
     if (!employeeId) {
       return res.status(401).json({ message: "Not authorized." });
     }
 
-    // Prisma का उपयोग करके TimeClock टेबल में सबसे हालिया रिकॉर्ड ढूंढें
     const lastEvent = await prisma.timeClock.findFirst({
       where: {
         employeeId: employeeId,
       },
       orderBy: {
-        timestamp: "desc", // timestamp के अनुसार घटते क्रम में, ताकि सबसे नया पहले मिले
+        timestamp: "desc",
       },
     });
 
-    // अगर कोई रिकॉर्ड नहीं मिलता है
     if (!lastEvent) {
       return res.status(200).json({
         status: "NOT_CLOCKED_IN",
@@ -440,21 +325,16 @@ const getEmployeeStatus = async (req, res) => {
       });
     }
 
-    // अगर रिकॉर्ड मिलता है, तो उसे भेजें
     return res.status(200).json({
-      status: lastEvent.eventType, // जैसे 'CLOCK_IN', 'CLOCK_OUT'
-      lastPunch: lastEvent, // पूरा आखिरी पंच ऑब्जेक्ट
+      status: lastEvent.eventType,
+      lastPunch: lastEvent,
     });
   } catch (error) {
-    console.error("Error fetching employee status:", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
   }
 };
-// controllers/shopFloorController.js
-
-// ... getEmployeeStatus फंक्शन के बाद ...
 
 const getEmployeeTimeline = async (req, res) => {
   try {
@@ -464,27 +344,23 @@ const getEmployeeTimeline = async (req, res) => {
       return res.status(401).json({ message: "Not authorized." });
     }
 
-    // आज की शुरुआत और अंत का समय निर्धारित करें
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
-
-    // findMany का उपयोग करके आज के सभी रिकॉर्ड्स प्राप्त करें
     const timelineEvents = await prisma.timeClock.findMany({
       where: {
         employeeId: employeeId,
         timestamp: {
-          gte: startOfDay, // gte = Greater than or equal to
-          lte: endOfDay, // lte = Less than or equal to
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
       orderBy: {
-        timestamp: "asc", // पुराने से नए क्रम में ताकि टाइमलाइन सीधी दिखे
+        timestamp: "asc",
       },
       select: {
-        // सिर्फ जरूरी डेटा चुनें
         eventType: true,
         timestamp: true,
         notes: true,
@@ -496,7 +372,6 @@ const getEmployeeTimeline = async (req, res) => {
       data: timelineEvents,
     });
   } catch (error) {
-    console.error("Error in getEmployeeTimeline:", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -516,29 +391,16 @@ const createTimeLine = async (req, res) => {
         employeeId: employeeId,
         eventType: eventType,
         timestamp: new Date(),
-        timezone: timezone || "Asia/Kolkata", // save timezone here
+        timezone: timezone || "Asia/Kolkata",
         notes: "SYSTEM Auto CLOCK_OUT for testing every minute",
         createdBy: "SYSTEM",
       },
     });
-
-    // const newTimeClockEntry = await prisma.timeClock.create({
-    //   data: {
-    //     employeeId,
-    //     eventType,
-    //     timestamp: utcTime,
-    //     timezone, // Save punch timezone here
-    //     notes: notes || `User Local Time: ${timezone}`,
-    //     createdBy: employeeId,
-    //   },
-    // });
-
     return res.status(201).json({
       message: "Time clock event created successfully!",
       data: newTimeClockEntry,
     });
   } catch (error) {
-    console.error("createTimeLine error:", error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -597,7 +459,6 @@ const profileDetail = async (req, res) => {
       data: data,
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try agin later .",
     });
@@ -608,7 +469,7 @@ const updateProfileApi = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
     const getProfileImage = fileData?.data?.filter(
-      (file) => file?.fieldname === "employeeProfileImg"
+      (file) => file?.fieldname === "employeeProfileImg",
     );
     const {
       name,
@@ -642,7 +503,6 @@ const updateProfileApi = async (req, res) => {
       message: "Profile update successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -663,7 +523,6 @@ const deleteProfileImage = async (req, res) => {
       message: "Profile image deleted successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });

@@ -32,8 +32,6 @@ const importProcess = async (req, res) => {
           !csvData[0]?.fileName ||
           csvData[0]?.fileName.toLowerCase() !== "process"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
@@ -43,8 +41,6 @@ const importProcess = async (req, res) => {
           });
         }
         const promises = csvData.map((row, index) => {
-          console.log("rowrowrow", row);
-
           return new Promise(async (resolve, reject) => {
             try {
               const trimmedProcessName = row.processName;
@@ -90,12 +86,9 @@ const importProcess = async (req, res) => {
           });
         });
 
-        // Wait for all promises to settle (complete or fail)
-        const settledResults = await Promise.allSettled(promises); // Renamed to settledResults
+        const settledResults = await Promise.allSettled(promises);
 
-        // Process the results
         settledResults.forEach((result) => {
-          // Using settledResults instead of results
           if (result.status === "fulfilled") {
             successCount++;
           } else {
@@ -111,7 +104,7 @@ const importProcess = async (req, res) => {
           success: true,
           message: "CSV import completed.",
           summary: {
-            totalRows: csvData.length, // Using csvData instead of results
+            totalRows: csvData.length,
             successCount,
             errorCount,
             errors: errors.length > 0 ? errors : undefined,
@@ -119,8 +112,6 @@ const importProcess = async (req, res) => {
         });
       });
   } catch (error) {
-    console.log("errorerror", error);
-
     res.status(500).json({
       success: false,
       message: "Server error",
@@ -128,135 +119,6 @@ const importProcess = async (req, res) => {
     });
   }
 };
-
-// const importParts = async (req, res) => {
-//   let filePath = null;
-//   try {
-//     const fileData = await fileUploadFunc(req, res);
-//     if (fileData.type === "fileNotFound" || !fileData.data) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "CSV file is required" });
-//     }
-
-//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
-//     filePath = csvFile.path;
-//     const csvData = [];
-
-//     const stream = fs.createReadStream(filePath).pipe(csv());
-//     for await (const row of stream) {
-//       csvData.push(row);
-//     }
-
-//     if (
-//       !csvData[0]?.fileName ||
-//       csvData[0].fileName.toLowerCase().trim() !== "part"
-//     ) {
-//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid file type. Expected 'part'",
-//       });
-//     }
-
-//     const errors = [];
-//     const validatedData = [];
-
-//     for (let index = 0; index < csvData.length; index++) {
-//       const row = csvData[index];
-//       const rowNum = index + 2;
-//       const partNum = row.partNumber?.trim();
-//       const rowLabel = `Row ${rowNum} (${partNum || "N/A"})`;
-
-//       try {
-//         if (!["part", "product"].includes(row.type)) {
-//           errors.push(`${rowLabel}: Invalid type (must be part or product)`);
-//           continue;
-//         }
-
-//         const existingPart = await prisma.partNumber.findFirst({
-//           where: { partNumber: partNum, isDeleted: false },
-//         });
-//         if (existingPart) {
-//           errors.push(
-//             `${rowLabel}: PartNumber '${partNum}' already exists in database`,
-//           );
-//           continue;
-//         }
-
-//         const process = await prisma.process.findFirst({
-//           where: { processName: row.processName?.trim(), isDeleted: false },
-//         });
-//         if (!process) {
-//           errors.push(`${rowLabel}: Process '${row.processName}' not found`);
-//           continue; // Skip this row
-//         }
-
-//         // Agar sab sahi hai toh validated list mein daalein
-//         validatedData.push({ ...row, processId: process.id });
-//       } catch (err) {
-//         errors.push(`${rowLabel}: Internal error - ${err.message}`);
-//       }
-//     }
-//     console.log("instructionRequiredinstructionRequired", validatedData);
-//     let successCount = 0;
-//     for (const row of validatedData) {
-//       try {
-//         await prisma.partNumber.create({
-//           data: {
-//             part_id: uuidv4(),
-//             partFamily: row.partFamily,
-//             partNumber: row.partNumber,
-//             partDescription: row.partDescription,
-//             type: row.type,
-//             cost: parseFloat(row.cost) || 0,
-//             leadTime: parseInt(row.leadTime) || 0,
-//             minStock: parseInt(row.minStock) || 0,
-//             availStock: parseInt(row.availStock) || 0,
-//             supplierOrderQty: parseInt(row.supplierOrderQty) || 0,
-//             cycleTime: row.cycleTime,
-//             processOrderRequired: row.processOrderRequired === "TRUE",
-//             instructionRequired: row.instructionRequired === "TRUE",
-//             processDesc: row.processDesc,
-//             companyName: row.companyName,
-//             processId: row.processId,
-//             submittedBy: req.user?.id,
-//             createdBy: req.user?.id,
-//           },
-//         });
-//         successCount++;
-//       } catch (dbErr) {
-//         errors.push(
-//           `Row ${row.partNumber}: Failed to save to database (${dbErr.message})`,
-//         );
-//       }
-//     }
-
-//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-//     // --- STEP 3: Return Standardized Summary ---
-//     // Agar kuch success hua hai toh 201/200, agar sab fail toh 400
-//     const finalStatus = successCount > 0 ? 201 : 400;
-//     const finalMessage =
-//       successCount > 0
-//         ? `Import completed: ${successCount} parts added.`
-//         : "Import failed: All rows were invalid or already exist.";
-
-//     return res.status(finalStatus).json({
-//       success: successCount > 0,
-//       message: finalMessage,
-//       summary: {
-//         total: csvData.length,
-//         success: successCount,
-//         errorCount: errors.length,
-//         errors: errors,
-//       },
-//     });
-//   } catch (error) {
-//     if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// };
 const importParts = async (req, res) => {
   let filePath = null;
   try {
@@ -276,7 +138,6 @@ const importParts = async (req, res) => {
       csvData.push(row);
     }
 
-    // Basic Validation: Check if it's the correct file template
     if (
       !csvData[0]?.fileName ||
       csvData[0].fileName.toLowerCase().trim() !== "part"
@@ -290,8 +151,6 @@ const importParts = async (req, res) => {
 
     const errors = [];
     const validatedData = [];
-    console.log("csvDatacsvData", csvData);
-
     for (let index = 0; index < csvData.length; index++) {
       const row = csvData[index];
       const rowNum = index + 2;
@@ -348,8 +207,6 @@ const importParts = async (req, res) => {
             continue;
           }
         }
-        console.log("rowrow", row);
-        // --- 2. Process ID Lookup ---
         let processId = null;
         if (row.processName) {
           const process = await prisma.process.findFirst({
@@ -419,225 +276,11 @@ const importParts = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log("errorerror", error);
     if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-// const importProductTree = async (req, res) => {
-//   try {
-//     // 1. File Upload handling (Multipart)
-//     const fileData = await fileUploadFunc(req, res);
-//     if (!fileData || !fileData.data) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "CSV file missing" });
-//     }
-//     let rowIndex = 2;
-//     // CSV file aur Images ko alag alag nikaalna (Jaise createProductNumber me hai)
-//     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
-//     console.log("csvFilecsvFile", csvFile);
-//     const getPartImages = fileData.data.filter(
-//       (file) => file.fieldname === "partImages",
-//     );
 
-//     if (!csvFile) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "ImportFile field is required" });
-//     }
-
-//     const isConfirmed =
-//       req.body.confirmChanges === "true" || req.body.confirmChanges === true;
-//     const filePath = csvFile.path;
-//     const csvData = [];
-//     const stream = fs.createReadStream(filePath).pipe(csv());
-
-//     for await (const row of stream) {
-//       csvData.push(row);
-//     }
-
-//     // 2. Grouping Products
-//     const groupedProducts = csvData.reduce((acc, row) => {
-//       const pNum = row.product_number?.trim();
-//       if (pNum) {
-//         if (!acc[pNum]) acc[pNum] = { details: row, bomItems: [] };
-//         acc[pNum].bomItems.push(row);
-//       }
-//       return acc;
-//     }, {});
-
-//     const conflicts = [];
-
-//     // --- STEP 2: Conflict Check (Compare Old vs New) ---
-//     if (!isConfirmed) {
-//       for (const [pNumber, group] of Object.entries(groupedProducts)) {
-//         const existing = await prisma.partNumber.findUnique({
-//           where: { partNumber: pNumber },
-//         });
-
-//         if (existing) {
-//           const d = group.details;
-//           const differences = [];
-//           const fieldsToCompare = [
-//             { key: "minStock", label: "Min Stock" },
-//             { key: "leadTime", label: "Lead Time" },
-//             { key: "supplierOrderQty", label: "Supplier Order Qty" },
-//             { key: "availStock", label: "Available Stock" },
-//             { key: "cost", label: "Cost" },
-//           ];
-
-//           fieldsToCompare.forEach((field) => {
-//             const newValue = parseFloat(d[field.key]) || 0;
-//             const oldValue = parseFloat(existing[field.key]) || 0;
-//             if (newValue !== oldValue) {
-//               differences.push({
-//                 field: field.label,
-//                 oldValue: oldValue,
-//                 newValue: newValue,
-//               });
-//             }
-//           });
-//           if (differences.length > 0) {
-//             conflicts.push({
-//               productNumber: pNumber,
-//               csvRow: rowIndex, // Ye row number frontend ko bhejein
-//               message: `Product "${pNumber}" already exists...`,
-//               changes: differences,
-//             });
-//           }
-//         }
-//       }
-//     }
-
-//     if (conflicts.length > 0 && !isConfirmed) {
-//       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-//       return res.status(409).json({
-//         success: false,
-//         requiresConfirmation: true,
-//         message: "Some products have existing data that will be overwritten.",
-//         conflicts: conflicts,
-//       });
-//     }
-
-//     // --- STEP 3: Saving Logic (Upsert) ---
-//     let successCount = 0;
-//     const errors = [];
-
-//     for (const [pNumber, group] of Object.entries(groupedProducts)) {
-//       try {
-//         const d = group.details;
-
-//         // Process ID find karna (agar processName diya hai)
-//         let mainProcId = d.processId || null;
-//         if (d.processName) {
-//           const p = await prisma.process.findFirst({
-//             where: { processName: d.processName.trim(), isDeleted: false },
-//           });
-//           if (p) mainProcId = p.id;
-//         }
-
-//         // Common mapping jo Create aur Update dono me kaam aayegi
-//         const commonUpdateData = {
-//           partFamily: d.partFamily,
-//           partDescription: d.product_description || d.partDescription,
-//           cost: parseFloat(d.cost) || 0,
-//           leadTime: parseInt(d.leadTime) || 0,
-//           supplierOrderQty: parseInt(d.supplierOrderQty) || 0,
-//           companyName: d.companyName || "Default",
-//           minStock: parseInt(d.minStock) || 0,
-//           availStock: parseInt(d.availStock) || 0,
-//           processId: mainProcId,
-//           type: "product",
-//           // isProductSchedule: d.isProductSchedule?.toUpperCase() === "TRUE",
-
-//           processOrderRequired:
-//             d.processOrderRequired?.toString().toLowerCase() === "true" ||
-//             d.processOrderRequired === "1",
-//           instructionRequired:
-//             d.instructionRequired?.toString().toLowerCase() === "true" ||
-//             d.instructionRequired === "1",
-
-//           isDeleted: false,
-//         };
-
-//         const product = await prisma.partNumber.upsert({
-//           where: { partNumber: pNumber },
-//           update: commonUpdateData,
-//           create: {
-//             ...commonUpdateData,
-//             part_id: uuidv4().slice(0, 6),
-//             partNumber: pNumber,
-//             submittedBy: req.user.id,
-//             // Naya product banne par images add hongi
-//             partImages: {
-//               create: getPartImages?.map((img) => ({
-//                 imageUrl: img.filename,
-//                 type: "product",
-//               })),
-//             },
-//           },
-//         });
-
-//         // BOM Update logic: Pehle purane relations delete karein
-//         await prisma.productTree.deleteMany({
-//           where: { product_id: product.part_id },
-//         });
-
-//         // Naye BOM items insert karein
-//         for (const item of group.bomItems) {
-//           const bomPartNum = item.part_number?.trim();
-//           if (!bomPartNum) continue;
-
-//           // Check if component exists
-//           const componentPart = await prisma.partNumber.findFirst({
-//             where: { partNumber: bomPartNum, isDeleted: false },
-//           });
-
-//           if (componentPart) {
-//             console.log("componentPart", componentPart);
-//             await prisma.productTree.create({
-//               data: {
-//                 id: uuidv4().slice(0, 6),
-//                 product_id: product.part_id,
-//                 part_id: componentPart.part_id,
-//                 partQuantity: Number(item.part_qty) || 1,
-//                 // Inhe component se fetch kar rahe hain jaise first function me tha
-//                 processId: componentPart.processId,
-//                 processOrderRequired:
-//                   componentPart.processOrderRequired
-//                     ?.toString()
-//                     .toLowerCase() === "true" ||
-//                   componentPart.processOrderRequired === "1",
-//                 instructionRequired:
-//                   componentPart.instructionRequired
-//                     ?.toString()
-//                     .toLowerCase() === "true" ||
-//                   componentPart.instructionRequired === "1",
-
-//                 createdBy: req.user.id,
-//               },
-//             });
-//           }
-//         }
-//         successCount++;
-//       } catch (err) {
-//         errors.push(`Error in ${pNumber}: ${err.message}`);
-//       }
-//     }
-
-//     // Cleanup CSV file
-//     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-//     return res.status(200).json({
-//       success: true,
-//       summary: { success: successCount, errors },
-//     });
-//   } catch (error) {
-//     console.error("Import Error:", error);
-//     return res.status(500).json({ success: false, message: error.message });
-//   }
-// };
 const importProductTree = async (req, res) => {
   let filePath = null;
   try {
@@ -845,24 +488,20 @@ const importEmp = async (req, res) => {
       (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
-    const csvData = []; // Renamed from results to csvData
+    const csvData = [];
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
-
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
         if (
           !csvData[0]?.fileName ||
           csvData[0]?.fileName.toLowerCase() !== "employee"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
@@ -872,7 +511,6 @@ const importEmp = async (req, res) => {
           });
         }
         const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
           return new Promise(async (resolve, reject) => {
             try {
               let isError = false;
@@ -946,7 +584,7 @@ const importEmp = async (req, res) => {
           success: true,
           message: "CSV import completed.",
           summary: {
-            totalRows: csvData.length, // Using csvData instead of results
+            totalRows: csvData.length,
             successCount,
             errorCount,
             errors: errors.length > 0 ? errors : undefined,
@@ -954,8 +592,6 @@ const importEmp = async (req, res) => {
         });
       });
   } catch (error) {
-    console.log("errorerror", error);
-
     res.status(500).json({
       success: false,
       message: "Server error",
@@ -977,24 +613,21 @@ const importSupp = async (req, res) => {
       (file) => file.fieldname === "ImportFile",
     );
     const filePath = getCsvFile[0].path;
-    const csvData = []; // Renamed from results to csvData
+    const csvData = [];
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
 
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
         if (
           !csvData[0]?.fileName ||
           csvData[0]?.fileName.toLowerCase() !== "supplier"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
@@ -1004,7 +637,6 @@ const importSupp = async (req, res) => {
           });
         }
         const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
           return new Promise(async (resolve, reject) => {
             try {
               let isError = false;
@@ -1071,7 +703,7 @@ const importSupp = async (req, res) => {
           success: true,
           message: "CSV import completed.",
           summary: {
-            totalRows: csvData.length, // Using csvData instead of results
+            totalRows: csvData.length,
             successCount,
             errorCount,
             errors: errors.length > 0 ? errors : undefined,
@@ -1079,8 +711,6 @@ const importSupp = async (req, res) => {
         });
       });
   } catch (error) {
-    console.log("errorerror", error);
-
     res.status(500).json({
       success: false,
       message: "Server error",
@@ -1107,19 +737,16 @@ const importCust = async (req, res) => {
     let errorCount = 0;
     const errors = [];
 
-    // Read and parse CSV
     fs.createReadStream(filePath)
       .pipe(csv())
       .on("data", (data) => {
-        csvData.push(data); // Using csvData instead of results
+        csvData.push(data);
       })
       .on("end", async () => {
         if (
           !csvData[0]?.fileName ||
           csvData[0]?.fileName.toLowerCase() !== "customer"
         ) {
-          console.log("csvDatacsvData", csvData);
-
           fs.unlinkSync(filePath);
           return res.status(400).json({
             success: false,
@@ -1129,7 +756,6 @@ const importCust = async (req, res) => {
           });
         }
         const promises = csvData.map((row, index) => {
-          // Using csvData instead of results
           return new Promise(async (resolve, reject) => {
             try {
               let isError = false;
@@ -1198,7 +824,7 @@ const importCust = async (req, res) => {
           success: true,
           message: "CSV import completed.",
           summary: {
-            totalRows: csvData.length, // Using csvData instead of results
+            totalRows: csvData.length,
             successCount,
             errorCount,
             errors: errors.length > 0 ? errors : undefined,
@@ -1206,8 +832,6 @@ const importCust = async (req, res) => {
         });
       });
   } catch (error) {
-    console.log("errorerror", error);
-
     res.status(500).json({
       success: false,
       message: "Server error",
