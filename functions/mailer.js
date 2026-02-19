@@ -75,7 +75,7 @@ module.exports.sendMail = async (templateName, mailVariables, email) => {
       },
     });
 
-    if (!template) throw new Error("Template not found");
+    if (!template) throw new Error("Template not found.");
 
     let subject = template.subject;
     let html = template.htmlBody;
