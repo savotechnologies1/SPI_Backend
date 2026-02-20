@@ -46,6 +46,7 @@ const {
   selectSupplier,
   allEmployeeTimeLine,
   selectCustomerForStockOrder,
+  getProductParts,
 } = require("../controllers/adminController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -123,4 +124,5 @@ router.get(
   validateToken,
   selectCustomerForStockOrder,
 );
+router.get("/product-parts/:id", validateToken, getProductParts);
 module.exports = router;

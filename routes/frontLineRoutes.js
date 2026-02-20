@@ -62,6 +62,7 @@ const {
   deleteFixedCost,
   getParts,
   getLowStockParts,
+  getProductParts,
 } = require("../controllers/adminController");
 const {
   stationSendNotification,
@@ -306,4 +307,5 @@ router.get("/fixed-cost-data", fixedCost);
 router.delete("/fixed-cost-delete/:id", deleteFixedCost);
 router.get("/get-parts", getParts);
 
+router.get("/product-parts/:id", validateToken, getProductParts);
 module.exports = router;
