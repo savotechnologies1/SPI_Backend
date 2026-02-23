@@ -173,6 +173,8 @@ const {
   checkTraningStatus,
   getTrainingScheduleInformation,
   approveTimeSheet,
+  scanCompleteAction,
+  scanScrapAction,
 } = require("../controllers/productionResponseController");
 const {
   importProcess,
@@ -505,4 +507,6 @@ router.get(
 );
 router.get("/product-parts/:id", adminValidateToken, getProductParts);
 router.post("/send-order-to-supplier", adminValidateToken, sendOrderToSupplier);
+router.post("/scan-complete/:id", adminValidateToken, scanCompleteAction);
+router.post("/scan-scrap/:id", adminValidateToken, scanScrapAction);
 module.exports = router;

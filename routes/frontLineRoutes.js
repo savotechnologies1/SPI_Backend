@@ -90,6 +90,8 @@ const {
   costingApi,
   fixedCost,
   getTrainingScheduleInformation,
+  scanCompleteAction,
+  scanScrapAction,
 } = require("../controllers/productionResponseController");
 const {
   workInstructionProcess,
@@ -308,4 +310,6 @@ router.delete("/fixed-cost-delete/:id", deleteFixedCost);
 router.get("/get-parts", getParts);
 
 router.get("/product-parts/:id", validateToken, getProductParts);
+router.post("/scan-complete/:id", validateToken, scanCompleteAction);
+router.post("/scan-scrap/:id", validateToken, scanScrapAction);
 module.exports = router;

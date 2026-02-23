@@ -3660,6 +3660,7 @@ const scheduleStockOrdersList = async (req, res) => {
       }),
     });
   } catch (error) {
+    console.log("error", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -3835,7 +3836,7 @@ const getAllSupplierOrder = async (req, res) => {
             },
           }),
           prisma.partNumber.findFirst({
-            where: { part_id: order.part_id },
+            where: { part_id: order?.part_id },
             select: {
               partNumber: true,
               partDescription: true,
@@ -3870,6 +3871,7 @@ const getAllSupplierOrder = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
+    console.log(error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -4271,6 +4273,208 @@ const deleteScrapEntry = async (req, res) => {
   }
 };
 
+// const allEmployeeTimeLine = async (req, res) => {
+//   try {
+//     const {
+//       page,
+//       limit,
+//       filter,
+//       search,
+//       employeeId: queryEmployeeId,
+//     } = req.query;
+
+//     const currentPage = parseInt(page) || 1;
+//     const itemsPerPage = parseInt(limit) || 8;
+//     let startDate = null;
+//     let endDate = null;
+//     const now = new Date();
+//     now.setHours(0, 0, 0, 0);
+
+//     const vacationRequests = await prisma.vacationRequest.findMany({
+//       where: {
+//         ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//         status: "APPROVED",
+//         isDeleted: false,
+//       },
+//     });
+//     switch (filter) {
+//       case "This Week":
+//         const dayOfWeek = now.getDay();
+//         startDate = new Date(now);
+//         startDate.setDate(
+//           now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
+//         );
+//         endDate = new Date(startDate);
+//         endDate.setDate(startDate.getDate() + 6);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//       case "Last Week":
+//         startDate = new Date(now);
+//         startDate.setDate(now.getDate() - now.getDay() - 6);
+//         endDate = new Date(startDate);
+//         endDate.setDate(startDate.getDate() + 6);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//       case "This Month":
+//         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+//         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//     }
+
+//     const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
+
+//     const whereConditions = {
+//       isDeleted: false,
+//       ...(isSuperAdmin && { createdBy: req.user?.id }),
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//       ...(startDate &&
+//         endDate && {
+//           timestamp: {
+//             gte: startDate.toISOString(),
+//             lte: endDate.toISOString(),
+//           },
+//         }),
+//     };
+
+//     const allEvents = await prisma.timeClock.findMany({
+//       where: whereConditions,
+//       orderBy: { timestamp: "asc" },
+//       include: {
+//         employee: {
+//           select: { id: true, firstName: true, lastName: true, email: true },
+//         },
+//       },
+//     });
+
+//     const getMs = (date) => (date ? new Date(date).getTime() : 0);
+
+//     const groupedByDate = allEvents.reduce((acc, event) => {
+//       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
+
+//       if (!acc[dateKey]) {
+//         const matchedVacation = vacationRequests.find((v) => {
+//           const vStart = new Date(v.startDate).toISOString().split("T")[0];
+//           const vEnd = new Date(v.endDate).toISOString().split("T")[0];
+//           return (
+//             v.employeeId === event.employeeId &&
+//             dateKey >= vStart &&
+//             dateKey <= vEnd
+//           );
+//         });
+
+//         acc[dateKey] = {
+//           date: dateKey,
+//           employeeName:
+//             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
+//           employeeEmail: event.employee?.email || "",
+//           loginTime: null,
+//           rawLogin: null,
+//           lunchStart: null,
+//           rawLunchStart: null,
+//           lunchEnd: null,
+//           rawLunchEnd: null,
+//           logout: null,
+//           rawLogout: null,
+//           exceptionStart: null,
+//           rawExStart: null,
+//           exceptionEnd: null,
+//           rawExEnd: null,
+//           vacationStatus: matchedVacation ? "APPROVED" : "-",
+//           vacationHours: matchedVacation
+//             ? Number(matchedVacation.hours || 0)
+//             : 0,
+//         };
+//       }
+
+//       switch (event.eventType) {
+//         case "CLOCK_IN":
+//           acc[dateKey].loginTime = formatTime(event.timestamp);
+//           acc[dateKey].rawLogin = event.timestamp;
+//           break;
+//         case "START_LUNCH":
+//           acc[dateKey].lunchStart = formatTime(event.timestamp);
+//           acc[dateKey].rawLunchStart = event.timestamp;
+//           break;
+//         case "END_LUNCH":
+//           acc[dateKey].lunchEnd = formatTime(event.timestamp);
+//           acc[dateKey].rawLunchEnd = event.timestamp;
+//           break;
+//         case "CLOCK_OUT":
+//           acc[dateKey].logout = formatTime(event.timestamp);
+//           acc[dateKey].rawLogout = event.timestamp;
+//           break;
+//         case "START_EXCEPTION":
+//           acc[dateKey].exceptionStart = formatTime(event.timestamp);
+//           acc[dateKey].rawExStart = event.timestamp;
+//           break;
+//         case "END_EXCEPTION":
+//           acc[dateKey].exceptionEnd = formatTime(event.timestamp);
+//           acc[dateKey].rawExEnd = event.timestamp;
+//           break;
+//       }
+//       return acc;
+//     }, {});
+
+//     let timeSheetData = Object.values(groupedByDate).map((entry) => {
+//       let workMs = 0;
+//       if (entry.rawLogin && entry.rawLogout) {
+//         workMs = getMs(entry.rawLogout) - getMs(entry.rawLogin);
+
+//         if (entry.rawLunchStart && entry.rawLunchEnd) {
+//           workMs -= getMs(entry.rawLunchEnd) - getMs(entry.rawLunchStart);
+//         }
+//         if (entry.rawExStart && entry.rawExEnd) {
+//           workMs -= getMs(entry.rawExEnd) - getMs(entry.rawExStart);
+//         }
+//       }
+
+//       const workHours = Math.max(0, workMs / (1000 * 60 * 60));
+//       const totalHours = workHours + entry.vacationHours;
+
+//       return {
+//         ...entry,
+//         workHours: workHours.toFixed(2),
+//         vacationHours: entry.vacationHours.toFixed(2),
+//         totalHours: totalHours.toFixed(2),
+//         rawLogin: undefined,
+//         rawLogout: undefined,
+//         rawLunchStart: undefined,
+//         rawLunchEnd: undefined,
+//         rawExStart: undefined,
+//         rawExEnd: undefined,
+//       };
+//     });
+
+//     if (search) {
+//       const lowercasedSearch = search.toLowerCase();
+//       timeSheetData = timeSheetData.filter(
+//         (entry) =>
+//           entry.date.includes(lowercasedSearch) ||
+//           entry.employeeName.toLowerCase().includes(lowercasedSearch),
+//       );
+//     }
+
+//     const totalCount = timeSheetData.length;
+//     const paginatedData = timeSheetData.slice(
+//       (currentPage - 1) * itemsPerPage,
+//       currentPage * itemsPerPage,
+//     );
+
+//     return res.status(200).json({
+//       message: "Employee timesheet retrieved successfully!",
+//       data: paginatedData,
+//       totalCounts: totalCount,
+//       pagination: {
+//         page: currentPage,
+//         totalPages: Math.ceil(totalCount / itemsPerPage),
+//       },
+//     });
+//   } catch (error) {
+//     return res.status(500).send({ message: "Internal Server Error" });
+//   }
+// };
+
 const allEmployeeTimeLine = async (req, res) => {
   try {
     const {
@@ -4288,6 +4492,7 @@ const allEmployeeTimeLine = async (req, res) => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
+    // 1. Vacation Requests (Sirf Approved waali)
     const vacationRequests = await prisma.vacationRequest.findMany({
       where: {
         ...(queryEmployeeId && { employeeId: queryEmployeeId }),
@@ -4295,6 +4500,8 @@ const allEmployeeTimeLine = async (req, res) => {
         isDeleted: false,
       },
     });
+
+    // 2. Date Filter Logic
     switch (filter) {
       case "This Week":
         const dayOfWeek = now.getDay();
@@ -4335,6 +4542,7 @@ const allEmployeeTimeLine = async (req, res) => {
         }),
     };
 
+    // 3. TimeClock Events fetch karein (Isme DB ka status aayega)
     const allEvents = await prisma.timeClock.findMany({
       where: whereConditions,
       orderBy: { timestamp: "asc" },
@@ -4349,8 +4557,9 @@ const allEmployeeTimeLine = async (req, res) => {
 
     const groupedByDate = allEvents.reduce((acc, event) => {
       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
+      const uniqueKey = `${event.employeeId}_${dateKey}`;
 
-      if (!acc[dateKey]) {
+      if (!acc[uniqueKey]) {
         const matchedVacation = vacationRequests.find((v) => {
           const vStart = new Date(v.startDate).toISOString().split("T")[0];
           const vEnd = new Date(v.endDate).toISOString().split("T")[0];
@@ -4361,54 +4570,47 @@ const allEmployeeTimeLine = async (req, res) => {
           );
         });
 
-        acc[dateKey] = {
+        acc[uniqueKey] = {
           date: dateKey,
           employeeName:
             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
           employeeEmail: event.employee?.email || "",
           loginTime: null,
           rawLogin: null,
-          lunchStart: null,
-          rawLunchStart: null,
-          lunchEnd: null,
-          rawLunchEnd: null,
           logout: null,
           rawLogout: null,
-          exceptionStart: null,
-          rawExStart: null,
-          exceptionEnd: null,
-          rawExEnd: null,
           vacationStatus: matchedVacation ? "APPROVED" : "-",
           vacationHours: matchedVacation
             ? Number(matchedVacation.hours || 0)
             : 0,
+          // DB se status uthayein (PENDING/APPROVED/REJECTED)
+          status: event.status,
         };
       }
 
+      // Event types handle karein
       switch (event.eventType) {
         case "CLOCK_IN":
-          acc[dateKey].loginTime = formatTime(event.timestamp);
-          acc[dateKey].rawLogin = event.timestamp;
-          break;
-        case "START_LUNCH":
-          acc[dateKey].lunchStart = formatTime(event.timestamp);
-          acc[dateKey].rawLunchStart = event.timestamp;
-          break;
-        case "END_LUNCH":
-          acc[dateKey].lunchEnd = formatTime(event.timestamp);
-          acc[dateKey].rawLunchEnd = event.timestamp;
+          acc[uniqueKey].loginTime = formatTime(event.timestamp);
+          acc[uniqueKey].rawLogin = event.timestamp;
+          // CLOCK_IN ka status hi main attendance status hoga
+          acc[uniqueKey].status = event.status;
           break;
         case "CLOCK_OUT":
-          acc[dateKey].logout = formatTime(event.timestamp);
-          acc[dateKey].rawLogout = event.timestamp;
+          acc[uniqueKey].logout = formatTime(event.timestamp);
+          acc[uniqueKey].rawLogout = event.timestamp;
+          break;
+        case "START_LUNCH":
+          acc[uniqueKey].rawLunchStart = event.timestamp;
+          break;
+        case "END_LUNCH":
+          acc[uniqueKey].rawLunchEnd = event.timestamp;
           break;
         case "START_EXCEPTION":
-          acc[dateKey].exceptionStart = formatTime(event.timestamp);
-          acc[dateKey].rawExStart = event.timestamp;
+          acc[uniqueKey].rawExStart = event.timestamp;
           break;
         case "END_EXCEPTION":
-          acc[dateKey].exceptionEnd = formatTime(event.timestamp);
-          acc[dateKey].rawExEnd = event.timestamp;
+          acc[uniqueKey].rawExEnd = event.timestamp;
           break;
       }
       return acc;
@@ -4418,38 +4620,38 @@ const allEmployeeTimeLine = async (req, res) => {
       let workMs = 0;
       if (entry.rawLogin && entry.rawLogout) {
         workMs = getMs(entry.rawLogout) - getMs(entry.rawLogin);
-
-        if (entry.rawLunchStart && entry.rawLunchEnd) {
+        if (entry.rawLunchStart && entry.rawLunchEnd)
           workMs -= getMs(entry.rawLunchEnd) - getMs(entry.rawLunchStart);
-        }
-        if (entry.rawExStart && entry.rawExEnd) {
+        if (entry.rawExStart && entry.rawExEnd)
           workMs -= getMs(entry.rawExEnd) - getMs(entry.rawExStart);
-        }
       }
 
       const workHours = Math.max(0, workMs / (1000 * 60 * 60));
-      const totalHours = workHours + entry.vacationHours;
+
+      // Agar login nahi hai lekin Vacation approved hai
+      let finalStatus = entry.status;
+      if (!entry.loginTime && entry.vacationStatus === "APPROVED") {
+        finalStatus = "VACATION";
+      } else if (!entry.loginTime && entry.vacationStatus === "-") {
+        finalStatus = "ABSENT";
+      }
 
       return {
         ...entry,
+        status: finalStatus, // Ab ye PENDING, APPROVED, REJECTED, VACATION ya ABSENT dikhayega
         workHours: workHours.toFixed(2),
         vacationHours: entry.vacationHours.toFixed(2),
-        totalHours: totalHours.toFixed(2),
-        rawLogin: undefined,
-        rawLogout: undefined,
-        rawLunchStart: undefined,
-        rawLunchEnd: undefined,
-        rawExStart: undefined,
-        rawExEnd: undefined,
+        totalHours: (workHours + entry.vacationHours).toFixed(2),
       };
     });
 
+    // 4. Search & Pagination
     if (search) {
-      const lowercasedSearch = search.toLowerCase();
+      const lowerSearch = search.toLowerCase();
       timeSheetData = timeSheetData.filter(
-        (entry) =>
-          entry.date.includes(lowercasedSearch) ||
-          entry.employeeName.toLowerCase().includes(lowercasedSearch),
+        (e) =>
+          e.employeeName.toLowerCase().includes(lowerSearch) ||
+          e.status.toLowerCase().includes(lowerSearch),
       );
     }
 
@@ -4469,6 +4671,7 @@ const allEmployeeTimeLine = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).send({ message: "Internal Server Error" });
   }
 };
@@ -5166,29 +5369,117 @@ const liveProductionGoalBoard = async (req, res) => {
   }
 };
 
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+//     let dateFilter = { isDeleted: false };
+
+//     if (startDate && endDate) {
+//       dateFilter.startDateTime = {
+//         gte: new Date(startDate),
+//         lte: new Date(endDate),
+//       };
+//     }
+
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: dateFilter,
+//       include: {
+//         part: {
+//           select: {
+//             partDescription: true,
+//           },
+//         },
+//         process: {
+//           select: {
+//             id: true,
+//             processName: true,
+//             machineName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//       },
+//     });
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let totalScheduled = 0;
+//     const processDetails = [];
+
+//     for (const order of stockOrders) {
+//       const process = order.process;
+//       const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
+//       const targetPerHour = cycleTimeMinutes
+//         ? Math.round(60 / cycleTimeMinutes)
+//         : process?.ratePerHour || 0;
+
+//       const actual = order.completedQuantity || 0;
+//       const scrap = order.scrapQuantity || 0;
+//       const scheduled = order.scheduleQuantity || 0;
+//       totalActual += actual;
+//       totalScrap += scrap;
+//       totalScheduled += scheduled;
+
+//       const efficiency =
+//         targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
+//       const productivity =
+//         scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
+
+//       processDetails.push({
+//         processName: process?.processName,
+//         machineName: process?.machineName,
+//         partId: order.part_id,
+//         partDescription: order?.part?.partDescription,
+//         scheduled,
+//         actual,
+//         scrap,
+//         remaining: order.remainingQty,
+//         targetPerHour,
+//         efficiency: efficiency + "%",
+//         productivity: productivity + "%",
+//         startDate: order.startDateTime,
+//       });
+//     }
+
+//     res.json({
+//       summary: {
+//         totalActual,
+//         totalScrap,
+//         totalScheduled,
+//         totalOrders: stockOrders.length,
+//       },
+//       details: processDetails,
+//     });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    let dateFilter = { isDeleted: false };
 
-    if (startDate && endDate) {
-      dateFilter.startDateTime = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-      };
-    }
+    const todayStart = startDate
+      ? new Date(new Date(startDate).setHours(0, 0, 0, 0))
+      : new Date(new Date().setHours(0, 0, 0, 0));
+    const todayEnd = endDate
+      ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
+      : new Date(new Date().setHours(23, 59, 59, 999));
 
+    // Sabhi orders fetch karein taaki Summary sahi bane
     const stockOrders = await prisma.stockOrderSchedule.findMany({
-      where: dateFilter,
-      include: {
-        part: {
-          select: {
-            partDescription: true,
-          },
+      where: {
+        isDeleted: false,
+        updatedAt: {
+          gte: todayStart,
+          lte: todayEnd,
         },
+      },
+      include: {
+        part: { select: { partDescription: true } },
         process: {
           select: {
-            id: true,
             processName: true,
             machineName: true,
             cycleTime: true,
@@ -5196,56 +5487,47 @@ const currentStatusOverview = async (req, res) => {
           },
         },
       },
+      orderBy: { updatedAt: "desc" },
     });
 
     let totalActual = 0;
     let totalScrap = 0;
     let totalScheduled = 0;
-    const processDetails = [];
+    const scrapOnlyDetails = []; // Sirf scrap wale records ke liye
 
     for (const order of stockOrders) {
-      const process = order.process;
-      const cycleTimeMinutes = parseCycleTime(process?.cycleTime);
-      const targetPerHour = cycleTimeMinutes
-        ? Math.round(60 / cycleTimeMinutes)
-        : process?.ratePerHour || 0;
-
       const actual = order.completedQuantity || 0;
       const scrap = order.scrapQuantity || 0;
       const scheduled = order.scheduleQuantity || 0;
+
+      // Summary ke liye sabka total karein (Actual, Scrap, Scheduled)
       totalActual += actual;
       totalScrap += scrap;
       totalScheduled += scheduled;
 
-      const efficiency =
-        targetPerHour > 0 ? ((actual / targetPerHour) * 100).toFixed(1) : 0;
-      const productivity =
-        scheduled > 0 ? ((actual / scheduled) * 100).toFixed(1) : 0;
-
-      processDetails.push({
-        processName: process?.processName,
-        machineName: process?.machineName,
-        partId: order.part_id,
-        partDescription: order?.part?.partDescription,
-        scheduled,
-        actual,
-        scrap,
-        remaining: order.remainingQty,
-        targetPerHour,
-        efficiency: efficiency + "%",
-        productivity: productivity + "%",
-        startDate: order.startDateTime,
-      });
+      // Filter: Sirf wahi data array mein daalein jisme scrap > 0 hai
+      if (scrap > 0) {
+        scrapOnlyDetails.push({
+          processName: order.process?.processName,
+          machineName: order.process?.machineName,
+          partDescription: order?.part?.partDescription,
+          actual: actual,
+          scrap: scrap,
+          scheduled: scheduled,
+          remaining: order.remainingQty,
+          lastAction: order.updatedAt,
+        });
+      }
     }
 
     res.json({
       summary: {
-        totalActual,
-        totalScrap,
-        totalScheduled,
+        totalActual, // Poore din ka total actual
+        totalScrap, // Poore din ka total scrap
+        totalScheduled, // Poore din ka total scheduled
         totalOrders: stockOrders.length,
       },
-      details: processDetails,
+      details: scrapOnlyDetails, // Isme sirf scrap wale 2-3 records hi aayenge
     });
   } catch (error) {
     res
@@ -5253,7 +5535,6 @@ const currentStatusOverview = async (req, res) => {
       .json({ error: "Internal Server Error", details: error.message });
   }
 };
-
 const currentQualityStatusOverview = async (req, res) => {
   try {
     const stockOrders = await prisma.StockOrderSchedule.findMany({
@@ -5325,10 +5606,23 @@ const currentQualityStatusOverview = async (req, res) => {
 
 const monitorChartsData = async (req, res) => {
   try {
-    const today = new Date();
-    const start = startOfDay(today);
-    const end = endOfDay(today);
+    const { startDate, endDate } = req.query;
 
+    let start, end;
+
+    if (startDate && endDate) {
+      // Agar frontend se date aa rahi hai
+      start = new Date(startDate);
+      start.setHours(0, 0, 0, 0); // Din ki shuruat
+
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // Din ka anth
+    } else {
+      // Default: Aaj ka din
+      const today = new Date();
+      start = startOfDay(today);
+      end = endOfDay(today);
+    }
     const manualData = await prisma.stockOrderSchedule.findMany({
       where: {
         createdAt: { gte: start, lte: end },
@@ -5896,23 +6190,41 @@ const dashBoardData = async (req, res) => {
       calcRev(stockOrdersAll, lastMonthStart, lastMonthEnd) +
       calcRev(customOrdersAll, lastMonthStart, lastMonthEnd);
 
+    // const parts = await prisma.partNumber.findMany({
+    //   where: { isDeleted: false },
+    //   include: { process: true },
+    // });
+    // let totalInventoryCost = 0,
+    //   totalInventoryCount = 0;
+    // parts.forEach((p) => {
+    //   const extra = (p.availStock || 0) - (p.minStock || 0);
+    //   if (extra > 0) {
+    //     const unitVal =
+    //       (parseFloat(p.cost) || 0) +
+    //       ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
+    //     totalInventoryCount += extra;
+    //     totalInventoryCost += extra * unitVal;
+    //   }
+    // });
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
       include: { process: true },
     });
-    let totalInventoryCost = 0,
-      totalInventoryCount = 0;
-    parts.forEach((p) => {
-      const extra = (p.availStock || 0) - (p.minStock || 0);
-      if (extra > 0) {
-        const unitVal =
-          (parseFloat(p.cost) || 0) +
-          ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
-        totalInventoryCount += extra;
-        totalInventoryCost += extra * unitVal;
-      }
-    });
 
+    let totalInventoryCost = 0;
+    let totalInventoryCount = 0;
+
+    parts.forEach((p) => {
+      const avail = p.availStock || 0;
+      // Document Formula: Part cost = Cost + (Cycle Time * Rate)
+      const partCost =
+        (parseFloat(p.cost) || 0) +
+        ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
+
+      // Document: Sum for all parts (Part cost X Part inventory)
+      totalInventoryCount += avail;
+      totalInventoryCost += avail * partCost;
+    });
     const fetchSchedules = async (start, end) =>
       await prisma.stockOrderSchedule.findMany({
         where: { isDeleted: false, order_date: { gte: start, lte: end } },

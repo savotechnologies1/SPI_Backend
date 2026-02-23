@@ -5,6 +5,7 @@ const {
   fileUploadFunc,
 } = require("../functions/common");
 
+const crypto = require("crypto");
 const stationLogout = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2069,127 +2070,289 @@ const fixedCost = async (req, res) => {
     });
   }
 };
+// const getInventory = async (req, res) => {
+//   try {
+//     const { period = "daily" } = req.query;
+//     let days = 7;
+//     if (period === "weekly") days = 14;
+//     if (period === "monthly") days = 30;
+
+//     const now = new Date();
+//     const endDate = new Date(now);
+//     endDate.setHours(23, 59, 59, 999);
+
+//     const startDate = new Date(now);
+//     startDate.setDate(now.getDate() - (days - 1));
+//     startDate.setHours(0, 0, 0, 0);
+//     const historicalData = await prisma.DailyInventory.findMany({
+//       where: { date: { gte: startDate, lte: endDate } },
+//       select: { date: true, totalInventoryCost: true },
+//     });
+
+//     const parts = await prisma.partNumber.findMany({
+//       where: { isDeleted: false },
+//       include: { process: { select: { ratePerHour: true } } },
+//     });
+//     let liveInventoryCost = 0;
+//     const partsDetails = [];
+//     const outOfStockParts = [];
+//     let outOfStockCount = 0;
+
+//     parts.forEach((part) => {
+//       const availableStock = Number(part.availStock) || 0;
+//       const minStock = Number(part.minStock) || 0;
+
+//       const partCost = parseFloat(part.cost) || 0;
+//       const cycleTimeHours = (parseFloat(part.cycleTime) || 0) / 60;
+//       const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
+//       const costPerUnit = partCost + cycleTimeHours * ratePerHour;
+
+//       const extraStock = Math.max(0, availableStock - minStock);
+//       const totalPartExtraCost = extraStock * costPerUnit;
+//       liveInventoryCost += totalPartExtraCost;
+
+//       if (availableStock < minStock) {
+//         outOfStockCount++;
+
+//         const partData = {
+//           partNumber: part.partNumber,
+//           availStock: availableStock,
+//           minStock: minStock,
+//           shortage: minStock - availableStock,
+//           leadTime: part.leadTime,
+//           costPerUnit: costPerUnit.toFixed(2),
+//           totalExtraCost: totalPartExtraCost.toFixed(2),
+//         };
+//         outOfStockParts.push(partData);
+//         partsDetails.push(partData);
+//       }
+//     });
+//     const completedStock = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         status: "completed",
+//         isDeleted: false,
+//         completed_date: { gte: startDate, lte: endDate },
+//       },
+//       include: {
+//         part: {
+//           select: {
+//             cost: true,
+//             cycleTime: true,
+//             process: { select: { ratePerHour: true } },
+//           },
+//         },
+//       },
+//     });
+
+//     let totalCOGS = 0;
+//     completedStock.forEach((order) => {
+//       const pCost = parseFloat(order.part?.cost || 0);
+//       const cTimeHours = (order.part?.cycleTime || 0) / 60;
+//       const rPerHour = order.part?.process?.ratePerHour || 0;
+//       const unitCost = pCost + cTimeHours * rPerHour;
+//       totalCOGS += unitCost * (order.completedQuantity || 0);
+//     });
+
+//     const turnoverRatio = totalCOGS > 0 ? liveInventoryCost / totalCOGS : 0;
+
+//     const getLocalKey = (date) => {
+//       const y = date.getFullYear();
+//       const m = String(date.getMonth() + 1).padStart(2, "0");
+//       const d = String(date.getDate()).padStart(2, "0");
+//       return `${y}-${m}-${d}`;
+//     };
+
+//     const map = {};
+//     historicalData.forEach((item) => {
+//       map[getLocalKey(item.date)] = item.totalInventoryCost;
+//     });
+//     map[getLocalKey(now)] = liveInventoryCost;
+
+//     const chartData = [];
+//     for (let i = 0; i < days; i++) {
+//       const d = new Date(startDate);
+//       d.setDate(startDate.getDate() + i);
+//       const key = getLocalKey(d);
+//       chartData.push({
+//         date: key,
+//         totalInventoryCost: map[key] || 0,
+//       });
+//     }
+
+//     res.json({
+//       chartData,
+//       parts: partsDetails,
+//       outOfStockParts,
+//       summary: {
+//         totalInventoryCost: parseFloat(liveInventoryCost.toFixed(2)),
+//         totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+//         turnoverRatio: parseFloat(turnoverRatio.toFixed(2)),
+//         outOfStockCount: outOfStockCount,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 const getInventory = async (req, res) => {
   try {
     const { period = "daily" } = req.query;
-    let days = 7;
-    if (period === "weekly") days = 14;
-    if (period === "monthly") days = 30;
-
     const now = new Date();
-    const endDate = new Date(now);
-    endDate.setHours(23, 59, 59, 999);
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
 
-    const startDate = new Date(now);
-    startDate.setDate(now.getDate() - (days - 1));
+    const formatDate = (d) =>
+      `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
+
+    let startDate = new Date();
+    let loopCount = 7;
+
+    // 1. Period ke hisab se Range aur Loop Count set karein
+    if (period === "daily") {
+      // Is mahine ki 1st tarikh se last date tak
+      startDate = new Date(currentYear, currentMonth, 1);
+      const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
+      loopCount = lastDay; 
+    } else if (period === "weekly") {
+      loopCount = 14;
+      startDate.setDate(now.getDate() - 13);
+    } else if (period === "monthly") {
+      // Is saal ke Jan se Dec tak
+      startDate = new Date(currentYear, 0, 1);
+      loopCount = 12;
+    } else if (period === "yearly") {
+      // Pichle 5 saal (2022, 2023, 2024, 2025, 2026)
+      startDate = new Date(currentYear - 4, 0, 1);
+      loopCount = 5;
+    }
     startDate.setHours(0, 0, 0, 0);
-    const historicalData = await prisma.dailyInventory.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
-      select: { date: true, totalInventoryCost: true },
-    });
 
+    // 2. LIVE Inventory Calculation
     const parts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
       include: { process: { select: { ratePerHour: true } } },
     });
-    let liveInventoryCost = 0;
-    const partsDetails = [];
-    const outOfStockParts = [];
-    let outOfStockCount = 0;
 
-    parts.forEach((part) => {
-      const availableStock = Number(part.availStock) || 0;
-      const minStock = Number(part.minStock) || 0;
+    let liveTotalInventoryCost = 0;
+    const outOfStockPartsList = []; // Sirf shortage wale parts ke liye
 
-      const partCost = parseFloat(part.cost) || 0;
-      const cycleTimeHours = (parseFloat(part.cycleTime) || 0) / 60;
-      const ratePerHour = parseFloat(part.process?.ratePerHour) || 0;
-      const costPerUnit = partCost + cycleTimeHours * ratePerHour;
+    for (const part of parts) {
+      const avail = Number(part.availStock) || 0;
+      const min = Number(part.minStock) || 0;
+      const cost = parseFloat(part.cost) || 0;
+      const cycleTimeHrs = (parseFloat(part.cycleTime) || 0) / 60;
+      const rate = parseFloat(part.process?.ratePerHour) || 0;
 
-      const extraStock = Math.max(0, availableStock - minStock);
-      const totalPartExtraCost = extraStock * costPerUnit;
-      liveInventoryCost += totalPartExtraCost;
+      // Part Cost = Supplier Cost + (CT * Hourly Rate)
+      const partCost = cost + (cycleTimeHrs * rate);
+      
+      // Total Asset Value = Part Cost * Avail Stock
+      const inventoryCost = partCost * avail;
+      liveTotalInventoryCost += inventoryCost;
 
-      if (availableStock < minStock) {
-        outOfStockCount++;
-
-        const partData = {
+      // CONDITION: Only add to list if availStock < minStock
+      if (avail < min) {
+        outOfStockPartsList.push({
           partNumber: part.partNumber,
-          availStock: availableStock,
-          minStock: minStock,
-          shortage: minStock - availableStock,
-          leadTime: part.leadTime,
-          costPerUnit: costPerUnit.toFixed(2),
-          totalExtraCost: totalPartExtraCost.toFixed(2),
-        };
-        outOfStockParts.push(partData);
-        partsDetails.push(partData);
+          availStock: avail,
+          minStock: min,
+          inventoryLevel: avail - min,
+          leadTime: part.leadTime || 0,
+          costPerUnit: partCost.toFixed(2),
+        });
       }
+    }
+
+    // 3. Save Summary Snapshot for Trend Chart
+    const todayStr = now.toISOString().split("T")[0];
+    const todayDate = new Date(todayStr);
+
+    const existingSummary = await prisma.dailyInventory.findFirst({
+      where: { date: todayDate, partNumber: "SUMMARY_TOTAL" }
     });
-    const completedStock = await prisma.stockOrderSchedule.findMany({
-      where: {
-        status: "completed",
-        isDeleted: false,
-        completed_date: { gte: startDate, lte: endDate },
+
+    if (existingSummary) {
+      await prisma.dailyInventory.update({
+        where: { id: existingSummary.id },
+        data: { totalInventoryCost: liveTotalInventoryCost }
+      });
+    } else {
+      await prisma.dailyInventory.create({
+        data: {
+          id: crypto.randomUUID(),
+          date: todayDate,
+          partNumber: "SUMMARY_TOTAL",
+          totalInventoryCost: liveTotalInventoryCost,
+          inventoryCost: liveTotalInventoryCost,
+          costPerUnit: 0,
+          inventoryLevel: 0
+        }
+      });
+    }
+
+    // 4. Aggregation Logic for Chart
+    const historicalData = await prisma.dailyInventory.findMany({
+      where: { 
+        date: { gte: startDate, lte: new Date() },
+        partNumber: "SUMMARY_TOTAL"
       },
-      include: {
-        part: {
-          select: {
-            cost: true,
-            cycleTime: true,
-            process: { select: { ratePerHour: true } },
-          },
-        },
-      },
     });
-
-    let totalCOGS = 0;
-    completedStock.forEach((order) => {
-      const pCost = parseFloat(order.part?.cost || 0);
-      const cTimeHours = (order.part?.cycleTime || 0) / 60;
-      const rPerHour = order.part?.process?.ratePerHour || 0;
-      const unitCost = pCost + cTimeHours * rPerHour;
-      totalCOGS += unitCost * (order.completedQuantity || 0);
-    });
-
-    const turnoverRatio = totalCOGS > 0 ? liveInventoryCost / totalCOGS : 0;
-
-    const getLocalKey = (date) => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    };
 
     const map = {};
     historicalData.forEach((item) => {
-      map[getLocalKey(item.date)] = item.totalInventoryCost;
-    });
-    map[getLocalKey(now)] = liveInventoryCost;
+      const d = new Date(item.date);
+      let key;
+      if (period === "yearly") key = `Y-${d.getFullYear()}`;
+      else if (period === "monthly") key = `M-${d.getMonth() + 1}-${d.getFullYear()}`;
+      else key = `D-${formatDate(d)}`;
 
+      map[key] = Number(item.totalInventoryCost);
+    });
+
+    // 5. Generate Response Chart Data
     const chartData = [];
-    for (let i = 0; i < days; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
-      const key = getLocalKey(d);
+    let tempDate = new Date(startDate);
+
+    for (let i = 0; i < loopCount; i++) {
+      let lookupKey;
+      let displayDate = formatDate(tempDate);
+
+      if (period === "yearly") {
+        lookupKey = `Y-${tempDate.getFullYear()}`;
+        displayDate = `${tempDate.getFullYear()}`;
+      } else if (period === "monthly") {
+        lookupKey = `M-${tempDate.getMonth() + 1}-${tempDate.getFullYear()}`;
+        // Monthly trend point hamesha mahine ki 1st tarikh dikhayega
+        const dMonth = new Date(tempDate.getFullYear(), tempDate.getMonth(), 1);
+        displayDate = formatDate(dMonth);
+      } else {
+        lookupKey = `D-${formatDate(tempDate)}`;
+        displayDate = formatDate(tempDate);
+      }
+
       chartData.push({
-        date: key,
-        totalInventoryCost: map[key] || 0,
+        date: displayDate,
+        rawDate: tempDate.toISOString(),
+        totalInventoryCost: map[lookupKey] || 0,
       });
+
+      // Increment tempDate
+      if (period === "yearly") tempDate.setFullYear(tempDate.getFullYear() + 1);
+      else if (period === "monthly") tempDate.setMonth(tempDate.getMonth() + 1);
+      else tempDate.setDate(tempDate.getDate() + 1);
     }
 
     res.json({
       chartData,
-      parts: partsDetails,
-      outOfStockParts,
+      parts: outOfStockPartsList, // Filtered: Only shortage parts
       summary: {
-        totalInventoryCost: parseFloat(liveInventoryCost.toFixed(2)),
-        totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-        turnoverRatio: parseFloat(turnoverRatio.toFixed(2)),
-        outOfStockCount: outOfStockCount,
+        totalInventoryCost: liveTotalInventoryCost.toFixed(2),
+        outOfStockCount: outOfStockPartsList.length,
       },
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -2694,6 +2857,201 @@ const getTrainingScheduleInformation = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+const scanCompleteAction = async (req, res) => {
+  try {
+    const { id: productionResponseId } = req.params;
+    const { orderId, partId, employeeId, order_type } = req.body;
+
+    if (!orderId || !partId || !employeeId) {
+      return res.status(400).json({
+        message: "Missing required data (OrderID, PartID, or EmployeeID).",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Find the Schedule first
+      const schedule = await tx.stockOrderSchedule.findFirst({
+        where: {
+          order_id: orderId,
+          part_id: partId,
+          order_type: order_type,
+          isDeleted: false,
+        },
+      });
+
+      if (!schedule) throw new Error("Job Schedule not found.");
+
+      const newQty = (schedule.completedQuantity || 0) + 1;
+      const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+
+      // 2. Update Schedule
+      await tx.stockOrderSchedule.update({
+        where: { id: schedule.id },
+        data: {
+          completedQuantity: newQty,
+          remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+          status: isFinished ? "completed" : "progress",
+          completed_date: isFinished ? new Date() : undefined,
+          completed_EmpId: employeeId,
+        },
+      });
+
+      // 3. FIX: Production Response Update Logic
+      // Check if the record exists before updating
+      const existingResponse = await tx.productionResponse.findUnique({
+        where: { id: productionResponseId },
+      });
+
+      if (existingResponse) {
+        // Agar record mil gaya toh update karein
+        await tx.productionResponse.update({
+          where: { id: productionResponseId },
+          data: {
+            completedQuantity: { increment: 1 },
+            cycleTimeEnd: new Date(),
+            submittedDateTime: new Date(),
+            stationUserId: employeeId,
+            scrap: false,
+          },
+        });
+      } else {
+        // Agar record nahi mila (P2025 fix), toh Naya Create karein
+        await tx.productionResponse.create({
+          data: {
+            orderId: order_type.includes("Stock") ? orderId : null,
+            customOrderId: order_type.includes("Custom") ? orderId : null,
+            partId: partId,
+            processId: schedule.processId || "",
+            completedQuantity: 1,
+            cycleTimeStart: new Date(Date.now() - 60000), // 1 min ago
+            cycleTimeEnd: new Date(),
+            order_type: order_type,
+            stationUserId: employeeId,
+          },
+        });
+      }
+
+      // 4. Update Stock (Inventory)
+      if (order_type.includes("Stock")) {
+        await tx.partNumber.update({
+          where: { part_id: partId },
+          data: { availStock: { increment: 1 } },
+        });
+      }
+
+      return {
+        message: "Success",
+        status: isFinished ? "completed" : "progress",
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Scan Complete Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const scanScrapAction = async (req, res) => {
+  try {
+    const { id: productionResponseId } = req.params; // Station ID from URL
+    const { orderId, partId, employeeId, order_type } = req.body;
+
+    // Basic Validation
+    if (!orderId || !partId || !employeeId || !order_type) {
+      return res.status(400).json({
+        message:
+          "Missing required data (OrderID, PartID, EmployeeID, or OrderType).",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Find the Schedule first
+      const schedule = await tx.stockOrderSchedule.findFirst({
+        where: {
+          order_id: orderId,
+          part_id: partId,
+          order_type: order_type,
+          isDeleted: false,
+        },
+      });
+
+      if (!schedule) throw new Error("Job Schedule not found for this part.");
+
+      // Calculate new remaining quantity
+      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+
+      // 2. Update Schedule Table (Increment Scrap, Decrement Remaining)
+      await tx.stockOrderSchedule.update({
+        where: { id: schedule.id },
+        data: {
+          scrapQuantity: { increment: 1 },
+          remainingQty: newRemaining,
+          status: "progress", // Scrap hone par bhi status progress mein hi rahega
+        },
+      });
+
+      // 3. FIX P2025: Production Response Logic (Update or Create)
+      const existingResponse = await tx.productionResponse.findUnique({
+        where: { id: productionResponseId },
+      });
+
+      if (existingResponse) {
+        // Agar station record mil gaya toh update karein
+        await tx.productionResponse.update({
+          where: { id: productionResponseId },
+          data: {
+            scrap: true,
+            scrapQuantity: { increment: 1 },
+            cycleTimeEnd: new Date(),
+            stationUserId: employeeId,
+            remainingQty: newRemaining,
+          },
+        });
+      } else {
+        // Agar station record nahi mila, toh crash hone ke bajaye naya record Create karein
+        await tx.productionResponse.create({
+          data: {
+            orderId: order_type.includes("Stock") ? orderId : null,
+            customOrderId: order_type.includes("Custom") ? orderId : null,
+            partId: partId,
+            processId: schedule.processId || "",
+            scrap: true,
+            scrapQuantity: 1,
+            completedQuantity: 0,
+            cycleTimeStart: new Date(Date.now() - 60000),
+            cycleTimeEnd: new Date(),
+            order_type: order_type,
+            stationUserId: employeeId,
+            remainingQty: newRemaining,
+          },
+        });
+      }
+
+      // 4. Create History Entry in scapEntries table
+      await tx.scapEntries.create({
+        data: {
+          partId: partId,
+          processId: schedule.processId,
+          returnQuantity: 1,
+          scrapStatus: true,
+          employeeId: employeeId,
+          type: order_type,
+          stockOrderId: order_type.includes("Stock") ? orderId : null,
+        },
+      });
+
+      return {
+        message: "Part added to scrap successfully",
+        remainingQty: newRemaining,
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Scan Scrap Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
 module.exports = {
   stationLogin,
   stationLogout,
@@ -2727,4 +3085,6 @@ module.exports = {
   checkTraningStatus,
   getTrainingScheduleInformation,
   approveTimeSheet,
+  scanCompleteAction,
+  scanScrapAction,
 };

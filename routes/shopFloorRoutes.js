@@ -41,6 +41,8 @@ const {
   changeStationNotification,
   getTrainingScheduleInformation,
   getScrapEntryById,
+  scanCompleteAction,
+  scanScrapAction,
 } = require("../controllers/productionResponseController");
 const {
   selectSupplier,
@@ -125,4 +127,6 @@ router.get(
   selectCustomerForStockOrder,
 );
 router.get("/product-parts/:id", validateToken, getProductParts);
+router.post("/scan-complete/:id", validateToken, scanCompleteAction);
+router.post("/scan-scrap/:id", validateToken, scanScrapAction);
 module.exports = router;
