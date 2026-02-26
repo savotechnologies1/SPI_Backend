@@ -83,22 +83,19 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
       let subject = template?.subject;
       let html = template?.htmlBody;
       let text = template?.textBody;
-
-      // ✅ GoDaddy SMTP Configuration
       const transporter = nodemailer.createTransport(
         smtpTransport({
           pool: true,
           host: "smtpout.secureserver.net",
-          port: 465, // 465 for SSL
+          port: 465,
           secure: true,
           auth: {
             user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD , // अगर MFA चालू है तो यहाँ App Password डालें
+            pass: process.env.SMTP_PASSWORD,
           },
-        })
+        }),
       );
 
-      // Replace Variables
       for (let key in mailVariables) {
         subject = subject?.replaceAll(key, mailVariables[key]);
         html = html?.replaceAll(key, mailVariables[key]);
@@ -106,7 +103,7 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
       }
 
       const options = {
-        from: process.env.SMTP_EMAIL, // 👈 same as auth user
+        from: process.env.SMTP_EMAIL,
         to: email,
         subject: subject,
         text: text,
@@ -123,7 +120,6 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
           message: "Mail successfully sent",
         });
       });
-
     } catch (error) {
       return reject(error);
     }
@@ -180,7 +176,7 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
 //     };
 
 //     const info = await transporter.sendMail(options);
-    
+
 //     return {
 //       type: "success",
 //       message: "Mail successfully sent",

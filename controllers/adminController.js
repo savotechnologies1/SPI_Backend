@@ -897,6 +897,7 @@ const sendSupplierEmail = async (req, res) => {
       message: "Email successfully sent to the supplier.",
     });
   } catch (error) {
+    console.log("error", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -5456,6 +5457,87 @@ const liveProductionGoalBoard = async (req, res) => {
 //       .json({ error: "Internal Server Error", details: error.message });
 //   }
 // };
+
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     const todayStart = startDate
+//       ? new Date(new Date(startDate).setHours(0, 0, 0, 0))
+//       : new Date(new Date().setHours(0, 0, 0, 0));
+//     const todayEnd = endDate
+//       ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
+//       : new Date(new Date().setHours(23, 59, 59, 999));
+
+//     // Sabhi orders fetch karein taaki Summary sahi bane
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         updatedAt: {
+//           gte: todayStart,
+//           lte: todayEnd,
+//         },
+//       },
+//       include: {
+//         part: { select: { partDescription: true } },
+//         process: {
+//           select: {
+//             processName: true,
+//             machineName: true,
+//             cycleTime: true,
+//             ratePerHour: true,
+//           },
+//         },
+//       },
+//       orderBy: { updatedAt: "desc" },
+//     });
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let totalScheduled = 0;
+//     const scrapOnlyDetails = []; // Sirf scrap wale records ke liye
+
+//     for (const order of stockOrders) {
+//       const actual = order.completedQuantity || 0;
+//       const scrap = order.scrapQuantity || 0;
+//       const scheduled = order.scheduleQuantity || 0;
+
+//       // Summary ke liye sabka total karein (Actual, Scrap, Scheduled)
+//       totalActual += actual;
+//       totalScrap += scrap;
+//       totalScheduled += scheduled;
+
+//       // Filter: Sirf wahi data array mein daalein jisme scrap > 0 hai
+//       if (scrap > 0) {
+//         scrapOnlyDetails.push({
+//           processName: order.process?.processName,
+//           machineName: order.process?.machineName,
+//           partDescription: order?.part?.partDescription,
+//           actual: actual,
+//           scrap: scrap,
+//           scheduled: scheduled,
+//           remaining: order.remainingQty,
+//           lastAction: order.updatedAt,
+//         });
+//       }
+//     }
+
+//     res.json({
+//       summary: {
+//         totalActual, // Poore din ka total actual
+//         totalScrap, // Poore din ka total scrap
+//         totalScheduled, // Poore din ka total scheduled
+//         totalOrders: stockOrders.length,
+//       },
+//       details: scrapOnlyDetails, // Isme sirf scrap wale 2-3 records hi aayenge
+//     });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ error: "Internal Server Error", details: error.message });
+//   }
+// };
+
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -5467,72 +5549,101 @@ const currentStatusOverview = async (req, res) => {
       ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
       : new Date(new Date().setHours(23, 59, 59, 999));
 
-    // Sabhi orders fetch karein taaki Summary sahi bane
+    const dateFilter = { gte: todayStart, lte: todayEnd };
+
+    // 1. Fetch Production Orders
     const stockOrders = await prisma.stockOrderSchedule.findMany({
-      where: {
-        isDeleted: false,
-        updatedAt: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
+      where: { isDeleted: false, updatedAt: dateFilter },
       include: {
-        part: { select: { partDescription: true } },
-        process: {
+        part: { select: { partDescription: true, partNumber: true } },
+        process: { select: { processName: true, machineName: true } },
+      },
+    });
+
+    // 2. Fetch Manual Scrap/Returns
+    const scrapEntries = await prisma.scapEntries.findMany({
+      where: { isDeleted: false, updatedAt: dateFilter },
+      include: {
+        // Yahan PartNumber relation use ho raha hai
+        PartNumber: {
           select: {
-            processName: true,
-            machineName: true,
-            cycleTime: true,
-            ratePerHour: true,
+            partDescription: true,
+            partNumber: true,
+            // Agar entry me process na ho to part ka default process uthane ke liye
+            process: { select: { processName: true, machineName: true } },
           },
         },
+        process: { select: { processName: true, machineName: true } },
       },
-      orderBy: { updatedAt: "desc" },
     });
 
     let totalActual = 0;
     let totalScrap = 0;
     let totalScheduled = 0;
-    const scrapOnlyDetails = []; // Sirf scrap wale records ke liye
+    const scrapOnlyDetails = [];
 
-    for (const order of stockOrders) {
-      const actual = order.completedQuantity || 0;
-      const scrap = order.scrapQuantity || 0;
-      const scheduled = order.scheduleQuantity || 0;
-
-      // Summary ke liye sabka total karein (Actual, Scrap, Scheduled)
-      totalActual += actual;
+    // Production Scrap
+    stockOrders.forEach((order) => {
+      const scrap = Number(order.scrapQuantity) || 0;
+      totalActual += order.completedQuantity || 0;
+      totalScheduled += order.scheduleQuantity || 0;
       totalScrap += scrap;
-      totalScheduled += scheduled;
 
-      // Filter: Sirf wahi data array mein daalein jisme scrap > 0 hai
       if (scrap > 0) {
         scrapOnlyDetails.push({
-          processName: order.process?.processName,
-          machineName: order.process?.machineName,
-          partDescription: order?.part?.partDescription,
-          actual: actual,
+          processName: order.process?.processName || "Production",
+          machineName: order.process?.machineName || "N/A",
+          partNumber: order.part?.partNumber || "N/A", // Added Part Number
+          partDescription: order.part?.partDescription || "N/A",
+          actual: order.completedQuantity || 0,
           scrap: scrap,
-          scheduled: scheduled,
-          remaining: order.remainingQty,
+          type: "Production",
           lastAction: order.updatedAt,
         });
       }
-    }
+    });
+
+    // Manual/Entry Scrap
+    scrapEntries.forEach((entry) => {
+      const sQty =
+        Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+      totalScrap += sQty;
+
+      if (sQty > 0) {
+        // Pehle entry ka process dekho, agar null hai toh part ka process dekho
+        const pName =
+          entry.process?.processName ||
+          entry.PartNumber?.process?.processName ||
+          "Manual Entry";
+        const mName =
+          entry.process?.machineName ||
+          entry.PartNumber?.process?.machineName ||
+          "N/A";
+
+        scrapOnlyDetails.push({
+          processName: pName,
+          machineName: mName,
+          partNumber: entry.PartNumber?.partNumber || "N/A", // Added Part Number
+          partDescription: entry.PartNumber?.partDescription || "N/A",
+          actual: 0,
+          scrap: sQty,
+          type: entry.type || "Return/Scrap",
+          lastAction: entry.updatedAt,
+        });
+      }
+    });
 
     res.json({
       summary: {
-        totalActual, // Poore din ka total actual
-        totalScrap, // Poore din ka total scrap
-        totalScheduled, // Poore din ka total scheduled
+        totalActual,
+        totalScrap,
+        totalScheduled,
         totalOrders: stockOrders.length,
       },
-      details: scrapOnlyDetails, // Isme sirf scrap wale 2-3 records hi aayenge
+      details: scrapOnlyDetails,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({ error: "Internal Error", details: error.message });
   }
 };
 const currentQualityStatusOverview = async (req, res) => {
@@ -5933,28 +6044,175 @@ const getDiveApi = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+// const cycleTimeComparisionData = async (req, res) => {
+//   try {
+//     let { startDate, endDate, partId } = req.query;
+//     if (!partId) {
+//       return res.status(400).json({ error: "partId is required" });
+//     }
+//     const today = new Date().toISOString().split("T")[0];
+//     startDate = startDate;
+//     endDate = endDate;
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+
+//     if (isNaN(start) || isNaN(end)) {
+//       return res
+//         .status(400)
+//         .json({ error: "Invalid date format (YYYY-MM-DD)" });
+//     }
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: {
+//         partId,
+//         isDeleted: false,
+//       },
+//       include: {
+//         process: { select: { processName: true, machineName: true } },
+//         PartNumber: { select: { cycleTime: true } },
+//       },
+//     });
+
+//     const grouped = {};
+//     productionResponses.forEach((resp) => {
+//       if (!grouped[resp.processId]) {
+//         grouped[resp.processId] = {
+//           processName: resp.process?.processName,
+//           machineName: resp.process?.machineName,
+//           manualCTs: [],
+//           idealCT: resp.PartNumber?.cycleTime
+//             ? Number(resp.PartNumber.cycleTime) / 60
+//             : 0,
+//         };
+//       }
+
+//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+//         const ct =
+//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+//           1000 /
+//           60;
+//         grouped[resp.processId].manualCTs.push(ct);
+//       }
+//     });
+
+//     const processWiseCT = Object.values(grouped).map((p) => ({
+//       processName: p.processName,
+//       machineName: p.machineName,
+//       manualCT:
+//         p.manualCTs.length > 0
+//           ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
+//           : 0,
+//       idealCT: p.idealCT,
+//     }));
+//     const stepTrackings = await prisma.productionStepTracking.findMany({
+//       where: {
+//         status: "completed",
+//         stepStartTime: { not: null },
+//         stepEndTime: { not: null },
+//       },
+//       include: {
+//         productionResponse: {
+//           select: {
+//             partId: true,
+//           },
+//         },
+//         workInstructionStep: {
+//           select: {
+//             id: true,
+//             stepNumber: true,
+//             title: true,
+//           },
+//         },
+//       },
+//     });
+//     const stepGrouped = {};
+
+//     stepTrackings.forEach((st) => {
+//       const duration =
+//         (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
+
+//       const stepId = st.workInstructionStep?.id;
+//       if (!stepId) return;
+
+//       if (!stepGrouped[stepId]) {
+//         stepGrouped[stepId] = {
+//           stepId,
+//           stepTitle: st.workInstructionStep.title,
+//           stepNumber: st.workInstructionStep.stepNumber,
+//           durations: [],
+//         };
+//       }
+
+//       stepGrouped[stepId].durations.push(duration);
+//     });
+
+//     const stepAverages = Object.values(stepGrouped).map((s) => ({
+//       stepId: s.stepId,
+//       stepTitle: s.stepTitle,
+//       stepNumber: s.stepNumber,
+//       averageDuration:
+//         s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+//       count: s.durations.length,
+//     }));
+
+//     const allDurations = stepAverages.flatMap((s) => s.averageDuration);
+//     const overallAverage =
+//       stepAverages.length > 0
+//         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
+//           stepAverages.length
+//         : 0;
+
+//     res.json({
+//       message: "Cycle Time Comparison fetched successfully",
+//       data: {
+//         processWiseCT,
+//         stepWiseCT: {
+//           stepAverages,
+//           overallAverage,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
+
 const cycleTimeComparisionData = async (req, res) => {
   try {
-    let { startDate, endDate, partId } = req.query;
+    let { startDate, endDate, partId, processId } = req.query;
+
+    // 1. Validation
     if (!partId) {
       return res.status(400).json({ error: "partId is required" });
     }
-    const today = new Date().toISOString().split("T")[0];
-    startDate = startDate;
-    endDate = endDate;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
 
-    if (isNaN(start) || isNaN(end)) {
+    // Date range setup (Default check)
+    const start = new Date(startDate || "2024-01-01");
+    const end = new Date(endDate || "2025-12-31");
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res
         .status(400)
         .json({ error: "Invalid date format (YYYY-MM-DD)" });
     }
+
+    // --- PART 1: Process Wise Cycle Time Logic ---
+    const respWhere = {
+      partId: partId,
+      isDeleted: false,
+      // Date filter optional:
+      // createdAt: { gte: start, lte: end }
+    };
+
+    // Agar ProcessId select ki gayi hai toh filter lagao
+    if (processId) {
+      respWhere.processId = processId;
+    }
+
     const productionResponses = await prisma.productionResponse.findMany({
-      where: {
-        partId,
-        isDeleted: false,
-      },
+      where: respWhere,
       include: {
         process: { select: { processName: true, machineName: true } },
         PartNumber: { select: { cycleTime: true } },
@@ -5965,21 +6223,22 @@ const cycleTimeComparisionData = async (req, res) => {
     productionResponses.forEach((resp) => {
       if (!grouped[resp.processId]) {
         grouped[resp.processId] = {
-          processName: resp.process?.processName,
-          machineName: resp.process?.machineName,
+          processName: resp.process?.processName || "Unknown",
+          machineName: resp.process?.machineName || "N/A",
           manualCTs: [],
           idealCT: resp.PartNumber?.cycleTime
-            ? Number(resp.PartNumber.cycleTime) / 60
+            ? Number(resp.PartNumber.cycleTime) / 60 // Assuming stored in seconds
             : 0,
         };
       }
 
       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
-        const ct =
+        const durationMin =
           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
           1000 /
           60;
-        grouped[resp.processId].manualCTs.push(ct);
+        if (durationMin > 0)
+          grouped[resp.processId].manualCTs.push(durationMin);
       }
     });
 
@@ -5992,18 +6251,19 @@ const cycleTimeComparisionData = async (req, res) => {
           : 0,
       idealCT: p.idealCT,
     }));
+
+    // --- PART 2: Step Wise Analysis Logic (FILTERED BY PROCESS ID) ---
     const stepTrackings = await prisma.productionStepTracking.findMany({
       where: {
         status: "completed",
         stepStartTime: { not: null },
         stepEndTime: { not: null },
+        productionResponse: {
+          processId: processId || undefined, // 👈 Yahan Process ID se filter ho raha hai
+          isDeleted: false,
+        },
       },
       include: {
-        productionResponse: {
-          select: {
-            partId: true,
-          },
-        },
         workInstructionStep: {
           select: {
             id: true,
@@ -6013,14 +6273,14 @@ const cycleTimeComparisionData = async (req, res) => {
         },
       },
     });
+
     const stepGrouped = {};
-
     stepTrackings.forEach((st) => {
-      const duration =
-        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
-
       const stepId = st.workInstructionStep?.id;
       if (!stepId) return;
+
+      const duration =
+        (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
 
       if (!stepGrouped[stepId]) {
         stepGrouped[stepId] = {
@@ -6030,26 +6290,27 @@ const cycleTimeComparisionData = async (req, res) => {
           durations: [],
         };
       }
-
-      stepGrouped[stepId].durations.push(duration);
+      if (duration > 0) stepGrouped[stepId].durations.push(duration);
     });
 
-    const stepAverages = Object.values(stepGrouped).map((s) => ({
-      stepId: s.stepId,
-      stepTitle: s.stepTitle,
-      stepNumber: s.stepNumber,
-      averageDuration:
-        s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
-      count: s.durations.length,
-    }));
+    const stepAverages = Object.values(stepGrouped)
+      .map((s) => ({
+        stepId: s.stepId,
+        stepTitle: s.stepTitle,
+        stepNumber: s.stepNumber,
+        averageDuration:
+          s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+        count: s.durations.length,
+      }))
+      .sort((a, b) => a.stepNumber - b.stepNumber); // Sort steps by number
 
-    const allDurations = stepAverages.flatMap((s) => s.averageDuration);
     const overallAverage =
       stepAverages.length > 0
         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
           stepAverages.length
         : 0;
 
+    // Final Response
     res.json({
       message: "Cycle Time Comparison fetched successfully",
       data: {
@@ -6061,6 +6322,7 @@ const cycleTimeComparisionData = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("API Error:", error);
     res.status(500).json({
       error: "Internal Server Error",
       details: error.message,
