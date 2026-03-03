@@ -6808,35 +6808,45 @@ const capacityStatus = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
-
 const productionEfficieny = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const dateFilter = {};
+    
+    // Date filter logic: Production metrics ke liye hum updatedAt ya completed_date use karenge
+    // kyunki createdAt order banne ka time hai, kaam khatam hone ka nahi.
+    let dateFilter = { isDeleted: false };
+
     if (startDate || endDate) {
-      dateFilter.createdAt = {};
-      if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+      const filterRange = {};
+      if (startDate) filterRange.gte = new Date(startDate);
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        dateFilter.createdAt.lte = end;
+        filterRange.lte = end;
       }
+      // Hum updatedAt use kar rahe hain kyunki jab status 'completed' hota hai toh ye update hota hai
+      dateFilter.updatedAt = filterRange; 
     }
 
     const [schedules, scrapEntries] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
-        where: { isDeleted: false, ...dateFilter },
+        where: dateFilter,
         select: {
-          createdAt: true,
+          updatedAt: true, // Grouping ke liye
           completedQuantity: true,
           scheduleQuantity: true,
           scrapQuantity: true,
+          status: true,
           part: { select: { cost: true } },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: { updatedAt: "asc" },
       }),
       prisma.scapEntries.findMany({
-        where: { isDeleted: false, ...dateFilter },
+        where: {
+          isDeleted: false,
+          // Scrap entries hamesha usi din ki dikhni chahiye jab wo bani
+          ...(startDate || endDate ? { createdAt: dateFilter.updatedAt } : {})
+        },
         select: {
           createdAt: true,
           returnQuantity: true,
@@ -6845,49 +6855,152 @@ const productionEfficieny = async (req, res) => {
       }),
     ]);
 
-    const totalOrders = schedules.length;
     const dailyMap = new Map();
     let totalCompleted = 0;
     let totalScrapCost = 0;
 
-    schedules.forEach((item) => {
-      const dateKey = item.createdAt.toISOString().split("T")[0];
+    // Timezone safe Date formatter (YYYY-MM-DD)
+    const getLocalDate = (date) => {
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
-      if (!dailyMap.has(dateKey)) {
-        dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+    schedules.forEach((item) => {
+      // Sirf wahi records count karein jo 'completed' hain (optional, depends on your need)
+      if (item.completedQuantity > 0) {
+        const dateKey = getLocalDate(item.updatedAt);
+
+        if (!dailyMap.has(dateKey)) {
+          dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+        }
+        
+        const current = dailyMap.get(dateKey);
+        const qty = item.completedQuantity || 0;
+        
+        current.completed += qty;
+        totalCompleted += qty;
+        
+        // Scrap Cost from schedules
+        const partCost = parseFloat(item.part?.cost || 0);
+        totalScrapCost += partCost * (item.scrapQuantity || 0);
       }
-      const current = dailyMap.get(dateKey);
-      current.completed += item.completedQuantity || 0;
-      totalCompleted += item.completedQuantity || 0;
-      const partCost = parseFloat(item.part?.cost || 0);
-      totalScrapCost += partCost * (item.scrapQuantity || 0);
     });
 
+    // Scrap Cost from independent Scrap Entries
     scrapEntries.forEach((entry) => {
       const entryCost = parseFloat(entry.PartNumber?.cost || 0);
       const entryQty = Number(entry.returnQuantity) || 0;
       totalScrapCost += entryCost * entryQty;
+      
+      // Agar aap scrap ko bhi graph mein dikhana chahte hain toh yahan logic add kar sakte hain
     });
 
+    // Map ko array mein convert karke sort karein
     const graphData = Array.from(dailyMap.values()).sort(
-      (a, b) => new Date(a.date) - new Date(b.date),
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
     return res.status(200).json({
+      success: true,
       message: "Production Quantity Data",
       data: graphData,
       totals: {
-        totalOrders,
+        totalOrders: schedules.length,
         totalCompleted,
         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
       },
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Server Error", error: error.message });
+    console.error("Error in productionEfficiency:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server Error", 
+      error: error.message 
+    });
   }
 };
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+//     const dateFilter = {};
+//     if (startDate || endDate) {
+//       dateFilter.createdAt = {};
+//       if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+//       if (endDate) {
+//         const end = new Date(endDate);
+//         end.setHours(23, 59, 59, 999);
+//         dateFilter.createdAt.lte = end;
+//       }
+//     }
+
+//     const [schedules, scrapEntries] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: { isDeleted: false, ...dateFilter },
+//         select: {
+//           createdAt: true,
+//           completedQuantity: true,
+//           scheduleQuantity: true,
+//           scrapQuantity: true,
+//           part: { select: { cost: true } },
+//         },
+//         orderBy: { createdAt: "asc" },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { isDeleted: false, ...dateFilter },
+//         select: {
+//           createdAt: true,
+//           returnQuantity: true,
+//           PartNumber: { select: { cost: true } },
+//         },
+//       }),
+//     ]);
+
+//     const totalOrders = schedules.length;
+//     const dailyMap = new Map();
+//     let totalCompleted = 0;
+//     let totalScrapCost = 0;
+
+//     schedules.forEach((item) => {
+//       const dateKey = item.createdAt.toISOString().split("T")[0];
+
+//       if (!dailyMap.has(dateKey)) {
+//         dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+//       }
+//       const current = dailyMap.get(dateKey);
+//       current.completed += item.completedQuantity || 0;
+//       totalCompleted += item.completedQuantity || 0;
+//       const partCost = parseFloat(item.part?.cost || 0);
+//       totalScrapCost += partCost * (item.scrapQuantity || 0);
+//     });
+
+//     scrapEntries.forEach((entry) => {
+//       const entryCost = parseFloat(entry.PartNumber?.cost || 0);
+//       const entryQty = Number(entry.returnQuantity) || 0;
+//       totalScrapCost += entryCost * entryQty;
+//     });
+
+//     const graphData = Array.from(dailyMap.values()).sort(
+//       (a, b) => new Date(a.date) - new Date(b.date),
+//     );
+
+//     return res.status(200).json({
+//       message: "Production Quantity Data",
+//       data: graphData,
+//       totals: {
+//         totalOrders,
+//         totalCompleted,
+//         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Server Error", error: error.message });
+//   }
+// };
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;

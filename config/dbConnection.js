@@ -25,7 +25,7 @@ const connectDB = async () => {
         data: [
           {
             templateEvent: "otp-verify",
-            subject: "SPI OTP Verification",
+            subject: "BHIVES OTP Verification",
             mailVariables: "%otp%",
             htmlBody: `<!DOCTYPE html>
             <html lang="en">
@@ -44,12 +44,12 @@ const connectDB = async () => {
                   
                   <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Please use this OTP to complete your verification.</p>
                   <div style="margin-top: 40px; font-size: 14px; color: #bdc3c7; border-top: 1px solid #f1f1f1; padding-top: 20px;">
-                    <p style="margin: 0">© SPI. All rights reserved.</p>
+                    <p style="margin: 0">© BHIVES. All rights reserved.</p>
                   </div>
                 </div>
               </body>
             </html>`,
-            textBody: "Your SPI Verification code is %otp%",
+            textBody: "Your BHIVES Verification code is %otp%",
           },
           {
             templateEvent: "account-created",
@@ -64,7 +64,7 @@ const connectDB = async () => {
                         </head>
                         <body style="font-family: Arial, sans-serif; background-color: #f4f7fc; margin: 0; padding: 0;">
                           <div style="width: 100%; max-width: 600px; margin: 40px auto; background-color: #ffffff; padding: 30px 0px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center;">
-                            <h1 style="font-size: 28px; color: #2c3e50; margin-bottom: 20px">Welcome to SPI !</h1>
+                            <h1 style="font-size: 28px; color: #2c3e50; margin-bottom: 20px">Welcome to BHIVES !</h1>
                             <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Hello,</p>
                             <p style="font-size: 16px; color: #7f8c8d; line-height: 1.8">Your account has been successfully created.</p>
                             <p style="font-size: 16px; color: #2c3e50; font-weight: bold; margin-top: 30px;">Account Details:</p>
@@ -74,7 +74,7 @@ const connectDB = async () => {
                             </div>
                             <p style="font-size: 16px; color: #7f8c8d; margin-top: 30px;">You can now log in using the credentials above.</p>
                             <div style="margin-top: 40px; font-size: 14px; color: #bdc3c7; border-top: 1px solid #f1f1f1; padding-top: 20px;">
-                              <p style="margin: 0">&copy; SPI. All rights reserved.</p>
+                              <p style="margin: 0">&copy; BHIVES. All rights reserved.</p>
                             </div>
                           </div>
                         </body>
@@ -140,12 +140,12 @@ const connectDB = async () => {
                               </table>
 
                               <p style="font-size: 16px; line-height: 1.5; margin-top: 25px">If you have any questions, please feel free to contact us.</p>
-                              <p style="font-size: 16px; line-height: 1.5">Thank you,<br /><strong>SPI Team</strong></p>
+                              <p style="font-size: 16px; line-height: 1.5">Thank you,<br /><strong>BHIVES Team</strong></p>
                             </td>
                           </tr>
                           <tr>
                             <td style="background: #f9f9f9; text-align: center; padding: 15px; font-size: 12px; color: #777;">
-                            &copy; SPI. All rights reserved.
+                            &copy; BHIVES. All rights reserved.
                             </td>
                           </tr>
                         </table>
@@ -236,7 +236,7 @@ const connectDB = async () => {
                     color: #7f8c8d;
                   "
                 >
-                  <p style="margin: 0 0 10px">© 2025 SPI. All rights reserved.</p>
+                  <p style="margin: 0 0 10px">© 2025 BHIVES. All rights reserved.</p>
                 </div>
               </div>
             </body>
