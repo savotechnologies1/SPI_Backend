@@ -3394,6 +3394,7 @@ const checkTraningStatus = async (req, res) => {
 //     return res.status(500).json({ message: "Internal Server Error" });
 //   }
 // };
+
 const getTrainingScheduleInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;

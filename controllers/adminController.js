@@ -2905,9 +2905,154 @@ const getCustomOrderById = async (req, res) => {
   }
 };
 
+// const searchStockOrders = async (req, res) => {
+//   try {
+//     const { customerName, shipDate, productNumber } = req.query;
+
+//     let whereClause = {
+//       isDeleted: false,
+//       status: "Pending",
+//     };
+
+//     if (customerName) {
+//       const name = customerName.trim();
+//       const parts = name.split(/\s+/);
+//       if (parts.length >= 2) {
+//         whereClause.customer = {
+//           OR: [
+//             { firstName: { contains: name } },
+//             { lastName: { contains: name } },
+//             {
+//               AND: [
+//                 { firstName: { contains: parts[0] } },
+//                 { lastName: { contains: parts.slice(1).join(" ") } },
+//               ],
+//             },
+//           ],
+//         };
+//       } else {
+//         whereClause.customer = {
+//           OR: [
+//             { firstName: { contains: name } },
+//             { lastName: { contains: name } },
+//           ],
+//         };
+//       }
+//     }
+
+//     if (productNumber) {
+//       whereClause.part = { partNumber: { contains: productNumber.trim() } };
+//     }
+
+//     if (shipDate) {
+//       whereClause.shipDate = shipDate;
+//     }
+//     const partSelectFields = {
+//       part_id: true,
+//       partFamily: true,
+//       partNumber: true,
+//       partDescription: true,
+//       type: true,
+//       cost: true,
+//       minStock: true,
+//       availStock: true,
+//       supplierOrderQty: true,
+//       processId: true,
+//       processDesc: true,
+//       processOrderRequired: true,
+//       submittedBy: true,
+//       createdBy: true,
+//       isDeleted: true,
+//       companyName: true,
+//     };
+
+//     const bomSelect = {
+//       select: {
+//         ...partSelectFields,
+//         components: {
+//           select: {
+//             id: true,
+//             product_id: true,
+//             part_id: true,
+//             partQuantity: true,
+//             isDeleted: true,
+//             processOrderRequired: true,
+//             createdBy: true,
+//             part: {
+//               select: {
+//                 ...partSelectFields,
+//                 components: {
+//                   select: {
+//                     id: true,
+//                     partQuantity: true,
+//                     part: {
+//                       select: {
+//                         ...partSelectFields,
+//                         components: {
+//                           select: {
+//                             id: true,
+//                             part: { select: partSelectFields },
+//                           },
+//                         },
+//                       },
+//                     },
+//                   },
+//                 },
+//               },
+//             },
+//           },
+//         },
+//       },
+//     };
+
+//     const orders = await prisma.stockOrder.findMany({
+//       where: whereClause,
+//       orderBy: { createdAt: "desc" },
+//       select: {
+//         id: true,
+//         orderNumber: true,
+//         orderDate: true,
+//         shipDate: true,
+//         customerId: true,
+//         customerName: true,
+//         customerEmail: true,
+//         customerPhone: true,
+//         productNumber: true,
+//         productDescription: true,
+//         cost: true,
+//         productQuantity: true,
+//         createdBy: true,
+//         isDeleted: true,
+//         totalCost: true,
+//         status: true,
+//         partId: true,
+//         customer: {
+//           select: {
+//             id: true,
+//             firstName: true,
+//             lastName: true,
+//             email: true,
+//             customerPhone: true,
+//           },
+//         },
+//         part: bomSelect,
+//       },
+//     });
+
+//     return res.status(200).json({
+//       message: "Stock orders retrieved successfully!",
+//       data: orders,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Something went wrong.",
+//       error: error.message,
+//     });
+//   }
+// };
 const searchStockOrders = async (req, res) => {
   try {
-    const { customerName, shipDate, productNumber } = req.query;
+    const { customerName, shipDate, partNumber } = req.query;
 
     let whereClause = {
       isDeleted: false,
@@ -2917,36 +3062,29 @@ const searchStockOrders = async (req, res) => {
     if (customerName) {
       const name = customerName.trim();
       const parts = name.split(/\s+/);
-      if (parts.length >= 2) {
-        whereClause.customer = {
-          OR: [
-            { firstName: { contains: name } },
-            { lastName: { contains: name } },
-            {
-              AND: [
-                { firstName: { contains: parts[0] } },
-                { lastName: { contains: parts.slice(1).join(" ") } },
-              ],
-            },
-          ],
-        };
-      } else {
-        whereClause.customer = {
-          OR: [
-            { firstName: { contains: name } },
-            { lastName: { contains: name } },
-          ],
-        };
-      }
+      whereClause.customer = {
+        OR: [
+          { firstName: { contains: name, mode: "insensitive" } },
+          { lastName: { contains: name, mode: "insensitive" } },
+        ],
+      };
     }
 
-    if (productNumber) {
-      whereClause.part = { partNumber: { contains: productNumber.trim() } };
+    if (partNumber) {
+      whereClause.part = {
+        partNumber: { contains: partNumber.trim(), mode: "insensitive" },
+      };
     }
 
+    // --- यहाँ बदलाव किया गया है ---
     if (shipDate) {
-      whereClause.shipDate = shipDate;
+      // चूंकि आपका DB String मांग रहा है, हम String ही भेजेंगे
+      whereClause.shipDate = {
+        contains: shipDate, // यह "2026-03-07" को String की तरह मैच करेगा
+      };
     }
+
+    // 5. Selection Fields (BOM और Nested Parts के लिए)
     const partSelectFields = {
       part_id: true,
       partFamily: true,
@@ -3005,6 +3143,7 @@ const searchStockOrders = async (req, res) => {
       },
     };
 
+    // 6. Database Query Execution
     const orders = await prisma.stockOrder.findMany({
       where: whereClause,
       orderBy: { createdAt: "desc" },
@@ -3017,7 +3156,7 @@ const searchStockOrders = async (req, res) => {
         customerName: true,
         customerEmail: true,
         customerPhone: true,
-        productNumber: true,
+        productNumber: true, // DB column name
         productDescription: true,
         cost: true,
         productQuantity: true,
@@ -3039,11 +3178,13 @@ const searchStockOrders = async (req, res) => {
       },
     });
 
+    // 7. Success Response
     return res.status(200).json({
       message: "Stock orders retrieved successfully!",
       data: orders,
     });
   } catch (error) {
+    console.error("SEARCH ERROR:", error);
     return res.status(500).json({
       message: "Something went wrong.",
       error: error.message,
@@ -3102,17 +3243,132 @@ const formatOrders = (orders) => {
   });
 };
 
+// const searchCustomOrders = async (req, res) => {
+//   try {
+//     const { customerName, shipDate, partNumber, orderNumber } = req.query;
+//     const commonInclude = {
+//       customer: true,
+//       product: {
+//         select: {
+//           partNumber: true,
+//           partDescription: true,
+//         },
+//       },
+//       existingParts: {
+//         include: {
+//           part: { select: { partNumber: true, partDescription: true } },
+//           process: { select: { processName: true } },
+//         },
+//       },
+//       customPart: {
+//         include: {
+//           process: { select: { processName: true } },
+//         },
+//       },
+//     };
+
+//     const andConditions = [{ isDeleted: false }];
+//     if (orderNumber) {
+//       andConditions.push({ orderNumber: { contains: orderNumber.trim() } });
+//     }
+
+//     if (customerName) {
+//       const name = customerName.trim();
+//       andConditions.push({
+//         OR: [
+//           { customerName: { contains: name } },
+//           {
+//             customer: {
+//               OR: [
+//                 { firstName: { contains: name } },
+//                 { lastName: { contains: name } },
+//               ],
+//             },
+//           },
+//         ],
+//       });
+//     }
+
+//     if (shipDate) {
+//       const date = new Date(shipDate);
+//       const nextDay = new Date(shipDate);
+//       nextDay.setDate(date.getDate() + 1);
+//       andConditions.push({ shipDate: { gte: date, lt: nextDay } });
+//     }
+//     if (partNumber) {
+//       const pNum = partNumber.trim();
+//       andConditions.push({
+//         OR: [
+//           { partNumber: { contains: pNum } },
+//           {
+//             existingParts: {
+//               some: { part: { partNumber: { contains: pNum } } },
+//             },
+//           },
+//           { customPart: { some: { partNumber: { contains: pNum } } } },
+//         ],
+//       });
+//     }
+//     const orders = await prisma.customOrder.findMany({
+//       where: { AND: andConditions },
+//       include: commonInclude,
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     const formattedOrders = orders.map((order) => {
+//       const mappedExisting = order.existingParts.map((ep) => ({
+//         id: ep.id,
+//         partId: ep.partId,
+//         partNumber: ep.part?.partNumber,
+//         partDescription: ep.part?.partDescription,
+//         qty: ep.quantity,
+//         processId: ep.processId,
+//         processName: ep.process?.processName || "No Process",
+//         cycleTime: ep.cycleTime,
+//         workInstruction: ep.instructionRequired ? "Yes" : "No",
+//         source: "Library",
+//       }));
+
+//       const mappedManual = order.customPart.map((cp) => ({
+//         id: cp.id,
+//         partNumber: cp.partNumber,
+//         qty: cp.quantity,
+//         processId: cp.processId,
+//         processName:
+//           cp.processName || cp.process?.processName || "Manual Process",
+//         cycleTime: cp.cycleTime,
+//         workInstruction: cp.workInstruction,
+//         source: "Manual",
+//       }));
+
+//       return {
+//         ...order,
+//         bomList: [...mappedExisting, ...mappedManual],
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         orders.length > 0 ? "Orders retrieved successfully" : "No orders found",
+//       data: formattedOrders,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber, orderNumber } = req.query;
+
     const commonInclude = {
       customer: true,
-      product: {
-        select: {
-          partNumber: true,
-          partDescription: true,
-        },
-      },
+      product: { select: { partNumber: true, partDescription: true } },
       existingParts: {
         include: {
           part: { select: { partNumber: true, partDescription: true } },
@@ -3120,27 +3376,28 @@ const searchCustomOrders = async (req, res) => {
         },
       },
       customPart: {
-        include: {
-          process: { select: { processName: true } },
-        },
+        include: { process: { select: { processName: true } } },
       },
     };
 
     const andConditions = [{ isDeleted: false }];
+
     if (orderNumber) {
-      andConditions.push({ orderNumber: { contains: orderNumber.trim() } });
+      andConditions.push({
+        orderNumber: { contains: orderNumber.trim(), mode: "insensitive" },
+      });
     }
 
     if (customerName) {
       const name = customerName.trim();
       andConditions.push({
         OR: [
-          { customerName: { contains: name } },
+          { customerName: { contains: name, mode: "insensitive" } },
           {
             customer: {
               OR: [
-                { firstName: { contains: name } },
-                { lastName: { contains: name } },
+                { firstName: { contains: name, mode: "insensitive" } },
+                { lastName: { contains: name, mode: "insensitive" } },
               ],
             },
           },
@@ -3148,26 +3405,43 @@ const searchCustomOrders = async (req, res) => {
       });
     }
 
+    // DATE FIX: 8 तारीख का 7 न बने इसके लिए Range Search
     if (shipDate) {
-      const date = new Date(shipDate);
-      const nextDay = new Date(shipDate);
-      nextDay.setDate(date.getDate() + 1);
-      andConditions.push({ shipDate: { gte: date, lt: nextDay } });
+      const startOfDay = new Date(shipDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(shipDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      andConditions.push({
+        shipDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      });
     }
+
     if (partNumber) {
       const pNum = partNumber.trim();
       andConditions.push({
         OR: [
-          { partNumber: { contains: pNum } },
+          { partNumber: { contains: pNum, mode: "insensitive" } },
           {
             existingParts: {
-              some: { part: { partNumber: { contains: pNum } } },
+              some: {
+                part: { partNumber: { contains: pNum, mode: "insensitive" } },
+              },
             },
           },
-          { customPart: { some: { partNumber: { contains: pNum } } } },
+          {
+            customPart: {
+              some: { partNumber: { contains: pNum, mode: "insensitive" } },
+            },
+          },
         ],
       });
     }
+
     const orders = await prisma.customOrder.findMany({
       where: { AND: andConditions },
       include: commonInclude,
@@ -3175,28 +3449,21 @@ const searchCustomOrders = async (req, res) => {
     });
 
     const formattedOrders = orders.map((order) => {
-      const mappedExisting = order.existingParts.map((ep) => ({
+      const mappedExisting = (order.existingParts || []).map((ep) => ({
         id: ep.id,
         partId: ep.partId,
         partNumber: ep.part?.partNumber,
         partDescription: ep.part?.partDescription,
         qty: ep.quantity,
-        processId: ep.processId,
         processName: ep.process?.processName || "No Process",
-        cycleTime: ep.cycleTime,
-        workInstruction: ep.instructionRequired ? "Yes" : "No",
         source: "Library",
       }));
 
-      const mappedManual = order.customPart.map((cp) => ({
+      const mappedManual = (order.customPart || []).map((cp) => ({
         id: cp.id,
         partNumber: cp.partNumber,
         qty: cp.quantity,
-        processId: cp.processId,
-        processName:
-          cp.processName || cp.process?.processName || "Manual Process",
-        cycleTime: cp.cycleTime,
-        workInstruction: cp.workInstruction,
+        processName: cp.process?.processName || "Manual Process",
         source: "Manual",
       }));
 
@@ -3208,16 +3475,11 @@ const searchCustomOrders = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message:
-        orders.length > 0 ? "Orders retrieved successfully" : "No orders found",
       data: formattedOrders,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    });
+    console.error("Search Error:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 const stockOrderSchedule = async (req, res) => {
@@ -6811,7 +7073,7 @@ const capacityStatus = async (req, res) => {
 const productionEfficieny = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     // Date filter logic: Production metrics ke liye hum updatedAt ya completed_date use karenge
     // kyunki createdAt order banne ka time hai, kaam khatam hone ka nahi.
     let dateFilter = { isDeleted: false };
@@ -6825,7 +7087,7 @@ const productionEfficieny = async (req, res) => {
         filterRange.lte = end;
       }
       // Hum updatedAt use kar rahe hain kyunki jab status 'completed' hota hai toh ye update hota hai
-      dateFilter.updatedAt = filterRange; 
+      dateFilter.updatedAt = filterRange;
     }
 
     const [schedules, scrapEntries] = await Promise.all([
@@ -6845,7 +7107,7 @@ const productionEfficieny = async (req, res) => {
         where: {
           isDeleted: false,
           // Scrap entries hamesha usi din ki dikhni chahiye jab wo bani
-          ...(startDate || endDate ? { createdAt: dateFilter.updatedAt } : {})
+          ...(startDate || endDate ? { createdAt: dateFilter.updatedAt } : {}),
         },
         select: {
           createdAt: true,
@@ -6863,8 +7125,8 @@ const productionEfficieny = async (req, res) => {
     const getLocalDate = (date) => {
       const d = new Date(date);
       const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     };
 
@@ -6876,13 +7138,13 @@ const productionEfficieny = async (req, res) => {
         if (!dailyMap.has(dateKey)) {
           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
         }
-        
+
         const current = dailyMap.get(dateKey);
         const qty = item.completedQuantity || 0;
-        
+
         current.completed += qty;
         totalCompleted += qty;
-        
+
         // Scrap Cost from schedules
         const partCost = parseFloat(item.part?.cost || 0);
         totalScrapCost += partCost * (item.scrapQuantity || 0);
@@ -6894,13 +7156,13 @@ const productionEfficieny = async (req, res) => {
       const entryCost = parseFloat(entry.PartNumber?.cost || 0);
       const entryQty = Number(entry.returnQuantity) || 0;
       totalScrapCost += entryCost * entryQty;
-      
+
       // Agar aap scrap ko bhi graph mein dikhana chahte hain toh yahan logic add kar sakte hain
     });
 
     // Map ko array mein convert karke sort karein
     const graphData = Array.from(dailyMap.values()).sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
 
     return res.status(200).json({
@@ -6915,10 +7177,10 @@ const productionEfficieny = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in productionEfficiency:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: "Server Error", 
-      error: error.message 
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
     });
   }
 };
