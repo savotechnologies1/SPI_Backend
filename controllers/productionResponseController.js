@@ -323,63 +323,57 @@ const stationLogout = async (req, res) => {
 //       .json({ message: "Database Error", error: error.message });
 //   }
 // };
-
 const stationLogin = async (req, res) => {
   try {
     const { processId, stationUserId, type, partId } = req.body;
-    // ... validation code ...
+
+    if (!stationUserId || !processId) {
+      return res
+        .status(400)
+        .json({ message: "Invalid Station User or Process ID." });
+    }
 
     const nextJob = await findNextJobForProcess(processId);
     const currentPartId = partId || nextJob?.part_id || nextJob?.customPartId;
 
-    // --- NAYA LOGIC: Pichle bitaye hue samay ko nikalna ---
-    const previousSessions = await prisma.productionResponse.findMany({
-      where: {
-        stationUserId: stationUserId,
-        processId: processId,
-        partId: currentPartId,
-        cycleTimeEnd: { not: null }, // Sirf wahi sessions jo khatam ho chuke hain
-        isDeleted: false,
-      },
-    });
-
-    let totalTimeSpentBefore = 0;
-    previousSessions.forEach((session) => {
-      const diff =
-        new Date(session.cycleTimeEnd) - new Date(session.cycleTimeStart);
-      totalTimeSpentBefore += Math.floor(diff / 1000); // Seconds mein
-    });
-    // ---------------------------------------------------
+    // --- FRESH START LOGIC ---
+    // Jab bhi worker login karega (Production ho ya Training),
+    // cycleTimeStart humesha 'Abhi ka current time' hoga.
+    // Isse frontend par timer humesha 0 se shuru dikhayega.
 
     const createData = {
       process: { connect: { id: processId } },
       employeeInfo: { connect: { id: stationUserId } },
       type,
       traniningStatus: false,
-      cycleTimeStart: new Date(),
-      order_type: nextJob?.order_type || "Training",
+      cycleTimeStart: new Date(), // Reset to 0 (Current Time)
+      order_type:
+        nextJob?.order_type || (type === "training" ? "Training" : "N/A"),
       scheduleQuantity: nextJob?.scheduleQuantity || 0,
-      PartNumber: currentPartId
-        ? { connect: { part_id: currentPartId } }
-        : undefined,
-      // ... baki connect logic same ...
     };
+
+    if (currentPartId) {
+      createData.PartNumber = { connect: { part_id: currentPartId } };
+    }
+
+    if (nextJob?.order_type === "StockOrder" && nextJob?.order_id) {
+      createData.StockOrder = { connect: { id: nextJob.order_id } };
+    } else if (nextJob?.order_type === "CustomOrder" && nextJob?.order_id) {
+      createData.CustomOrder = { connect: { id: nextJob.order_id } };
+    }
 
     const processLoginData = await prisma.productionResponse.create({
       data: createData,
     });
 
     return res.status(200).json({
-      message: "Login successful",
-      data: {
-        ...processLoginData,
-        totalTimeSpentBefore: totalTimeSpentBefore, // Frontend isse timer mein add karega
-      },
+      message: "Login successful. Timer started at 0.",
+      data: processLoginData,
     });
   } catch (error) {
     return res
       .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+      .json({ message: "Database Error", error: error.message });
   }
 };
 const createProductionResponse = async (req, res) => {
@@ -887,100 +881,276 @@ const findNextJobForProcess = async (processId) => {
   }
 };
 
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const {
+//       orderId,
+//       partId,
+//       employeeId,
+//       order_type,
+//       type: partNum,
+//       completedBy: category,
+//     } = req.body;
+
+//     const performerId = req?.user?.id;
+
+//     if (!orderId || !order_type) {
+//       return res
+//         .status(400)
+//         .json({ message: "orderId and order_type are required." });
+//     }
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       const orderSchedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           order_type: order_type,
+//           isDeleted: false,
+//           OR: [
+//             { part_id: partId },
+//             { customPartId: partId },
+//             { partNumberPart_id: partId },
+//             { customPart: { partNumber: partId } },
+//           ],
+//         },
+//       });
+
+//       if (!orderSchedule) throw new Error(`Schedule not found`);
+
+//       const totalQty = orderSchedule.scheduleQuantity || 0;
+//       const currentQty = orderSchedule.completedQuantity || 0;
+//       if (currentQty >= totalQty) return { alreadyCompleted: true };
+
+//       const newCompletedQty = currentQty + 1;
+//       const updatedStatus =
+//         newCompletedQty >= totalQty ? "completed" : "progress";
+
+//       if (productionResponseId && productionResponseId !== "null") {
+//         await tx.productionResponse.update({
+//           where: { id: productionResponseId },
+//           data: {
+//             cycleTimeEnd: new Date(),
+//             completedQuantity: 1,
+//             submittedDateTime: new Date(),
+//             stationUserId: employeeId,
+//           },
+//         });
+//       } else {
+//         await tx.productionResponse.create({
+//           data: {
+//             orderId: order_type.includes("Stock") ? orderId : null,
+//             customOrderId: order_type.includes("Custom") ? orderId : null,
+//             partId: orderSchedule.part_id,
+//             processId: orderSchedule.processId || "",
+//             completedQuantity: 1,
+//             cycleTimeStart: new Date(Date.now() - 5 * 60000),
+//             cycleTimeEnd: new Date(),
+//             order_type: order_type,
+//             stationUserId: employeeId,
+//           },
+//         });
+//       }
+
+//       if (
+//         order_type.replace(/\s/g, "") === "StockOrder" &&
+//         orderSchedule.part_id
+//       ) {
+//         await tx.partNumber.update({
+//           where: { part_id: orderSchedule.part_id },
+//           data: { availStock: { increment: 1 } },
+//         });
+//       }
+
+//       await tx.stockOrderSchedule.update({
+//         where: { id: orderSchedule.id },
+//         data: {
+//           completedQuantity: newCompletedQty,
+//           status: updatedStatus,
+//           remainingQty: Math.max(0, totalQty - newCompletedQty),
+//           completed_date:
+//             updatedStatus === "completed" ? new Date() : undefined,
+//           completed_EmpId: employeeId,
+//         },
+//       });
+
+//       return { status: updatedStatus };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     if (!orderId || !order_type) {
+//       return res
+//         .status(400)
+//         .json({ message: "orderId and order_type are required." });
+//     }
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       const orderSchedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           order_type: order_type,
+//           isDeleted: false,
+//           OR: [{ part_id: partId }, { customPartId: partId }],
+//         },
+//       });
+
+//       if (!orderSchedule) throw new Error(`Schedule not found`);
+
+//       const totalQty = orderSchedule.scheduleQuantity || 0;
+//       const currentQty = orderSchedule.completedQuantity || 0;
+//       if (currentQty >= totalQty) return { alreadyCompleted: true };
+
+//       const now = new Date();
+//       let perPartCycleTimeSeconds = 0;
+
+//       // --- NAYA LOGIC: Per Part Cycle Time Calculation ---
+//       if (productionResponseId && productionResponseId !== "null") {
+//         const existingResponse = await tx.productionResponse.findUnique({
+//           where: { id: productionResponseId },
+//         });
+
+//         if (existingResponse) {
+//           // Agar cycleTimeEnd null hai (matlab pehla part hai), toh cycleTimeStart use karein
+//           const startTime = existingResponse.cycleTimeEnd
+//             ? new Date(existingResponse.cycleTimeEnd)
+//             : new Date(existingResponse.cycleTimeStart);
+
+//           perPartCycleTimeSeconds = Math.floor((now - startTime) / 1000);
+
+//           await tx.productionResponse.update({
+//             where: { id: productionResponseId },
+//             data: {
+//               cycleTimeEnd: now, // Agle part ke liye timer yahin se shuru hoga
+//               completedQuantity: { increment: 1 },
+//               submittedDateTime: now,
+//               stationUserId: employeeId,
+//             },
+//           });
+//         }
+//       } else {
+//         // Agar productionResponseId nahi hai toh naya create karein (Existing functionality)
+//         await tx.productionResponse.create({
+//           data: {
+//             orderId: order_type.includes("Stock") ? orderId : null,
+//             customOrderId: order_type.includes("Custom") ? orderId : null,
+//             partId: orderSchedule.part_id,
+//             processId: orderSchedule.processId || "",
+//             completedQuantity: 1,
+//             cycleTimeStart: new Date(Date.now() - 5000), // Default 5 sec diff
+//             cycleTimeEnd: now,
+//             order_type: order_type,
+//             stationUserId: employeeId,
+//           },
+//         });
+//       }
+
+//       // --- Rest of the existing logic ---
+//       const newCompletedQty = currentQty + 1;
+//       const updatedStatus =
+//         newCompletedQty >= totalQty ? "completed" : "progress";
+
+//       if (
+//         order_type.replace(/\s/g, "") === "StockOrder" &&
+//         orderSchedule.part_id
+//       ) {
+//         await tx.partNumber.update({
+//           where: { part_id: orderSchedule.part_id },
+//           data: { availStock: { increment: 1 } },
+//         });
+//       }
+
+//       await tx.stockOrderSchedule.update({
+//         where: { id: orderSchedule.id },
+//         data: {
+//           completedQuantity: newCompletedQty,
+//           status: updatedStatus,
+//           remainingQty: Math.max(0, totalQty - newCompletedQty),
+//           completed_date: updatedStatus === "completed" ? now : undefined,
+//           completed_EmpId: employeeId,
+//         },
+//       });
+
+//       return {
+//         status: updatedStatus,
+//         lastPartTime: perPartCycleTimeSeconds, // Frontend ke liye cycle time info
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 const completeScheduleOrder = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params;
-    const {
-      orderId,
-      partId,
-      employeeId,
-      order_type,
-      type: partNum,
-      completedBy: category,
-    } = req.body;
-
-    const performerId = req?.user?.id;
-
-    if (!orderId || !order_type) {
-      return res
-        .status(400)
-        .json({ message: "orderId and order_type are required." });
-    }
+    const { id: productionResponseId } = req.params; // Current Session ID
+    const { orderId, partId, employeeId, order_type } = req.body;
 
     const result = await prisma.$transaction(async (tx) => {
-      const orderSchedule = await tx.stockOrderSchedule.findFirst({
+      const schedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
-          order_type: order_type,
+          part_id: partId,
+          order_type,
           isDeleted: false,
-          OR: [
-            { part_id: partId },
-            { customPartId: partId },
-            { partNumberPart_id: partId },
-            { customPart: { partNumber: partId } },
-          ],
         },
       });
+      if (!schedule) throw new Error("Schedule not found");
 
-      if (!orderSchedule) throw new Error(`Schedule not found`);
+      const now = new Date();
 
-      const totalQty = orderSchedule.scheduleQuantity || 0;
-      const currentQty = orderSchedule.completedQuantity || 0;
-      if (currentQty >= totalQty) return { alreadyCompleted: true };
-
-      const newCompletedQty = currentQty + 1;
-      const updatedStatus =
-        newCompletedQty >= totalQty ? "completed" : "progress";
-
-      if (productionResponseId && productionResponseId !== "null") {
-        await tx.productionResponse.update({
-          where: { id: productionResponseId },
-          data: {
-            cycleTimeEnd: new Date(),
-            completedQuantity: 1,
-            submittedDateTime: new Date(),
-            stationUserId: employeeId,
-          },
-        });
-      } else {
-        await tx.productionResponse.create({
-          data: {
-            orderId: order_type.includes("Stock") ? orderId : null,
-            customOrderId: order_type.includes("Custom") ? orderId : null,
-            partId: orderSchedule.part_id,
-            processId: orderSchedule.processId || "",
-            completedQuantity: 1,
-            cycleTimeStart: new Date(Date.now() - 5 * 60000),
-            cycleTimeEnd: new Date(),
-            order_type: order_type,
-            stationUserId: employeeId,
-          },
-        });
-      }
-
-      if (
-        order_type.replace(/\s/g, "") === "StockOrder" &&
-        orderSchedule.part_id
-      ) {
-        await tx.partNumber.update({
-          where: { part_id: orderSchedule.part_id },
-          data: { availStock: { increment: 1 } },
-        });
-      }
-
-      await tx.stockOrderSchedule.update({
-        where: { id: orderSchedule.id },
+      // 1. Purane Session ko CLOSE karein (Isse ek unit ka record lock ho jayega)
+      const lastSession = await tx.productionResponse.update({
+        where: { id: productionResponseId },
         data: {
-          completedQuantity: newCompletedQty,
-          status: updatedStatus,
-          remainingQty: Math.max(0, totalQty - newCompletedQty),
-          completed_date:
-            updatedStatus === "completed" ? new Date() : undefined,
-          completed_EmpId: employeeId,
+          cycleTimeEnd: now,
+          completedQuantity: 1, // Fix to 1 for individual tracking
+          submittedDateTime: now,
+          stationUserId: employeeId,
         },
       });
 
-      return { status: updatedStatus };
+      // 2. Agle unit ke liye NAYA session turant shuru karein (Timer Reset)
+      const nextSession = await tx.productionResponse.create({
+        data: {
+          processId: lastSession.processId,
+          stationUserId: employeeId,
+          partId: partId,
+          orderId: lastSession.orderId,
+          customOrderId: lastSession.customOrderId,
+          order_type: order_type,
+          cycleTimeStart: now, // Naya timer yahin se shuru
+          completedQuantity: 0,
+        },
+      });
+
+      // 3. Overall Schedule Update
+      const newQty = (schedule.completedQuantity || 0) + 1;
+      const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+      await tx.stockOrderSchedule.update({
+        where: { id: schedule.id },
+        data: {
+          completedQuantity: newQty,
+          remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+          status: isFinished ? "completed" : "progress",
+        },
+      });
+
+      return {
+        status: isFinished ? "completed" : "progress",
+        newProductionId: nextSession.id, // Frontend ko naya ID bhejna hoga timer ke liye
+      };
     });
 
     return res.status(200).json(result);
@@ -988,84 +1158,228 @@ const completeScheduleOrder = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// const scrapScheduleOrder = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
 
+//     if (!order_type) {
+//       return res.status(400).json({ message: "order_type is required." });
+//     }
+
+//     const orderSchedule = await prisma.stockOrderSchedule.findUnique({
+//       where: {
+//         order_id_part_id_order_type: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type: order_type,
+//         },
+//       },
+//     });
+
+//     if (!orderSchedule) {
+//       return res
+//         .status(404)
+//         .json({ message: "Stock order schedule not found." });
+//     }
+
+//     const currentRemainingQty = orderSchedule.remainingQty || 0;
+//     const newRemainingQty = Math.max(0, currentRemainingQty - 1);
+//     await prisma.stockOrderSchedule.update({
+//       where: {
+//         order_id_part_id_order_type: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type: order_type,
+//         },
+//       },
+//       data: {
+//         status: "progress",
+//         scrapQuantity: { increment: 1 },
+//         remainingQty: newRemainingQty,
+//         part_id: partId,
+//       },
+//     });
+
+//     // 3. Production Response Update (ID se update karein, updateMany ki filter risk na lein)
+//     await prisma.productionResponse.update({
+//       where: { id: id }, // Use direct ID
+//       data: {
+//         scrap: true,
+//         quantity: false,
+//         cycleTimeEnd: new Date(),
+//         scrapQuantity: { increment: 1 },
+//         partId: partId,
+//         remainingQty: newRemainingQty,
+//       },
+//     });
+
+//     // 4. Scrap Entry Create
+//     await prisma.scapEntries.create({
+//       data: {
+//         partId: partId,
+//         returnQuantity: 1,
+//         scrapStatus: true,
+//         employeeId: employeeId, // DB field name match karein
+//         type: order_type,
+//       },
+//     });
+
+//     return res
+//       .status(200)
+//       .json({ message: "This order has been added as scrap." });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ message: "An error occurred.", error: error.message });
+//   }
+// };
+
+// const scrapScheduleOrder = async (req, res) => {
+//   try {
+//     const { id } = req.params; // Production Response ID
+//     const { orderId, partId, employeeId, order_type } = req.body;
+//     const now = new Date();
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Current Session close as Scrap
+//       const oldSession = await tx.productionResponse.update({
+//         where: { id },
+//         data: { cycleTimeEnd: now, scrap: true, scrapQuantity: 1 },
+//       });
+
+//       // 2. Start NEXT session timer from zero
+//       const nextSession = await tx.productionResponse.create({
+//         data: {
+//           processId: oldSession.processId,
+//           stationUserId: employeeId,
+//           partId: partId,
+//           orderId: oldSession.orderId,
+//           customOrderId: oldSession.customOrderId,
+//           order_type: order_type,
+//           cycleTimeStart: now, // RESET TIMER
+//           completedQuantity: 0,
+//         },
+//       });
+
+//       // 3. Update Schedule
+//       await tx.stockOrderSchedule.updateMany({
+//         where: { order_id: orderId, part_id: partId },
+//         data: { scrapQuantity: { increment: 1 } },
+//       });
+
+//       return { message: "Scrapped", newProductionId: nextSession.id };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
 const scrapScheduleOrder = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id: productionResponseId } = req.params; // Current Station Session ID
     const { orderId, partId, employeeId, order_type } = req.body;
+    const now = new Date();
 
-    if (!order_type) {
-      return res.status(400).json({ message: "order_type is required." });
-    }
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Current Session ko dhundo
+      const currentSession = await tx.productionResponse.findUnique({
+        where: { id: productionResponseId },
+      });
 
-    const orderSchedule = await prisma.stockOrderSchedule.findUnique({
-      where: {
-        order_id_part_id_order_type: {
+      if (!currentSession) throw new Error("Station session not found.");
+
+      // 2. CLOSE current session (Is unit ka time yahan STOP ho gaya)
+      await tx.productionResponse.update({
+        where: { id: productionResponseId },
+        data: {
+          scrap: true,
+          scrapQuantity: 1, // Ek unit scrap hui
+          completedQuantity: 0,
+          cycleTimeEnd: now, // Timer yahan khatam
+          submittedDateTime: now,
+          stationUserId: employeeId,
+        },
+      });
+
+      // 3. Schedule Check & Remaining Qty Calculation
+      const schedule = await tx.stockOrderSchedule.findFirst({
+        where: {
           order_id: orderId,
           part_id: partId,
-          order_type: order_type,
+          order_type,
+          isDeleted: false,
         },
-      },
-    });
+      });
 
-    if (!orderSchedule) {
-      return res
-        .status(404)
-        .json({ message: "Stock order schedule not found." });
-    }
+      if (!schedule) throw new Error("Job Schedule not found.");
 
-    const currentRemainingQty = orderSchedule.remainingQty || 0;
-    const newRemainingQty = Math.max(0, currentRemainingQty - 1);
-    await prisma.stockOrderSchedule.update({
-      where: {
-        order_id_part_id_order_type: {
-          order_id: orderId,
-          part_id: partId,
-          order_type: order_type,
+      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+      const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+
+      // 4. Agle unit ke liye NAYA record (RESET TIMER TO ZERO)
+      let nextProductionId = null;
+      if (updatedStatus !== "completed") {
+        const nextSession = await tx.productionResponse.create({
+          data: {
+            processId: currentSession.processId,
+            stationUserId: employeeId,
+            partId: partId,
+            orderId: currentSession.orderId,
+            customOrderId: currentSession.customOrderId,
+            order_type: order_type,
+            cycleTimeStart: now, // NAYA TIMER YAHAN SE 0 SE SHURU HOGA
+            completedQuantity: 0,
+            scrapQuantity: 0,
+            scrap: false,
+          },
+        });
+        nextProductionId = nextSession.id;
+      }
+
+      // 5. Update Schedule Table
+      await tx.stockOrderSchedule.update({
+        where: { id: schedule.id },
+        data: {
+          scrapQuantity: { increment: 1 },
+          remainingQty: newRemaining,
+          status: updatedStatus,
+          completed_date: updatedStatus === "completed" ? now : undefined,
         },
-      },
-      data: {
-        status: "progress",
-        scrapQuantity: { increment: 1 },
-        remainingQty: newRemainingQty,
-        part_id: partId,
-      },
+      });
+
+      // 6. Scrap History Record (Fix Prisma relation error)
+      await tx.scapEntries.create({
+        data: {
+          returnQuantity: 1,
+          scrapStatus: true,
+          employeeId: employeeId,
+          type: order_type,
+          defectDesc: "Manual Scrap",
+          PartNumber: partId ? { connect: { part_id: partId } } : undefined,
+          process: currentSession.processId
+            ? { connect: { id: currentSession.processId } }
+            : undefined,
+          StockOrder: order_type.includes("Stock")
+            ? { connect: { id: orderId } }
+            : undefined,
+        },
+      });
+
+      return {
+        message: "Scrapped and timer reset",
+        newProductionId: nextProductionId,
+        isJobFinished: updatedStatus === "completed",
+      };
     });
 
-    // 3. Production Response Update (ID se update karein, updateMany ki filter risk na lein)
-    await prisma.productionResponse.update({
-      where: { id: id }, // Use direct ID
-      data: {
-        scrap: true,
-        quantity: false,
-        cycleTimeEnd: new Date(),
-        scrapQuantity: { increment: 1 },
-        partId: partId,
-        remainingQty: newRemainingQty,
-      },
-    });
-
-    // 4. Scrap Entry Create
-    await prisma.scapEntries.create({
-      data: {
-        partId: partId,
-        returnQuantity: 1,
-        scrapStatus: true,
-        employeeId: employeeId, // DB field name match karein
-        type: order_type,
-      },
-    });
-
-    return res
-      .status(200)
-      .json({ message: "This order has been added as scrap." });
+    return res.status(200).json(result);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "An error occurred.", error: error.message });
+    console.error("Scrap Logic Error:", error);
+    res.status(500).json({ message: error.message });
   }
 };
-
 const updateStepTime = async (req, res) => {
   try {
     const { productionId, stepId } = req.body;
@@ -1137,37 +1451,67 @@ const updateStepTime = async (req, res) => {
 //   }
 // };
 
+// const completeTraning = async (req, res) => {
+//   try {
+//     const { id } = req.params; // productionResponseId
+//     const now = new Date();
+
+//     const checkRecord = await prisma.productionResponse.findUnique({
+//       where: { id },
+//     });
+//     if (!checkRecord)
+//       return res.status(404).json({ message: "Session not found" });
+
+//     await prisma.$transaction([
+//       // 1. Mark training as FINISHED
+//       prisma.productionResponse.update({
+//         where: { id: id },
+//         data: {
+//           traniningStatus: true, // Now it's officially completed
+//           cycleTimeEnd: now,
+//           updatedAt: now,
+//         },
+//       }),
+//       // 2. Close any open steps
+//       prisma.productionStepTracking.updateMany({
+//         where: { productionResponseId: id, status: "in-progress" },
+//         data: { stepEndTime: now, status: "completed" },
+//       }),
+//     ]);
+
+//     return res
+//       .status(200)
+//       .json({ message: "Training completed successfully!" });
+//   } catch (error) {
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
 const completeTraning = async (req, res) => {
   try {
     const { id } = req.params; // productionResponseId
     const now = new Date();
 
-    const checkRecord = await prisma.productionResponse.findUnique({
-      where: { id },
-    });
-    if (!checkRecord)
-      return res.status(404).json({ message: "Session not found" });
-
     await prisma.$transaction([
-      // 1. Mark training as FINISHED
+      // 1. Training session ko officially close karein
       prisma.productionResponse.update({
         where: { id: id },
         data: {
-          traniningStatus: true, // Now it's officially completed
-          cycleTimeEnd: now,
+          traniningStatus: true, // Certified mark karein
+          cycleTimeEnd: now, // Timer ko yahan rok dein
           updatedAt: now,
         },
       }),
-      // 2. Close any open steps
+      // 2. Agar koi steps in-progress hain toh unhe bhi close karein
       prisma.productionStepTracking.updateMany({
         where: { productionResponseId: id, status: "in-progress" },
         data: { stepEndTime: now, status: "completed" },
       }),
     ]);
 
-    return res
-      .status(200)
-      .json({ message: "Training completed successfully!" });
+    return res.status(200).json({
+      message:
+        "Training completed! Your production timer will start from 0 when you log in for work.",
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -3026,7 +3370,6 @@ const customerRelation = async (req, res) => {
 //       .json({ message: "Internal Server Error", error: error.message });
 //   }
 // };
-
 const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
@@ -3038,6 +3381,7 @@ const getScheduleProcessInformation = async (req, res) => {
         .json({ message: "processId and stationUserId are required." });
     }
 
+    // 1. Find Jobs assigned to this station
     const candidates = await prisma.stockOrderSchedule.findMany({
       where: {
         processId: processId,
@@ -3065,7 +3409,9 @@ const getScheduleProcessInformation = async (req, res) => {
     });
 
     const nextJob = sortedCandidates[0];
+    const currentPartId = nextJob.part_id || nextJob.customPartId;
 
+    // 2. Incoming Jobs List
     const incomingJobs = sortedCandidates.slice(1).map((job) => ({
       scheduleId: job.id,
       orderNumber:
@@ -3077,73 +3423,61 @@ const getScheduleProcessInformation = async (req, res) => {
       type: job.order_type,
     }));
 
-    // --- LOGIC START: Timer Reset Fix ---
-    const currentPartId = nextJob.part_id || nextJob.customPartId;
-
-    // Sabhi purane sessions ka time nikalna (Same user + Same Part + Same Process)
-    const allSessions = await prisma.productionResponse.findMany({
+    // --- CLIENT FIX: Timer Reset Logic ---
+    // Hum sirf wahi record dhoondhenge jo abhi active hai (completedQuantity 0 hai aur is part ke liye hai)
+    const currentSession = await prisma.productionResponse.findFirst({
       where: {
         processId: processId,
         stationUserId: stationUserId,
         partId: currentPartId,
+        completedQuantity: 0, // Matlab yeh abhi chal raha hai
         isDeleted: false,
       },
+      orderBy: { cycleTimeStart: "desc" }, // Sabse naya
+      include: { employeeInfo: true },
     });
 
-    let totalSecondsAlreadySpent = 0;
-    allSessions.forEach((session) => {
-      const start = new Date(session.cycleTimeStart);
-      const end = session.cycleTimeEnd
-        ? new Date(session.cycleTimeEnd)
-        : new Date();
-      totalSecondsAlreadySpent += Math.floor((end - start) / 1000);
-    });
+    // Agar session nahi milta (man lo refresh kiya aur purana wala 1 ho chuka hai),
+    // toh hum last created session uthayenge reset timer ke saath
+    const lastProduction =
+      currentSession ||
+      (await prisma.productionResponse.findFirst({
+        where: { processId, stationUserId, isDeleted: false },
+        orderBy: { cycleTimeStart: "desc" },
+        include: { employeeInfo: true },
+      }));
 
-    // Hum 'cycleTime' key mein ek "Virtual Date" bhejenge
-    // jo (Abhi ka Time - Pehle bitaya gaya Time) hogi.
-    // Isse frontend ka timer sahi jagah se resume hoga.
-    const resumedCycleTime = new Date(
-      Date.now() - totalSecondsAlreadySpent * 1000,
-    );
-    // --- LOGIC END ---
+    // 3. Order, Stats and Instructions fetch karein
+    const [orderData, workInstructions, stats] = await Promise.all([
+      nextJob.order_type === "StockOrder"
+        ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
+        : prisma.customOrder.findUnique({ where: { id: nextJob.order_id } }),
 
-    const [orderData, workInstructions, lastProduction, stats] =
-      await Promise.all([
-        nextJob.order_type === "StockOrder"
-          ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
-          : prisma.customOrder.findUnique({ where: { id: nextJob.order_id } }),
-
-        prisma.workInstruction.findFirst({
-          where: {
-            productId: nextJob.part_id || undefined,
-            processId: processId,
-            isDeleted: false,
+      prisma.workInstruction.findFirst({
+        where: {
+          productId: currentPartId || undefined,
+          processId: processId,
+          isDeleted: false,
+        },
+        include: {
+          steps: {
+            where: { isDeleted: false },
+            orderBy: { stepNumber: "asc" },
+            include: { images: true, videos: true },
           },
-          include: {
-            steps: {
-              where: { isDeleted: false },
-              orderBy: { stepNumber: "asc" },
-              include: { images: true, videos: true },
-            },
-          },
-        }),
+        },
+      }),
 
-        prisma.productionResponse.findFirst({
-          where: { processId, stationUserId, isDeleted: false },
-          orderBy: { cycleTimeStart: "desc" },
-          include: { employeeInfo: true },
-        }),
-
-        prisma.stockOrderSchedule.aggregate({
-          where: {
-            order_id: nextJob.order_id,
-            processId,
-            isDeleted: false,
-            completed_EmpId: stationUserId,
-          },
-          _sum: { completedQuantity: true, scrapQuantity: true },
-        }),
-      ]);
+      prisma.stockOrderSchedule.aggregate({
+        where: {
+          order_id: nextJob.order_id,
+          processId,
+          isDeleted: false,
+          completed_EmpId: stationUserId,
+        },
+        _sum: { completedQuantity: true, scrapQuantity: true },
+      }),
+    ]);
 
     return res.status(200).json({
       message: "Job Found",
@@ -3161,8 +3495,8 @@ const getScheduleProcessInformation = async (req, res) => {
         employeeCompletedQty: stats._sum.completedQuantity || 0,
         employeeScrapQty: stats._sum.scrapQuantity || 0,
         incomingJobs: incomingJobs,
-        // Purani key 'cycleTime' ko hum resumed time ke saath bhej rahe hain
-        cycleTime: resumedCycleTime,
+        // YAHAN FIX HAI: cycleTime hamesha wahi jayega jo current active piece ka start time hai
+        cycleTime: lastProduction?.cycleTimeStart || null,
       },
     });
   } catch (error) {
@@ -3394,104 +3728,132 @@ const checkTraningStatus = async (req, res) => {
 //     return res.status(500).json({ message: "Internal Server Error" });
 //   }
 // };
+// const getTrainingScheduleInformation = async (req, res) => {
+//   try {
+//     const { id: processId } = req.params;
+//     const { stationUserId } = req.query;
 
+//     if (!processId || !stationUserId) {
+//       return res.status(400).json({ message: "ProcessId and StationUserId are required." });
+//     }
+
+//     // 1. Bas itna dekho ki is station par koi job hai ya nahi
+//     const nextJob = await prisma.stockOrderSchedule.findFirst({
+//       where: { processId, isDeleted: false },
+//       include: { part: true, customPart: true, process: true },
+//     });
+
+//     if (!nextJob) {
+//       return res.status(404).json({ message: "No jobs available for training at this station." });
+//     }
+
+//     const currentPartId = nextJob.part_id || nextJob.customPartId;
+
+//     // 2. Find or Create Training Session (Plain & Simple)
+//     let production = await prisma.productionResponse.findFirst({
+//       where: {
+//         stationUserId,
+//         processId,
+//         partId: currentPartId,
+//         type: "training",
+//         traniningStatus: false,
+//         isDeleted: false,
+//       },
+//     });
+
+//     if (!production) {
+//       production = await prisma.productionResponse.create({
+//         data: {
+//           processId,
+//           stationUserId,
+//           partId: currentPartId,
+//           type: "training",
+//           traniningStatus: false,
+//           cycleTimeStart: new Date(),
+//         },
+//       });
+//     }
+
+//     // 3. Get Instructions
+//     const workInstructions = await prisma.workInstruction.findFirst({
+//       where: { productId: currentPartId, processId, isDeleted: false },
+//       include: {
+//         steps: {
+//           where: { isDeleted: false },
+//           orderBy: { stepNumber: "asc" },
+//           include: { images: true, videos: true },
+//         },
+//       },
+//     });
+
+//     return res.status(200).json({
+//       message: "Training Session Ready",
+//       data: {
+//         ...nextJob,
+//         productionId: production.id,
+//         workInstructionSteps: workInstructions?.steps || [],
+//         instructionTitle: workInstructions?.instructionTitle || "Manual",
+//         cycleTime: production.cycleTimeStart,
+//         partNumber: nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
+//       },
+//     });
+//   } catch (error) {
+//     return res.status(500).json({ message: "Server Error", error: error.message });
+//   }
+// };
 const getTrainingScheduleInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
     const { stationUserId } = req.query;
 
-    if (!processId || !stationUserId || stationUserId === "undefined") {
+    if (!processId || !stationUserId) {
       return res
         .status(400)
         .json({ message: "ProcessId and StationUserId are required." });
     }
 
-    // 1. Pehle dekho is Station par kaunsi Jobs available hain (StockOrderSchedule)
-    // Hum sirf wahi jobs dikhayenge jinki WorkInstructions available hain
-    const availableInstructions = await prisma.workInstruction.findMany({
-      where: { processId: processId, isDeleted: false },
-      select: { productId: true },
-    });
-
-    const trainableProductIds = availableInstructions
-      .map((wi) => wi.productId)
-      .filter(Boolean);
-
-    if (trainableProductIds.length === 0) {
-      return res.status(404).json({
-        message: "No training materials (instructions) found for this station.",
-      });
-    }
-
-    // 2. Schedule se sabse pehli available job uthao
+    // 1. Bas itna dekho ki is station par koi job hai ya nahi
     const nextJob = await prisma.stockOrderSchedule.findFirst({
-      where: {
-        processId,
-        isDeleted: false,
-        status: { in: ["new", "progress"] },
-        OR: [
-          { part_id: { in: trainableProductIds } },
-          { customPartId: { in: trainableProductIds } },
-        ],
-      },
-      include: {
-        part: true,
-        customPart: true,
-        process: true,
-        StockOrder: { select: { orderNumber: true } },
-        CustomOrder: { select: { orderNumber: true } },
-      },
-      orderBy: { createdAt: "asc" },
+      where: { processId, isDeleted: false },
+      include: { part: true, customPart: true, process: true },
     });
 
     if (!nextJob) {
-      return res.status(404).json({
-        message: "No active jobs found for training at this station.",
-      });
+      return res
+        .status(404)
+        .json({ message: "No jobs available for training at this station." });
     }
 
     const currentPartId = nextJob.part_id || nextJob.customPartId;
 
-    // 3. FIND OR CREATE: Check karein kya is user ki training session pehle se active hai?
+    // 2. Find or Create Training Session (Plain & Simple)
     let production = await prisma.productionResponse.findFirst({
       where: {
-        stationUserId: stationUserId,
-        processId: processId,
+        stationUserId,
+        processId,
         partId: currentPartId,
-        traniningStatus: false, // Yani abhi chal rahi hai (completed nahi hui)
         type: "training",
+        traniningStatus: false,
         isDeleted: false,
       },
-      include: { employeeInfo: true },
     });
 
     if (!production) {
-      // Agar session nahi mila, toh naya create kar do (Isse productionId mil jayegi)
       production = await prisma.productionResponse.create({
         data: {
-          processId: processId,
-          stationUserId: stationUserId,
+          processId,
+          stationUserId,
           partId: currentPartId,
           type: "training",
           traniningStatus: false,
           cycleTimeStart: new Date(),
-          order_type: nextJob.order_type,
-          orderId:
-            nextJob.order_type === "StockOrder" ? nextJob.order_id : null,
-          customOrderId:
-            nextJob.order_type === "CustomOrder" ? nextJob.order_id : null,
         },
-        include: { employeeInfo: true },
       });
     }
 
-    // 4. Work Instructions fetch karein (Steps ke liye)
+    // 3. Get Instructions
     const workInstructions = await prisma.workInstruction.findFirst({
-      where: {
-        productId: currentPartId,
-        processId: processId,
-        isDeleted: false,
-      },
+      where: { productId: currentPartId, processId, isDeleted: false },
       include: {
         steps: {
           where: { isDeleted: false },
@@ -3501,32 +3863,311 @@ const getTrainingScheduleInformation = async (req, res) => {
       },
     });
 
-    // 5. Response bhejein (Ab sab kuch automate ho gaya)
     return res.status(200).json({
-      message: "Training Session Started",
+      message: "Training Session Ready",
       data: {
         ...nextJob,
-        productionId: production.id, // Naya ya purana ID yahan se jayega
+        productionId: production.id,
         workInstructionSteps: workInstructions?.steps || [],
-        instructionTitle:
-          workInstructions?.instructionTitle || "Training Manual",
+        instructionTitle: workInstructions?.instructionTitle || "Manual",
         cycleTime: production.cycleTimeStart,
-        employeeInfo: production.employeeInfo,
-        processName: nextJob.process?.processName || "N/A",
         partNumber:
           nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
       },
     });
   } catch (error) {
-    console.error("Training Schedule Error:", error);
     return res
       .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+      .json({ message: "Server Error", error: error.message });
   }
 };
+// const scanCompleteAction = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     if (!orderId || !partId || !employeeId) {
+//       return res.status(400).json({
+//         message: "Missing required data (OrderID, PartID, or EmployeeID).",
+//       });
+//     }
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Find the Schedule first
+//       const schedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type: order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!schedule) throw new Error("Job Schedule not found.");
+
+//       const newQty = (schedule.completedQuantity || 0) + 1;
+//       const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+
+//       // 2. Update Schedule
+//       await tx.stockOrderSchedule.update({
+//         where: { id: schedule.id },
+//         data: {
+//           completedQuantity: newQty,
+//           remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+//           status: isFinished ? "completed" : "progress",
+//           completed_date: isFinished ? new Date() : undefined,
+//           completed_EmpId: employeeId,
+//         },
+//       });
+
+//       // 3. FIX: Production Response Update Logic
+//       // Check if the record exists before updating
+//       const existingResponse = await tx.productionResponse.findUnique({
+//         where: { id: productionResponseId },
+//       });
+
+//       if (existingResponse) {
+//         // Agar record mil gaya toh update karein
+//         await tx.productionResponse.update({
+//           where: { id: productionResponseId },
+//           data: {
+//             completedQuantity: { increment: 1 },
+//             cycleTimeEnd: new Date(),
+//             submittedDateTime: new Date(),
+//             stationUserId: employeeId,
+//             scrap: false,
+//           },
+//         });
+//       } else {
+//         // Agar record nahi mila (P2025 fix), toh Naya Create karein
+//         await tx.productionResponse.create({
+//           data: {
+//             orderId: order_type.includes("Stock") ? orderId : null,
+//             customOrderId: order_type.includes("Custom") ? orderId : null,
+//             partId: partId,
+//             processId: schedule.processId || "",
+//             completedQuantity: 1,
+//             cycleTimeStart: new Date(Date.now() - 60000), // 1 min ago
+//             cycleTimeEnd: new Date(),
+//             order_type: order_type,
+//             stationUserId: employeeId,
+//           },
+//         });
+//       }
+
+//       // 4. Update Stock (Inventory)
+//       if (order_type.includes("Stock")) {
+//         await tx.partNumber.update({
+//           where: { part_id: partId },
+//           data: { availStock: { increment: 1 } },
+//         });
+//       }
+
+//       return {
+//         message: "Success",
+//         status: isFinished ? "completed" : "progress",
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Scan Complete Error:", error);
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+// const scanScrapAction = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params; // Station ID from URL
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     // Basic Validation
+//     if (!orderId || !partId || !employeeId || !order_type) {
+//       return res.status(400).json({
+//         message:
+//           "Missing required data (OrderID, PartID, EmployeeID, or OrderType).",
+//       });
+//     }
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Find the Schedule first
+//       const schedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type: order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!schedule) throw new Error("Job Schedule not found for this part.");
+
+//       // Calculate new remaining quantity
+//       const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+
+//       // 2. Update Schedule Table (Increment Scrap, Decrement Remaining)
+//       await tx.stockOrderSchedule.update({
+//         where: { id: schedule.id },
+//         data: {
+//           scrapQuantity: { increment: 1 },
+//           remainingQty: newRemaining,
+//           status: "progress", // Scrap hone par bhi status progress mein hi rahega
+//         },
+//       });
+
+//       // 3. FIX P2025: Production Response Logic (Update or Create)
+//       const existingResponse = await tx.productionResponse.findUnique({
+//         where: { id: productionResponseId },
+//       });
+
+//       if (existingResponse) {
+//         // Agar station record mil gaya toh update karein
+//         await tx.productionResponse.update({
+//           where: { id: productionResponseId },
+//           data: {
+//             scrap: true,
+//             scrapQuantity: { increment: 1 },
+//             cycleTimeEnd: new Date(),
+//             stationUserId: employeeId,
+//             remainingQty: newRemaining,
+//           },
+//         });
+//       } else {
+//         // Agar station record nahi mila, toh crash hone ke bajaye naya record Create karein
+//         await tx.productionResponse.create({
+//           data: {
+//             orderId: order_type.includes("Stock") ? orderId : null,
+//             customOrderId: order_type.includes("Custom") ? orderId : null,
+//             partId: partId,
+//             processId: schedule.processId || "",
+//             scrap: true,
+//             scrapQuantity: 1,
+//             completedQuantity: 0,
+//             cycleTimeStart: new Date(Date.now() - 60000),
+//             cycleTimeEnd: new Date(),
+//             order_type: order_type,
+//             stationUserId: employeeId,
+//             remainingQty: newRemaining,
+//           },
+//         });
+//       }
+
+//       // 4. Create History Entry in scapEntries table
+//       await tx.scapEntries.create({
+//         data: {
+//           partId: partId,
+//           processId: schedule.processId,
+//           returnQuantity: 1,
+//           scrapStatus: true,
+//           employeeId: employeeId,
+//           type: order_type,
+//           stockOrderId: order_type.includes("Stock") ? orderId : null,
+//         },
+//       });
+
+//       return {
+//         message: "Part added to scrap successfully",
+//         remainingQty: newRemaining,
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Scan Scrap Error:", error);
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+// const scanCompleteAction = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params; // Current Station Session ID
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     if (!orderId || !partId || !employeeId) {
+//       return res.status(400).json({ message: "Missing required data." });
+//     }
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       const now = new Date();
+
+//       // 1. Find the current session to get IDs
+//       const currentSession = await tx.productionResponse.findUnique({
+//         where: { id: productionResponseId },
+//       });
+
+//       if (!currentSession) throw new Error("Station session not found.");
+
+//       // 2. CLOSE current session (Timer stops for this unit)
+//       await tx.productionResponse.update({
+//         where: { id: productionResponseId },
+//         data: {
+//           completedQuantity: 1, // Individual unit tracking
+//           cycleTimeEnd: now,
+//           submittedDateTime: now,
+//           stationUserId: employeeId,
+//           scrap: false,
+//         },
+//       });
+
+//       // 3. START NEW session (Timer resets to zero for next unit)
+//       const nextSession = await tx.productionResponse.create({
+//         data: {
+//           processId: currentSession.processId,
+//           stationUserId: employeeId,
+//           partId: partId,
+//           orderId: currentSession.orderId,
+//           customOrderId: currentSession.customOrderId,
+//           order_type: order_type,
+//           cycleTimeStart: now, // New timer starts from 00:00
+//           completedQuantity: 0,
+//         },
+//       });
+
+//       // 4. Update Schedule
+//       const schedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       const newQty = (schedule.completedQuantity || 0) + 1;
+//       const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+
+//       await tx.stockOrderSchedule.update({
+//         where: { id: schedule.id },
+//         data: {
+//           completedQuantity: newQty,
+//           remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+//           status: isFinished ? "completed" : "progress",
+//           completed_date: isFinished ? now : undefined,
+//           completed_EmpId: employeeId,
+//         },
+//       });
+
+//       // 5. Update Stock Inventory
+//       if (order_type.includes("Stock")) {
+//         await tx.partNumber.update({
+//           where: { part_id: partId },
+//           data: { availStock: { increment: 1 } },
+//         });
+//       }
+
+//       return {
+//         message: "Success",
+//         status: isFinished ? "completed" : "progress",
+//         newProductionId: nextSession.id, // Return this to frontend to reset timer
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
 const scanCompleteAction = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params;
+    const { id: productionResponseId } = req.params; // मौजूदा स्टेशन सेशन ID
     const { orderId, partId, employeeId, order_type } = req.body;
 
     if (!orderId || !partId || !employeeId) {
@@ -3536,69 +4177,69 @@ const scanCompleteAction = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find the Schedule first
+      const now = new Date();
+
+      // 1. मौजूदा सेशन को क्लोज करें (Timer stops for this piece)
+      const currentSession = await tx.productionResponse.findUnique({
+        where: { id: productionResponseId },
+      });
+      if (!currentSession) throw new Error("Station session not found.");
+
+      await tx.productionResponse.update({
+        where: { id: productionResponseId },
+        data: {
+          completedQuantity: 1,
+          cycleTimeEnd: now,
+          submittedDateTime: now,
+          stationUserId: employeeId,
+          scrap: false,
+        },
+      });
+
+      // 2. Schedule अपडेट करें
       const schedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
           part_id: partId,
-          order_type: order_type,
+          order_type,
           isDeleted: false,
         },
       });
-
       if (!schedule) throw new Error("Job Schedule not found.");
 
-      const newQty = (schedule.completedQuantity || 0) + 1;
-      const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+      const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
 
-      // 2. Update Schedule
       await tx.stockOrderSchedule.update({
         where: { id: schedule.id },
         data: {
-          completedQuantity: newQty,
-          remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
-          status: isFinished ? "completed" : "progress",
-          completed_date: isFinished ? new Date() : undefined,
+          completedQuantity: (schedule.completedQuantity || 0) + 1,
+          remainingQty: newRemaining,
+          status: updatedStatus,
+          completed_date: updatedStatus === "completed" ? now : undefined,
           completed_EmpId: employeeId,
         },
       });
 
-      // 3. FIX: Production Response Update Logic
-      // Check if the record exists before updating
-      const existingResponse = await tx.productionResponse.findUnique({
-        where: { id: productionResponseId },
-      });
-
-      if (existingResponse) {
-        // Agar record mil gaya toh update karein
-        await tx.productionResponse.update({
-          where: { id: productionResponseId },
+      // 3. नया सेशन शुरू करें अगर काम बाकी है (Timer Resets to 0)
+      let nextProductionId = null;
+      if (updatedStatus !== "completed") {
+        const nextSession = await tx.productionResponse.create({
           data: {
-            completedQuantity: { increment: 1 },
-            cycleTimeEnd: new Date(),
-            submittedDateTime: new Date(),
+            processId: currentSession.processId,
             stationUserId: employeeId,
-            scrap: false,
-          },
-        });
-      } else {
-        // Agar record nahi mila (P2025 fix), toh Naya Create karein
-        await tx.productionResponse.create({
-          data: {
-            orderId: order_type.includes("Stock") ? orderId : null,
-            customOrderId: order_type.includes("Custom") ? orderId : null,
             partId: partId,
-            processId: schedule.processId || "",
-            completedQuantity: 1,
-            cycleTimeStart: new Date(Date.now() - 60000), // 1 min ago
-            cycleTimeEnd: new Date(),
+            orderId: currentSession.orderId,
+            customOrderId: currentSession.customOrderId,
             order_type: order_type,
-            stationUserId: employeeId,
+            cycleTimeStart: now, // RESET: नया टाइमर यहाँ से शुरू
+            completedQuantity: 0,
           },
         });
+        nextProductionId = nextSession.id;
       }
 
-      // 4. Update Stock (Inventory)
+      // 4. Stock Inventory अपडेट
       if (order_type.includes("Stock")) {
         await tx.partNumber.update({
           where: { part_id: partId },
@@ -3607,8 +4248,10 @@ const scanCompleteAction = async (req, res) => {
       }
 
       return {
-        message: "Success",
-        status: isFinished ? "completed" : "progress",
+        message: "Scanned & Completed. Timer reset.",
+        status: updatedStatus,
+        newProductionId: nextProductionId, // Frontend इसे यूज करेगा
+        isJobFinished: updatedStatus === "completed",
       };
     });
 
@@ -3620,85 +4263,65 @@ const scanCompleteAction = async (req, res) => {
 };
 const scanScrapAction = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params; // Station ID from URL
+    const { id: productionResponseId } = req.params;
     const { orderId, partId, employeeId, order_type } = req.body;
 
-    // Basic Validation
-    if (!orderId || !partId || !employeeId || !order_type) {
-      return res.status(400).json({
-        message:
-          "Missing required data (OrderID, PartID, EmployeeID, or OrderType).",
-      });
-    }
-
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Find the Schedule first
+      const now = new Date();
+
+      const currentSession = await tx.productionResponse.findUnique({
+        where: { id: productionResponseId },
+      });
+
+      if (!currentSession) throw new Error("Station session not found.");
+
+      // 1. CLOSE current session as SCRAP
+      await tx.productionResponse.update({
+        where: { id: productionResponseId },
+        data: {
+          scrap: true,
+          scrapQuantity: 1,
+          cycleTimeEnd: now,
+          stationUserId: employeeId,
+        },
+      });
+
+      const nextSession = await tx.productionResponse.create({
+        data: {
+          processId: currentSession.processId,
+          stationUserId: employeeId,
+          partId: partId,
+          orderId: currentSession.orderId,
+          customOrderId: currentSession.customOrderId,
+          order_type: order_type,
+          cycleTimeStart: now,
+          completedQuantity: 0,
+        },
+      });
+
       const schedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
           part_id: partId,
-          order_type: order_type,
+          order_type,
           isDeleted: false,
         },
       });
 
-      if (!schedule) throw new Error("Job Schedule not found for this part.");
-
-      // Calculate new remaining quantity
       const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
-
-      // 2. Update Schedule Table (Increment Scrap, Decrement Remaining)
       await tx.stockOrderSchedule.update({
         where: { id: schedule.id },
         data: {
           scrapQuantity: { increment: 1 },
           remainingQty: newRemaining,
-          status: "progress", // Scrap hone par bhi status progress mein hi rahega
+          status: "progress",
         },
       });
 
-      // 3. FIX P2025: Production Response Logic (Update or Create)
-      const existingResponse = await tx.productionResponse.findUnique({
-        where: { id: productionResponseId },
-      });
-
-      if (existingResponse) {
-        // Agar station record mil gaya toh update karein
-        await tx.productionResponse.update({
-          where: { id: productionResponseId },
-          data: {
-            scrap: true,
-            scrapQuantity: { increment: 1 },
-            cycleTimeEnd: new Date(),
-            stationUserId: employeeId,
-            remainingQty: newRemaining,
-          },
-        });
-      } else {
-        // Agar station record nahi mila, toh crash hone ke bajaye naya record Create karein
-        await tx.productionResponse.create({
-          data: {
-            orderId: order_type.includes("Stock") ? orderId : null,
-            customOrderId: order_type.includes("Custom") ? orderId : null,
-            partId: partId,
-            processId: schedule.processId || "",
-            scrap: true,
-            scrapQuantity: 1,
-            completedQuantity: 0,
-            cycleTimeStart: new Date(Date.now() - 60000),
-            cycleTimeEnd: new Date(),
-            order_type: order_type,
-            stationUserId: employeeId,
-            remainingQty: newRemaining,
-          },
-        });
-      }
-
-      // 4. Create History Entry in scapEntries table
       await tx.scapEntries.create({
         data: {
           partId: partId,
-          processId: schedule.processId,
+          processId: currentSession.processId,
           returnQuantity: 1,
           scrapStatus: true,
           employeeId: employeeId,
@@ -3708,14 +4331,14 @@ const scanScrapAction = async (req, res) => {
       });
 
       return {
-        message: "Part added to scrap successfully",
+        message: "Scrap added successfully",
+        newProductionId: nextSession.id,
         remainingQty: newRemaining,
       };
     });
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error("Scan Scrap Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
