@@ -4738,6 +4738,549 @@ const deleteScrapEntry = async (req, res) => {
 //   }
 // };
 
+// const allEmployeeTimeLine = async (req, res) => {
+//   try {
+//     const {
+//       page,
+//       limit,
+//       filter,
+//       search,
+//       employeeId: queryEmployeeId,
+//     } = req.query;
+
+//     const currentPage = parseInt(page) || 1;
+//     const itemsPerPage = parseInt(limit) || 8;
+//     let startDate = null;
+//     let endDate = null;
+//     const now = new Date();
+//     now.setHours(0, 0, 0, 0);
+
+//     // 1. Vacation Requests (Sirf Approved waali)
+//     const vacationRequests = await prisma.vacationRequest.findMany({
+//       where: {
+//         ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//         status: "APPROVED",
+//         isDeleted: false,
+//       },
+//     });
+
+//     // 2. Date Filter Logic
+//     switch (filter) {
+//       case "This Week":
+//         const dayOfWeek = now.getDay();
+//         startDate = new Date(now);
+//         startDate.setDate(
+//           now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
+//         );
+//         endDate = new Date(startDate);
+//         endDate.setDate(startDate.getDate() + 6);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//       case "Last Week":
+//         startDate = new Date(now);
+//         startDate.setDate(now.getDate() - now.getDay() - 6);
+//         endDate = new Date(startDate);
+//         endDate.setDate(startDate.getDate() + 6);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//       case "This Month":
+//         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+//         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+//         endDate.setHours(23, 59, 59, 999);
+//         break;
+//     }
+
+//     const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
+
+//     const whereConditions = {
+//       isDeleted: false,
+//       ...(isSuperAdmin && { createdBy: req.user?.id }),
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//       ...(startDate &&
+//         endDate && {
+//           timestamp: {
+//             gte: startDate.toISOString(),
+//             lte: endDate.toISOString(),
+//           },
+//         }),
+//     };
+
+//     // 3. TimeClock Events fetch karein (Isme DB ka status aayega)
+//     const allEvents = await prisma.timeClock.findMany({
+//       where: whereConditions,
+//       orderBy: { timestamp: "asc" },
+//       include: {
+//         employee: {
+//           select: { id: true, firstName: true, lastName: true, email: true },
+//         },
+//       },
+//     });
+
+//     const getMs = (date) => (date ? new Date(date).getTime() : 0);
+
+//     const groupedByDate = allEvents.reduce((acc, event) => {
+//       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
+//       const uniqueKey = `${event.employeeId}_${dateKey}`;
+
+//       if (!acc[uniqueKey]) {
+//         const matchedVacation = vacationRequests.find((v) => {
+//           const vStart = new Date(v.startDate).toISOString().split("T")[0];
+//           const vEnd = new Date(v.endDate).toISOString().split("T")[0];
+//           return (
+//             v.employeeId === event.employeeId &&
+//             dateKey >= vStart &&
+//             dateKey <= vEnd
+//           );
+//         });
+
+//         acc[uniqueKey] = {
+//           date: dateKey,
+//           employeeName:
+//             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
+//           employeeEmail: event.employee?.email || "",
+//           loginTime: null,
+//           rawLogin: null,
+//           logout: null,
+//           rawLogout: null,
+//           vacationStatus: matchedVacation ? "APPROVED" : "-",
+//           vacationHours: matchedVacation
+//             ? Number(matchedVacation.hours || 0)
+//             : 0,
+//           // DB se status uthayein (PENDING/APPROVED/REJECTED)
+//           status: event.status,
+//         };
+//       }
+
+//       // Event types handle karein
+//       switch (event.eventType) {
+//         case "CLOCK_IN":
+//           acc[uniqueKey].loginTime = formatTime(event.timestamp);
+//           acc[uniqueKey].rawLogin = event.timestamp;
+//           // CLOCK_IN ka status hi main attendance status hoga
+//           acc[uniqueKey].status = event.status;
+//           break;
+//         case "CLOCK_OUT":
+//           acc[uniqueKey].logout = formatTime(event.timestamp);
+//           acc[uniqueKey].rawLogout = event.timestamp;
+//           break;
+//         case "START_LUNCH":
+//           acc[uniqueKey].rawLunchStart = event.timestamp;
+//           break;
+//         case "END_LUNCH":
+//           acc[uniqueKey].rawLunchEnd = event.timestamp;
+//           break;
+//         case "START_EXCEPTION":
+//           acc[uniqueKey].rawExStart = event.timestamp;
+//           break;
+//         case "END_EXCEPTION":
+//           acc[uniqueKey].rawExEnd = event.timestamp;
+//           break;
+//       }
+//       return acc;
+//     }, {});
+
+//     let timeSheetData = Object.values(groupedByDate).map((entry) => {
+//       let workMs = 0;
+//       if (entry.rawLogin && entry.rawLogout) {
+//         workMs = getMs(entry.rawLogout) - getMs(entry.rawLogin);
+//         if (entry.rawLunchStart && entry.rawLunchEnd)
+//           workMs -= getMs(entry.rawLunchEnd) - getMs(entry.rawLunchStart);
+//         if (entry.rawExStart && entry.rawExEnd)
+//           workMs -= getMs(entry.rawExEnd) - getMs(entry.rawExStart);
+//       }
+
+//       const workHours = Math.max(0, workMs / (1000 * 60 * 60));
+
+//       // Agar login nahi hai lekin Vacation approved hai
+//       let finalStatus = entry.status;
+//       if (!entry.loginTime && entry.vacationStatus === "APPROVED") {
+//         finalStatus = "VACATION";
+//       } else if (!entry.loginTime && entry.vacationStatus === "-") {
+//         finalStatus = "ABSENT";
+//       }
+
+//       return {
+//         ...entry,
+//         status: finalStatus, // Ab ye PENDING, APPROVED, REJECTED, VACATION ya ABSENT dikhayega
+//         workHours: workHours.toFixed(2),
+//         vacationHours: entry.vacationHours.toFixed(2),
+//         totalHours: (workHours + entry.vacationHours).toFixed(2),
+//       };
+//     });
+
+//     // 4. Search & Pagination
+//     if (search) {
+//       const lowerSearch = search.toLowerCase();
+//       timeSheetData = timeSheetData.filter(
+//         (e) =>
+//           e.employeeName.toLowerCase().includes(lowerSearch) ||
+//           e.status.toLowerCase().includes(lowerSearch),
+//       );
+//     }
+
+//     const totalCount = timeSheetData.length;
+//     const paginatedData = timeSheetData.slice(
+//       (currentPage - 1) * itemsPerPage,
+//       currentPage * itemsPerPage,
+//     );
+
+//     return res.status(200).json({
+//       message: "Employee timesheet retrieved successfully!",
+//       data: paginatedData,
+//       totalCounts: totalCount,
+//       pagination: {
+//         page: currentPage,
+//         totalPages: Math.ceil(totalCount / itemsPerPage),
+//       },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).send({ message: "Internal Server Error" });
+//   }
+// };
+
+// const allEmployeeTimeLine = async (req, res) => {
+//   try {
+//     const {
+//       page,
+//       limit,
+//       filter,
+//       search,
+//       employeeId: queryEmployeeId,
+//     } = req.query;
+
+//     const currentPage = parseInt(page) || 1;
+//     const itemsPerPage = parseInt(limit) || 8;
+//     let startDateFilter = null;
+//     let endDateFilter = null;
+//     const now = new Date();
+//     now.setHours(0, 0, 0, 0);
+
+//     // 1. Date Filter Logic (As per your existing code)
+//     switch (filter) {
+//       case "This Week":
+//         const dayOfWeek = now.getDay();
+//         startDateFilter = new Date(now);
+//         startDateFilter.setDate(
+//           now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
+//         );
+//         endDateFilter = new Date(startDateFilter);
+//         endDateFilter.setDate(startDateFilter.getDate() + 6);
+//         endDateFilter.setHours(23, 59, 59, 999);
+//         break;
+//       case "This Month":
+//         startDateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+//         endDateFilter = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+//         endDateFilter.setHours(23, 59, 59, 999);
+//         break;
+//       // Add other cases if needed...
+//     }
+
+//     const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
+
+//     // 2. Fetch TimeClock Events
+//     const timeClockConditions = {
+//       isDeleted: false,
+//       ...(isSuperAdmin && { createdBy: req.user?.id }),
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//       ...(startDateFilter &&
+//         endDateFilter && {
+//           timestamp: { gte: startDateFilter, lte: endDateFilter },
+//         }),
+//     };
+
+//     const allEvents = await prisma.timeClock.findMany({
+//       where: timeClockConditions,
+//       orderBy: { timestamp: "asc" },
+//       include: { employee: true },
+//     });
+
+//     const vacationConditions = {
+//       status: "APPROVED",
+//       isDeleted: false,
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//     };
+
+//     const vacationRequests = await prisma.vacationRequest.findMany({
+//       where: vacationConditions,
+//       include: { employee: true },
+//     });
+
+//     const groupedData = {};
+//     allEvents.forEach((event) => {
+//       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
+//       const uniqueKey = `${event.employeeId}_${dateKey}`;
+
+//       if (!groupedData[uniqueKey]) {
+//         groupedData[uniqueKey] = {
+//           date: dateKey,
+//           employeeName:
+//             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
+//           email: `${event.employee?.email || ""} `,
+//           loginTime: null,
+//           logout: null,
+//           status: event.status,
+//           vacationStatus: "-",
+//           vacationHours: 0,
+//           workHours: 0,
+//         };
+//       }
+
+//       if (event.eventType === "CLOCK_IN") {
+//         groupedData[uniqueKey].loginTime = event.timestamp;
+//         groupedData[uniqueKey].status = event.status;
+//       }
+//       if (event.eventType === "CLOCK_OUT")
+//         groupedData[uniqueKey].logout = event.timestamp;
+//     });
+//     vacationRequests.forEach((v) => {
+//       let current = new Date(v.startDate);
+//       const end = new Date(v.endDate);
+//       while (current <= end) {
+//         const dateKey = current.toISOString().split("T")[0];
+//         const uniqueKey = `${v.employeeId}_${dateKey}`;
+//         if (!groupedData[uniqueKey]) {
+//           groupedData[uniqueKey] = {
+//             date: dateKey,
+//             employeeName:
+//               `${v.employee?.firstName || ""} ${v.employee?.lastName || ""}`.trim(),
+//             email: `${event.employee?.email || ""} `,
+//             loginTime: null,
+//             logout: null,
+//             status: "VACATION",
+//             vacationStatus: "APPROVED",
+//             vacationHours: Number(v.hours || 0),
+//             workHours: 0,
+//           };
+//         } else {
+//           groupedData[uniqueKey].vacationStatus = "APPROVED";
+//           groupedData[uniqueKey].vacationHours = Number(v.hours || 0);
+//           if (
+//             groupedData[uniqueKey].status === "PENDING" ||
+//             !groupedData[uniqueKey].status
+//           ) {
+//             groupedData[uniqueKey].status = "VACATION";
+//           }
+//         }
+//         current.setDate(current.getDate() + 1);
+//       }
+//     });
+
+//     // 6. Final Data Formatting (Pagination & Sorting)
+//     let timeSheetData = Object.values(groupedData);
+
+//     // Search Filter
+//     if (search) {
+//       const lowerSearch = search.toLowerCase();
+//       timeSheetData = timeSheetData.filter(
+//         (e) =>
+//           e.employeeName.toLowerCase().includes(lowerSearch) ||
+//           e.status.toLowerCase().includes(lowerSearch),
+//       );
+//     }
+
+//     const totalCount = timeSheetData.length;
+//     const paginatedData = timeSheetData
+//       .sort((a, b) => new Date(b.date) - new Date(a.date)) // Latest date first
+//       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+//     return res.status(200).json({
+//       data: paginatedData,
+//       totalCounts: totalCount,
+//       pagination: {
+//         page: currentPage,
+//         totalPages: Math.ceil(totalCount / itemsPerPage),
+//       },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).send({ message: "Internal Server Error" });
+//   }
+// };
+
+// const allEmployeeTimeLine = async (req, res) => {
+//   try {
+//     const {
+//       page,
+//       limit,
+//       filter,
+//       search,
+//       employeeId: queryEmployeeId,
+//     } = req.query;
+
+//     const currentPage = parseInt(page) || 1;
+//     const itemsPerPage = parseInt(limit) || 8;
+//     let startDateFilter = null;
+//     let endDateFilter = null;
+//     const now = new Date();
+//     now.setHours(0, 0, 0, 0);
+
+//     // 1. Date Filter Logic
+//     switch (filter) {
+//       case "This Week":
+//         const dayOfWeek = now.getDay();
+//         startDateFilter = new Date(now);
+//         startDateFilter.setDate(
+//           now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
+//         );
+//         endDateFilter = new Date(startDateFilter);
+//         endDateFilter.setDate(startDateFilter.getDate() + 6);
+//         endDateFilter.setHours(23, 59, 59, 999);
+//         break;
+//       case "This Month":
+//         startDateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+//         endDateFilter = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+//         endDateFilter.setHours(23, 59, 59, 999);
+//         break;
+//     }
+
+//     const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
+
+//     // 2. Fetch TimeClock Events
+//     const timeClockConditions = {
+//       isDeleted: false,
+//       ...(isSuperAdmin && { createdBy: req.user?.id }),
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//       ...(startDateFilter &&
+//         endDateFilter && {
+//           timestamp: { gte: startDateFilter, lte: endDateFilter },
+//         }),
+//     };
+
+//     const allEvents = await prisma.timeClock.findMany({
+//       where: timeClockConditions,
+//       orderBy: { timestamp: "asc" },
+//       include: { employee: true },
+//     });
+
+//     const vacationConditions = {
+//       status: "APPROVED",
+//       isDeleted: false,
+//       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+//     };
+
+//     const vacationRequests = await prisma.vacationRequest.findMany({
+//       where: vacationConditions,
+//       include: { employee: true },
+//     });
+
+//     const groupedData = {};
+
+//     // 3. TimeClock Data Grouping
+//     allEvents.forEach((event) => {
+//       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
+//       const uniqueKey = `${event.employeeId}_${dateKey}`;
+
+//       if (!groupedData[uniqueKey]) {
+//         groupedData[uniqueKey] = {
+//           date: dateKey,
+//           employeeName:
+//             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
+//           employeeEmail: event.employee?.email || "",
+//           loginTime: null,
+//           logout: null,
+//           status: event.status,
+//           vacationStatus: "-",
+//           vacationHours: 0,
+//         };
+//       }
+
+//       if (event.eventType === "CLOCK_IN") {
+//         groupedData[uniqueKey].loginTime = event.timestamp;
+//         groupedData[uniqueKey].status = event.status;
+//       }
+//       if (event.eventType === "CLOCK_OUT") {
+//         groupedData[uniqueKey].logout = event.timestamp;
+//       }
+//     });
+
+//     // 4. Vacation Data Grouping
+//     vacationRequests.forEach((v) => {
+//       let current = new Date(v.startDate);
+//       const end = new Date(v.endDate);
+//       while (current <= end) {
+//         const dateKey = current.toISOString().split("T")[0];
+//         const uniqueKey = `${v.employeeId}_${dateKey}`;
+
+//         if (!groupedData[uniqueKey]) {
+//           groupedData[uniqueKey] = {
+//             date: dateKey,
+//             employeeName:
+//               `${v.employee?.firstName || ""} ${v.employee?.lastName || ""}`.trim(),
+//             employeeEmail: v.employee?.email || "", // यहाँ v.employee इस्तेमाल किया
+//             loginTime: null,
+//             logout: null,
+//             status: "VACATION",
+//             vacationStatus: "APPROVED",
+//             vacationHours: Number(v.hours || 0),
+//           };
+//         } else {
+//           groupedData[uniqueKey].vacationStatus = "APPROVED";
+//           groupedData[uniqueKey].vacationHours = Number(v.hours || 0);
+//           if (
+//             groupedData[uniqueKey].status === "PENDING" ||
+//             !groupedData[uniqueKey].status
+//           ) {
+//             groupedData[uniqueKey].status = "VACATION";
+//           }
+//         }
+//         current.setDate(current.getDate() + 1);
+//       }
+//     });
+
+//     let timeSheetData = Object.values(groupedData).map((entry) => {
+//       let workHours = 0;
+
+//       if (entry.loginTime && entry.logout) {
+//         const login = new Date(entry.loginTime);
+//         const logout = new Date(entry.logout);
+//         const diffMs = logout.getTime() - login.getTime();
+//         workHours = Math.max(0, diffMs / (1000 * 60 * 60)); // ms को hours में बदलें
+//       }
+
+//       const vHours = Number(entry.vacationHours || 0);
+//       const totalHours = workHours + vHours;
+
+//       return {
+//         ...entry,
+//         workHours: workHours.toFixed(2), // 2 दशमलव तक
+//         vacationHours: vHours.toFixed(2),
+//         totalHours: totalHours.toFixed(2),
+//       };
+//     });
+
+//     // 6. Search Filter
+//     if (search) {
+//       const lowerSearch = search.toLowerCase();
+//       timeSheetData = timeSheetData.filter(
+//         (e) =>
+//           e.employeeName.toLowerCase().includes(lowerSearch) ||
+//           e.status.toLowerCase().includes(lowerSearch),
+//       );
+//     }
+
+//     // 7. Pagination & Sorting
+//     const totalCount = timeSheetData.length;
+//     const paginatedData = timeSheetData
+//       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+//       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+//     return res.status(200).json({
+//       data: paginatedData,
+//       totalCounts: totalCount,
+//       pagination: {
+//         page: currentPage,
+//         totalPages: Math.ceil(totalCount / itemsPerPage),
+//         hasNext: currentPage < Math.ceil(totalCount / itemsPerPage),
+//         hasPrevious: currentPage > 1,
+//       },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).send({ message: "Internal Server Error" });
+//   }
+// };
+
 const allEmployeeTimeLine = async (req, res) => {
   try {
     const {
@@ -4750,165 +5293,148 @@ const allEmployeeTimeLine = async (req, res) => {
 
     const currentPage = parseInt(page) || 1;
     const itemsPerPage = parseInt(limit) || 8;
-    let startDate = null;
-    let endDate = null;
+    let startDateFilter = null;
+    let endDateFilter = null;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // 1. Vacation Requests (Sirf Approved waali)
-    const vacationRequests = await prisma.vacationRequest.findMany({
-      where: {
-        ...(queryEmployeeId && { employeeId: queryEmployeeId }),
-        status: "APPROVED",
-        isDeleted: false,
-      },
-    });
-
-    // 2. Date Filter Logic
+    // 1. Date Filter Logic
     switch (filter) {
       case "This Week":
         const dayOfWeek = now.getDay();
-        startDate = new Date(now);
-        startDate.setDate(
+        startDateFilter = new Date(now);
+        startDateFilter.setDate(
           now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1),
         );
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
-        break;
-      case "Last Week":
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - now.getDay() - 6);
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
+        endDateFilter = new Date(startDateFilter);
+        endDateFilter.setDate(startDateFilter.getDate() + 6);
+        endDateFilter.setHours(23, 59, 59, 999);
         break;
       case "This Month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        endDate.setHours(23, 59, 59, 999);
+        startDateFilter = new Date(now.getFullYear(), now.getMonth(), 1);
+        endDateFilter = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endDateFilter.setHours(23, 59, 59, 999);
         break;
     }
 
     const isSuperAdmin = req.user?.roles?.toLowerCase() === "superadmin";
 
-    const whereConditions = {
+    // 2. Fetch TimeClock Events
+    const timeClockConditions = {
       isDeleted: false,
       ...(isSuperAdmin && { createdBy: req.user?.id }),
       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
-      ...(startDate &&
-        endDate && {
-          timestamp: {
-            gte: startDate.toISOString(),
-            lte: endDate.toISOString(),
-          },
+      ...(startDateFilter &&
+        endDateFilter && {
+          timestamp: { gte: startDateFilter, lte: endDateFilter },
         }),
     };
 
-    // 3. TimeClock Events fetch karein (Isme DB ka status aayega)
     const allEvents = await prisma.timeClock.findMany({
-      where: whereConditions,
+      where: timeClockConditions,
       orderBy: { timestamp: "asc" },
-      include: {
-        employee: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-      },
+      include: { employee: true },
     });
 
-    const getMs = (date) => (date ? new Date(date).getTime() : 0);
+    const vacationConditions = {
+      status: "APPROVED",
+      isDeleted: false,
+      ...(queryEmployeeId && { employeeId: queryEmployeeId }),
+    };
 
-    const groupedByDate = allEvents.reduce((acc, event) => {
+    const vacationRequests = await prisma.vacationRequest.findMany({
+      where: vacationConditions,
+      include: { employee: true },
+    });
+
+    const groupedData = {};
+
+    // 3. TimeClock Data Grouping
+    allEvents.forEach((event) => {
       const dateKey = new Date(event.timestamp).toISOString().split("T")[0];
       const uniqueKey = `${event.employeeId}_${dateKey}`;
 
-      if (!acc[uniqueKey]) {
-        const matchedVacation = vacationRequests.find((v) => {
-          const vStart = new Date(v.startDate).toISOString().split("T")[0];
-          const vEnd = new Date(v.endDate).toISOString().split("T")[0];
-          return (
-            v.employeeId === event.employeeId &&
-            dateKey >= vStart &&
-            dateKey <= vEnd
-          );
-        });
-
-        acc[uniqueKey] = {
+      if (!groupedData[uniqueKey]) {
+        groupedData[uniqueKey] = {
           date: dateKey,
           employeeName:
             `${event.employee?.firstName || ""} ${event.employee?.lastName || ""}`.trim(),
           employeeEmail: event.employee?.email || "",
           loginTime: null,
-          rawLogin: null,
           logout: null,
-          rawLogout: null,
-          vacationStatus: matchedVacation ? "APPROVED" : "-",
-          vacationHours: matchedVacation
-            ? Number(matchedVacation.hours || 0)
-            : 0,
-          // DB se status uthayein (PENDING/APPROVED/REJECTED)
           status: event.status,
+          vacationStatus: "-",
+          vacationHours: 0,
         };
       }
 
-      // Event types handle karein
-      switch (event.eventType) {
-        case "CLOCK_IN":
-          acc[uniqueKey].loginTime = formatTime(event.timestamp);
-          acc[uniqueKey].rawLogin = event.timestamp;
-          // CLOCK_IN ka status hi main attendance status hoga
-          acc[uniqueKey].status = event.status;
-          break;
-        case "CLOCK_OUT":
-          acc[uniqueKey].logout = formatTime(event.timestamp);
-          acc[uniqueKey].rawLogout = event.timestamp;
-          break;
-        case "START_LUNCH":
-          acc[uniqueKey].rawLunchStart = event.timestamp;
-          break;
-        case "END_LUNCH":
-          acc[uniqueKey].rawLunchEnd = event.timestamp;
-          break;
-        case "START_EXCEPTION":
-          acc[uniqueKey].rawExStart = event.timestamp;
-          break;
-        case "END_EXCEPTION":
-          acc[uniqueKey].rawExEnd = event.timestamp;
-          break;
+      if (event.eventType === "CLOCK_IN") {
+        groupedData[uniqueKey].loginTime = event.timestamp;
+        groupedData[uniqueKey].status = event.status;
       }
-      return acc;
-    }, {});
+      if (event.eventType === "CLOCK_OUT") {
+        groupedData[uniqueKey].logout = event.timestamp;
+      }
+    });
 
-    let timeSheetData = Object.values(groupedByDate).map((entry) => {
-      let workMs = 0;
-      if (entry.rawLogin && entry.rawLogout) {
-        workMs = getMs(entry.rawLogout) - getMs(entry.rawLogin);
-        if (entry.rawLunchStart && entry.rawLunchEnd)
-          workMs -= getMs(entry.rawLunchEnd) - getMs(entry.rawLunchStart);
-        if (entry.rawExStart && entry.rawExEnd)
-          workMs -= getMs(entry.rawExEnd) - getMs(entry.rawExStart);
+    // 4. Vacation Data Grouping
+    vacationRequests.forEach((v) => {
+      let current = new Date(v.startDate);
+      const end = new Date(v.endDate);
+      while (current <= end) {
+        const dateKey = current.toISOString().split("T")[0];
+        const uniqueKey = `${v.employeeId}_${dateKey}`;
+
+        if (!groupedData[uniqueKey]) {
+          groupedData[uniqueKey] = {
+            date: dateKey,
+            employeeName:
+              `${v.employee?.firstName || ""} ${v.employee?.lastName || ""}`.trim(),
+            employeeEmail: v.employee?.email || "", // यहाँ v.employee इस्तेमाल किया
+            loginTime: null,
+            logout: null,
+            status: "VACATION",
+            vacationStatus: "APPROVED",
+            vacationHours: Number(v.hours || 0),
+          };
+        } else {
+          groupedData[uniqueKey].vacationStatus = "APPROVED";
+          groupedData[uniqueKey].vacationHours = Number(v.hours || 0);
+          if (
+            groupedData[uniqueKey].status === "PENDING" ||
+            !groupedData[uniqueKey].status
+          ) {
+            groupedData[uniqueKey].status = "VACATION";
+          }
+        }
+        current.setDate(current.getDate() + 1);
+      }
+    });
+
+    // 5. Calculate Hours (Work Hours & Total Hours)
+    let timeSheetData = Object.values(groupedData).map((entry) => {
+      let workHours = 0;
+
+      // अगर लॉगिन और लॉगआउट दोनों मौजूद हैं
+      if (entry.loginTime && entry.logout) {
+        const login = new Date(entry.loginTime);
+        const logout = new Date(entry.logout);
+        const diffMs = logout.getTime() - login.getTime();
+        workHours = Math.max(0, diffMs / (1000 * 60 * 60)); // ms को hours में बदलें
       }
 
-      const workHours = Math.max(0, workMs / (1000 * 60 * 60));
-
-      // Agar login nahi hai lekin Vacation approved hai
-      let finalStatus = entry.status;
-      if (!entry.loginTime && entry.vacationStatus === "APPROVED") {
-        finalStatus = "VACATION";
-      } else if (!entry.loginTime && entry.vacationStatus === "-") {
-        finalStatus = "ABSENT";
-      }
+      const vHours = Number(entry.vacationHours || 0);
+      const totalHours = workHours + vHours;
 
       return {
         ...entry,
-        status: finalStatus, // Ab ye PENDING, APPROVED, REJECTED, VACATION ya ABSENT dikhayega
-        workHours: workHours.toFixed(2),
-        vacationHours: entry.vacationHours.toFixed(2),
-        totalHours: (workHours + entry.vacationHours).toFixed(2),
+        workHours: workHours.toFixed(2), // 2 दशमलव तक
+        vacationHours: vHours.toFixed(2),
+        totalHours: totalHours.toFixed(2),
       };
     });
 
-    // 4. Search & Pagination
+    // 6. Search Filter
     if (search) {
       const lowerSearch = search.toLowerCase();
       timeSheetData = timeSheetData.filter(
@@ -4918,19 +5444,20 @@ const allEmployeeTimeLine = async (req, res) => {
       );
     }
 
+    // 7. Pagination & Sorting
     const totalCount = timeSheetData.length;
-    const paginatedData = timeSheetData.slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage,
-    );
+    const paginatedData = timeSheetData
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return res.status(200).json({
-      message: "Employee timesheet retrieved successfully!",
       data: paginatedData,
       totalCounts: totalCount,
       pagination: {
         page: currentPage,
         totalPages: Math.ceil(totalCount / itemsPerPage),
+        hasNext: currentPage < Math.ceil(totalCount / itemsPerPage),
+        hasPrevious: currentPage > 1,
       },
     });
   } catch (error) {
