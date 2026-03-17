@@ -1276,9 +1276,114 @@ const completeScheduleOrder = async (req, res) => {
 //     res.status(500).json({ message: error.message });
 //   }
 // };
+// const scrapScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params; // Current Station Session ID
+//     const { orderId, partId, employeeId, order_type } = req.body;
+//     const now = new Date();
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Current Session ko dhundo
+//       const currentSession = await tx.productionResponse.findUnique({
+//         where: { id: productionResponseId },
+//       });
+
+//       if (!currentSession) throw new Error("Station session not found.");
+
+//       // 2. CLOSE current session (Is unit ka time yahan STOP ho gaya)
+//       await tx.productionResponse.update({
+//         where: { id: productionResponseId },
+//         data: {
+//           scrap: true,
+//           scrapQuantity: 1, // Ek unit scrap hui
+//           completedQuantity: 0,
+//           cycleTimeEnd: now, // Timer yahan khatam
+//           submittedDateTime: now,
+//           stationUserId: employeeId,
+//         },
+//       });
+
+//       // 3. Schedule Check & Remaining Qty Calculation
+//       const schedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!schedule) throw new Error("Job Schedule not found.");
+
+//       const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+//       const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+
+//       // 4. Agle unit ke liye NAYA record (RESET TIMER TO ZERO)
+//       let nextProductionId = null;
+//       if (updatedStatus !== "completed") {
+//         const nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: currentSession.processId,
+//             stationUserId: employeeId,
+//             partId: partId,
+//             orderId: currentSession.orderId,
+//             customOrderId: currentSession.customOrderId,
+//             order_type: order_type,
+//             cycleTimeStart: now, // NAYA TIMER YAHAN SE 0 SE SHURU HOGA
+//             completedQuantity: 0,
+//             scrapQuantity: 0,
+//             scrap: false,
+//           },
+//         });
+//         nextProductionId = nextSession.id;
+//       }
+
+//       // 5. Update Schedule Table
+//       await tx.stockOrderSchedule.update({
+//         where: { id: schedule.id },
+//         data: {
+//           scrapQuantity: { increment: 1 },
+//           remainingQty: newRemaining,
+//           status: updatedStatus,
+//           completed_date: updatedStatus === "completed" ? now : undefined,
+//         },
+//       });
+
+//       // 6. Scrap History Record (Fix Prisma relation error)
+//       await tx.scapEntries.create({
+//         data: {
+//           returnQuantity: 1,
+//           scrapStatus: true,
+//           employeeId: employeeId,
+//           type: order_type,
+//           defectDesc: "Manual Scrap",
+//           PartNumber: partId ? { connect: { part_id: partId } } : undefined,
+//           process: currentSession.processId
+//             ? { connect: { id: currentSession.processId } }
+//             : undefined,
+//           StockOrder: order_type.includes("Stock")
+//             ? { connect: { id: orderId } }
+//             : undefined,
+//         },
+//       });
+
+//       return {
+//         message: "Scrapped and timer reset",
+//         newProductionId: nextProductionId,
+//         isJobFinished: updatedStatus === "completed",
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Scrap Logic Error:", error);
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 const scrapScheduleOrder = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params; // Current Station Session ID
+    const { id: productionResponseId } = req.params;
     const { orderId, partId, employeeId, order_type } = req.body;
     const now = new Date();
 
@@ -1290,20 +1395,20 @@ const scrapScheduleOrder = async (req, res) => {
 
       if (!currentSession) throw new Error("Station session not found.");
 
-      // 2. CLOSE current session (Is unit ka time yahan STOP ho gaya)
+      // 2. CLOSE current session (Is unit ko scrap mark karein)
       await tx.productionResponse.update({
         where: { id: productionResponseId },
         data: {
           scrap: true,
-          scrapQuantity: 1, // Ek unit scrap hui
+          scrapQuantity: 1,
           completedQuantity: 0,
-          cycleTimeEnd: now, // Timer yahan khatam
+          cycleTimeEnd: now,
           submittedDateTime: now,
           stationUserId: employeeId,
         },
       });
 
-      // 3. Schedule Check & Remaining Qty Calculation
+      // 3. Schedule Check
       const schedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
@@ -1318,7 +1423,7 @@ const scrapScheduleOrder = async (req, res) => {
       const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
       const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
 
-      // 4. Agle unit ke liye NAYA record (RESET TIMER TO ZERO)
+      // 4. Agle unit ke liye NAYA record shuru karein (Timer Reset)
       let nextProductionId = null;
       if (updatedStatus !== "completed") {
         const nextSession = await tx.productionResponse.create({
@@ -1329,7 +1434,7 @@ const scrapScheduleOrder = async (req, res) => {
             orderId: currentSession.orderId,
             customOrderId: currentSession.customOrderId,
             order_type: order_type,
-            cycleTimeStart: now, // NAYA TIMER YAHAN SE 0 SE SHURU HOGA
+            cycleTimeStart: now,
             completedQuantity: 0,
             scrapQuantity: 0,
             scrap: false,
@@ -1338,7 +1443,7 @@ const scrapScheduleOrder = async (req, res) => {
         nextProductionId = nextSession.id;
       }
 
-      // 5. Update Schedule Table
+      // 5. Update Schedule Table (Taaki Overview Dashboard par dikhe)
       await tx.stockOrderSchedule.update({
         where: { id: schedule.id },
         data: {
@@ -1349,26 +1454,11 @@ const scrapScheduleOrder = async (req, res) => {
         },
       });
 
-      // 6. Scrap History Record (Fix Prisma relation error)
-      await tx.scapEntries.create({
-        data: {
-          returnQuantity: 1,
-          scrapStatus: true,
-          employeeId: employeeId,
-          type: order_type,
-          defectDesc: "Manual Scrap",
-          PartNumber: partId ? { connect: { part_id: partId } } : undefined,
-          process: currentSession.processId
-            ? { connect: { id: currentSession.processId } }
-            : undefined,
-          StockOrder: order_type.includes("Stock")
-            ? { connect: { id: orderId } }
-            : undefined,
-        },
-      });
+      // NOTE: Step 6 (Scrap History Record) yahan se hata diya gaya hai
+      // taaki ye double entry (scrapEntries table mein) na kare.
 
       return {
-        message: "Scrapped and timer reset",
+        message: "Scrapped successfully in production response",
         newProductionId: nextProductionId,
         isJobFinished: updatedStatus === "completed",
       };

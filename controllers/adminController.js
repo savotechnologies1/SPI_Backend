@@ -5821,40 +5821,249 @@ const getDayRange = (dateString) => {
   const endOfDay = moment(dateString).endOf("day").toDate();
   return { startOfDay, endOfDay };
 };
+// const productionOverview = async (req, res) => {
+//   try {
+//     const dateQuery = req.query.date || moment().format("YYYY-MM-DD");
+//     const { startOfDay, endOfDay } = getDayRange(dateQuery);
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: {
+//         submittedDateTime: {
+//           gte: startOfDay,
+//           lte: endOfDay,
+//         },
+//         isDeleted: false,
+//       },
+//       select: {
+//         completedQuantity: true,
+//         scrapQuantity: true,
+//         scrap: true,
+//       },
+//     });
+
+//     console.log(`Found ${productionResponses.length} records for this date.`);
+//     const totalActual = productionResponses.reduce(
+//       (sum, item) => sum + (Number(item.completedQuantity) || 0),
+//       0,
+//     );
+
+//     const totalScrap = productionResponses.reduce(
+//       (sum, item) => sum + (Number(item.scrap) || 0),
+//       0,
+//     );
+//     const currentHour = moment().hour();
+//     let shift = 1;
+//     if (currentHour >= 6 && currentHour < 14) shift = 1;
+//     else if (currentHour >= 14 && currentHour < 22) shift = 2;
+//     else shift = 3;
+
+//     res.json({
+//       hourByHour: [
+//         { label: "Shift", value: shift, image: "green.png" },
+//         { label: "Actual", value: totalActual, image: "yellow.png" },
+//         { label: "Scrap", value: totalScrap, image: "orange.png" },
+//       ],
+//       pieChartData: [
+//         { name: "Actual", value: totalActual, color: "#4CAF50" },
+//         { name: "Scrap", value: totalScrap, color: "#FFC107" },
+//       ],
+//     });
+//   } catch (error) {
+//     console.error("Error fetching overview:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
+// const productionOverview = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "UTC";
+//     const dateQuery = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const startOfDay = moment.tz(dateQuery, tz).startOf("day").toDate();
+//     const endOfDay = moment.tz(dateQuery, tz).endOf("day").toDate();
+//     const [productionResponses, scrapEntries] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           OR: [
+//             { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
+//             { createdAt: { gte: startOfDay, lte: endOfDay } },
+//           ],
+//           isDeleted: false,
+//         },
+//         select: {
+//           completedQuantity: true,
+//           scrapQuantity: true,
+//         },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         select: {
+//           returnQuantity: true,
+//         },
+//       }),
+//     ]);
+
+//     // Calculation Logic
+//     let totalActual = 0;
+//     let totalScrap = 0;
+
+//     // 1. Production table se calculations
+//     productionResponses.forEach((item) => {
+//       totalActual += Number(item.completedQuantity) || 0;
+//       totalScrap += Number(item.scrapQuantity) || 0;
+//     });
+
+//     // 2. Scrap table se calculation (Sirf returnQuantity use ki kyunki schema mein yahi hai)
+//     scrapEntries.forEach((item) => {
+//       totalScrap += Number(item.returnQuantity) || 0;
+//     });
+
+//     // Shift logic (Wahi purana)
+//     const currentHour = moment().tz(tz).hour();
+//     let shift = 1;
+//     if (currentHour >= 6 && currentHour < 14) shift = 1;
+//     else if (currentHour >= 14 && currentHour < 22) shift = 2;
+//     else shift = 3;
+
+//     // Response keys bilkul change nahi ki hain
+//     res.json({
+//       hourByHour: [
+//         { label: "Shift", value: shift, image: "green.png" },
+//         { label: "Actual", value: totalActual, image: "yellow.png" },
+//         { label: "Scrap", value: totalScrap, image: "orange.png" },
+//       ],
+//       pieChartData: [
+//         { name: "Actual", value: totalActual, color: "#4CAF50" },
+//         { name: "Scrap", value: totalScrap, color: "#FFC107" },
+//       ],
+//     });
+//   } catch (error) {
+//     console.error("Error fetching overview:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
 const productionOverview = async (req, res) => {
   try {
-    const dateQuery = req.query.date || moment().format("YYYY-MM-DD");
-    const { startOfDay, endOfDay } = getDayRange(dateQuery);
-    const productionResponses = await prisma.productionResponse.findMany({
-      where: {
-        submittedDateTime: {
-          gte: startOfDay,
-          lte: endOfDay,
+    // 1. Default timezone ko "Asia/Kolkata" karein agar query mein nahi aa raha
+    const tz = req.query.tz || "Asia/Kolkata";
+    const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+    const now = moment().tz(tz);
+    const currentHour = now.hour(); // Ab ye India ke ghante dikhayega (e.g., 15 for 3 PM)
+
+    console.log(`Current Time in ${tz}: ${now.format("HH:mm")}`);
+
+    let shift = 1;
+    let shiftStart, shiftEnd;
+
+    // 2. Shift Logic (Ab currentHour sahi aayega)
+    if (currentHour >= 6 && currentHour < 14) {
+      shift = 1;
+      shiftStart = moment
+        .tz(selectedDate, tz)
+        .hour(6)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+      shiftEnd = moment
+        .tz(dateQuery, tz)
+        .hour(14)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+    } else if (currentHour >= 14 && currentHour < 22) {
+      shift = 2; // <--- Ab ye condition match hogi (3 PM = 15)
+      shiftStart = moment
+        .tz(selectedDate, tz)
+        .hour(14)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+      shiftEnd = moment
+        .tz(selectedDate, tz)
+        .hour(22)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+    } else {
+      shift = 3;
+      if (currentHour < 6) {
+        shiftStart = moment
+          .tz(selectedDate, tz)
+          .subtract(1, "day")
+          .hour(22)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+        shiftEnd = moment
+          .tz(selectedDate, tz)
+          .hour(6)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+      } else {
+        shiftStart = moment
+          .tz(selectedDate, tz)
+          .hour(22)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+        shiftEnd = moment
+          .tz(selectedDate, tz)
+          .add(1, "day")
+          .hour(6)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+      }
+    }
+
+    const startRange = shiftStart.toDate();
+    const endRange = shiftEnd.toDate();
+
+    // 3. Active Processes Filter
+    const activeProcesses = await prisma.process.findMany({
+      where: { isDeleted: false },
+      select: { id: true },
+    });
+    const processIds = activeProcesses.map((p) => p.id);
+
+    // 4. Data Fetching
+    const [allProduction, allScrap] = await Promise.all([
+      prisma.productionResponse.findMany({
+        where: {
+          processId: { in: processIds },
+          OR: [
+            { submittedDateTime: { gte: startRange, lte: endRange } },
+            { createdAt: { gte: startRange, lte: endRange } },
+          ],
+          isDeleted: false,
         },
-        isDeleted: false,
-      },
-      select: {
-        completedQuantity: true,
-        scrapQuantity: true,
-        scrap: true,
-      },
+        select: { completedQuantity: true, scrapQuantity: true },
+      }),
+      prisma.scapEntries.findMany({
+        where: {
+          processId: { in: processIds },
+          createdAt: { gte: startRange, lte: endRange },
+          isDeleted: false,
+        },
+        select: { returnQuantity: true },
+      }),
+    ]);
+
+    let totalActual = 0;
+    let totalScrap = 0;
+
+    allProduction.forEach((resData) => {
+      totalActual += Number(resData.completedQuantity) || 0;
+      totalScrap += Number(resData.scrapQuantity) || 0;
     });
 
-    console.log(`Found ${productionResponses.length} records for this date.`);
-    const totalActual = productionResponses.reduce(
-      (sum, item) => sum + (Number(item.completedQuantity) || 0),
-      0,
-    );
-
-    const totalScrap = productionResponses.reduce(
-      (sum, item) => sum + (Number(item.scrap) || 0),
-      0,
-    );
-    const currentHour = moment().hour();
-    let shift = 1;
-    if (currentHour >= 6 && currentHour < 14) shift = 1;
-    else if (currentHour >= 14 && currentHour < 22) shift = 2;
-    else shift = 3;
+    allScrap.forEach((scrap) => {
+      totalScrap += Number(scrap.returnQuantity) || 0;
+    });
 
     res.json({
       hourByHour: [
@@ -5866,6 +6075,13 @@ const productionOverview = async (req, res) => {
         { name: "Actual", value: totalActual, color: "#4CAF50" },
         { name: "Scrap", value: totalScrap, color: "#FFC107" },
       ],
+      shiftInfo: {
+        currentShift: shift,
+        start: shiftStart.format("YYYY-MM-DD HH:mm"),
+        end: shiftEnd.format("YYYY-MM-DD HH:mm"),
+        currentTimeInTZ: now.format("HH:mm"), // Debugging ke liye
+        timezoneUsed: tz,
+      },
     });
   } catch (error) {
     console.error("Error fetching overview:", error);
@@ -6026,15 +6242,672 @@ function parseCycleTime(cycleTimeStr) {
 //   }
 // };
 
+// const processHourly = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "UTC";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     // Timezone range fix
+//     const startOfDay = moment.tz(selectedDate, tz).startOf("day").toDate();
+//     const endOfDay = moment.tz(selectedDate, tz).endOf("day").toDate();
+
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         machineName: true,
+//         cycleTime: true,
+//       },
+//     });
+
+//     // Saare processes ki IDs nikaal lein taaki loop se bacha ja sake (Optional but recommended)
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // Saara data ek saath fetch karein
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           OR: [
+//             { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
+//             { createdAt: { gte: startOfDay, lte: endOfDay } },
+//           ],
+//           isDeleted: false,
+//         },
+//         include: { employeeInfo: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: { createdByEmployee: true },
+//       }),
+//     ]);
+
+//     const allProcessData = activeProcesses.map((process) => {
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const targetPerHour =
+//         cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+
+//       // Hourly Map initialize
+//       const hourlyDataMap = {};
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = `${h.toString().padStart(2, "0")}:00`;
+//         hourlyDataMap[hourKey] = { actual: 0, scrap: 0, target: targetPerHour };
+//       }
+
+//       const employeesSet = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+
+//       // Filter production for THIS process
+//       const processProduction = allProduction.filter(
+//         (p) => p.processId === process.id,
+//       );
+//       processProduction.forEach((resData) => {
+//         const entryTime = resData.submittedDateTime || resData.createdAt;
+//         const hour = moment(entryTime).tz(tz).format("HH:00");
+
+//         const qty = Number(resData.completedQuantity) || 0;
+//         const sQty = Number(resData.scrapQuantity) || 0;
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].actual += qty;
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+
+//         processTotalActual += qty;
+//         processTotalScrap += sQty;
+
+//         if (resData.employeeInfo) {
+//           employeesSet.set(resData.employeeInfo.id, {
+//             name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
+//             profileImage: resData.employeeInfo.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // Filter scrap for THIS process
+//       const processScrap = allScrap.filter((s) => s.processId === process.id);
+//       processScrap.forEach((scrap) => {
+//         const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
+//         const sQty = Number(
+//           scrap.returnQuantity || scrap.scrapQuantity || scrap.quantity || 0,
+//         );
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+//         processTotalScrap += sQty;
+
+//         if (scrap.createdByEmployee) {
+//           employeesSet.set(scrap.createdByEmployee.id, {
+//             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
+//             profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       return {
+//         processName: process.processName,
+//         machineName: process.machineName,
+//         hourlyData: Object.entries(hourlyDataMap).map(([hour, data]) => ({
+//           hour,
+//           ...data,
+//         })),
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: targetPerHour * 24,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       };
+//     });
+
+//     // Grand totals calculation
+//     const grandTotals = allProcessData.reduce(
+//       (acc, curr) => {
+//         acc.actual += curr.total.actual;
+//         acc.scrap += curr.total.scrap;
+//         acc.target += curr.total.target;
+//         return acc;
+//       },
+//       { actual: 0, scrap: 0, target: 0 },
+//     );
+
+//     return res.json({ allProcessData, grandTotals });
+//   } catch (error) {
+//     console.error("Error details:", error);
+//     return res
+//       .status(500)
+//       .json({ error: "Internal Server Error", message: error.message });
+//   }
+// };
+
+// const processHourly = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "UTC";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const startOfDay = moment.tz(selectedDate, tz).startOf("day").toDate();
+//     const endOfDay = moment.tz(selectedDate, tz).endOf("day").toDate();
+
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         machineName: true,
+//         cycleTime: true,
+//       },
+//     });
+
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // Data Fetching: Exactly like productionOverview but with processId filter
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           OR: [
+//             { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
+//             { createdAt: { gte: startOfDay, lte: endOfDay } },
+//           ],
+//           isDeleted: false,
+//         },
+//         include: { employeeInfo: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: { createdByEmployee: true },
+//       }),
+//     ]);
+
+//     const allProcessData = activeProcesses.map((process) => {
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const targetPerHour =
+//         cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+
+//       // Hourly Map initialize
+//       const hourlyDataMap = {};
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = `${h.toString().padStart(2, "0")}:00`;
+//         hourlyDataMap[hourKey] = { actual: 0, scrap: 0, target: targetPerHour };
+//       }
+
+//       const employeesSet = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+
+//       // 1. Process Production Data (Actual + Scrap from production table)
+//       const processProduction = allProduction.filter(
+//         (p) => p.processId === process.id,
+//       );
+//       processProduction.forEach((resData) => {
+//         const entryTime = resData.submittedDateTime || resData.createdAt;
+//         const hour = moment(entryTime).tz(tz).format("HH:00");
+
+//         const qty = Number(resData.completedQuantity) || 0;
+//         const sQty = Number(resData.scrapQuantity) || 0; // matching overview logic
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].actual += qty;
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+
+//         processTotalActual += qty;
+//         processTotalScrap += sQty;
+
+//         if (resData.employeeInfo) {
+//           employeesSet.set(resData.employeeInfo.id, {
+//             name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
+//             profileImage: resData.employeeInfo.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // 2. Process Scrap Data (Only returnQuantity matching overview logic)
+//       const processScrap = allScrap.filter((s) => s.processId === process.id);
+//       processScrap.forEach((scrap) => {
+//         const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
+//         const sQty = Number(scrap.returnQuantity) || 0; // Strictly matching overview logic
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+//         processTotalScrap += sQty;
+
+//         if (scrap.createdByEmployee) {
+//           employeesSet.set(scrap.createdByEmployee.id, {
+//             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
+//             profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       return {
+//         processId: process.id,
+//         processName: process.processName,
+//         machineName: process.machineName,
+//         hourlyData: Object.entries(hourlyDataMap).map(([hour, data]) => ({
+//           hour,
+//           ...data,
+//         })),
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: targetPerHour * 24,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       };
+//     });
+
+//     // Grand totals calculation (Sum of all processes)
+//     const grandTotals = allProcessData.reduce(
+//       (acc, curr) => {
+//         acc.actual += curr.total.actual;
+//         acc.scrap += curr.total.scrap;
+//         acc.target += curr.total.target;
+//         return acc;
+//       },
+//       { actual: 0, scrap: 0, target: 0 },
+//     );
+
+//     return res.json({ allProcessData, grandTotals });
+//   } catch (error) {
+//     console.error("Error in processHourly:", error);
+//     return res
+//       .status(500)
+//       .json({ error: "Internal Server Error", message: error.message });
+//   }
+// };
+
+// const processHourly = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "UTC";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const startOfDay = moment.tz(selectedDate, tz).startOf("day").toDate();
+//     const endOfDay = moment.tz(selectedDate, tz).endOf("day").toDate();
+
+//     // 1. Saare active processes lein
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         machineName: true,
+//         cycleTime: true,
+//       },
+//     });
+
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // 2. Data Fetching (Exactly like productionOverview logic)
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           // Note: Agar aap chahte hain ki Overview se 100% match kare,
+//           // toh yahan processId filter hata sakte hain, ya Overview mein bhi laga sakte hain.
+//           // Filhal hum processes ke hisab se le rahe hain.
+//           processId: { in: processIds },
+//           OR: [
+//             { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
+//             { createdAt: { gte: startOfDay, lte: endOfDay } },
+//           ],
+//           isDeleted: false,
+//         },
+//         include: { employeeInfo: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: { createdByEmployee: true },
+//       }),
+//     ]);
+
+//     // 3. Calculation Logic (Matching Production Overview)
+//     let grandTotalActual = 0;
+//     let grandTotalScrap = 0;
+
+//     const allProcessData = activeProcesses.map((process) => {
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const targetPerHour =
+//         cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+
+//       const hourlyDataMap = {};
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = `${h.toString().padStart(2, "0")}:00`;
+//         hourlyDataMap[hourKey] = { actual: 0, scrap: 0, target: targetPerHour };
+//       }
+
+//       const employeesSet = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+
+//       // Filter production for this process
+//       const processProduction = allProduction.filter(
+//         (p) => p.processId === process.id,
+//       );
+//       processProduction.forEach((resData) => {
+//         const entryTime = resData.submittedDateTime || resData.createdAt;
+//         const hour = moment(entryTime).tz(tz).format("HH:00");
+
+//         const qty = Number(resData.completedQuantity) || 0;
+//         const sQty = Number(resData.scrapQuantity) || 0; // Matching Overview
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].actual += qty;
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+
+//         processTotalActual += qty;
+//         processTotalScrap += sQty;
+
+//         if (resData.employeeInfo) {
+//           employeesSet.set(resData.employeeInfo.id, {
+//             name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
+//             profileImage: resData.employeeInfo.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // Filter scrap for this process
+//       const processScrap = allScrap.filter((s) => s.processId === process.id);
+//       processScrap.forEach((scrap) => {
+//         const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
+//         const sQty = Number(scrap.returnQuantity) || 0; // Matching Overview (Strictly returnQuantity)
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+//         processTotalScrap += sQty;
+
+//         if (scrap.createdByEmployee) {
+//           employeesSet.set(scrap.createdByEmployee.id, {
+//             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
+//             profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // Grand totals build-up
+//       grandTotalActual += processTotalActual;
+//       grandTotalScrap += processTotalScrap;
+
+//       return {
+//         processId: process.id,
+//         processName: process.processName,
+//         machineName: process.machineName,
+//         hourlyData: Object.entries(hourlyDataMap).map(([hour, data]) => ({
+//           hour,
+//           ...data,
+//         })),
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: targetPerHour * 24,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       };
+//     });
+
+//     // Final Grand Totals Object
+//     const grandTotals = {
+//       actual: grandTotalActual,
+//       scrap: grandTotalScrap,
+//       target: allProcessData.reduce((acc, curr) => acc + curr.total.target, 0),
+//     };
+
+//     return res.json({ allProcessData, grandTotals });
+//   } catch (error) {
+//     console.error("Error fetching process hourly:", error);
+//     return res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+// const processHourly = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "UTC";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const startOfDay = moment.tz(selectedDate, tz).startOf("day").toDate();
+//     const endOfDay = moment.tz(selectedDate, tz).endOf("day").toDate();
+
+//     // 1. Saare active processes lein
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: {
+//         id: true,
+//         processName: true,
+//         machineName: true,
+//         cycleTime: true,
+//       },
+//     });
+
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // 2. Data Fetching (Exactly like productionOverview logic)
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           // Note: Agar aap chahte hain ki Overview se 100% match kare,
+//           // toh yahan processId filter hata sakte hain, ya Overview mein bhi laga sakte hain.
+//           // Filhal hum processes ke hisab se le rahe hain.
+//           processId: { in: processIds },
+//           OR: [
+//             { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
+//             { createdAt: { gte: startOfDay, lte: endOfDay } },
+//           ],
+//           isDeleted: false,
+//         },
+//         include: { employeeInfo: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           createdAt: { gte: startOfDay, lte: endOfDay },
+//           isDeleted: false,
+//         },
+//         include: { createdByEmployee: true },
+//       }),
+//     ]);
+
+//     // 3. Calculation Logic (Matching Production Overview)
+//     let grandTotalActual = 0;
+//     let grandTotalScrap = 0;
+
+//     const allProcessData = activeProcesses.map((process) => {
+//       const cycleTimeMinutes = process.cycleTime
+//         ? parseCycleTime(process.cycleTime)
+//         : 0;
+//       const targetPerHour =
+//         cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
+
+//       const hourlyDataMap = {};
+//       for (let h = 0; h < 24; h++) {
+//         const hourKey = `${h.toString().padStart(2, "0")}:00`;
+//         hourlyDataMap[hourKey] = { actual: 0, scrap: 0, target: targetPerHour };
+//       }
+
+//       const employeesSet = new Map();
+//       let processTotalActual = 0;
+//       let processTotalScrap = 0;
+
+//       // Filter production for this process
+//       const processProduction = allProduction.filter(
+//         (p) => p.processId === process.id,
+//       );
+//       processProduction.forEach((resData) => {
+//         const entryTime = resData.submittedDateTime || resData.createdAt;
+//         const hour = moment(entryTime).tz(tz).format("HH:00");
+
+//         const qty = Number(resData.completedQuantity) || 0;
+//         const sQty = Number(resData.scrapQuantity) || 0; // Matching Overview
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].actual += qty;
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+
+//         processTotalActual += qty;
+//         processTotalScrap += sQty;
+
+//         if (resData.employeeInfo) {
+//           employeesSet.set(resData.employeeInfo.id, {
+//             name: `${resData.employeeInfo.firstName} ${resData.employeeInfo.lastName}`,
+//             profileImage: resData.employeeInfo.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // Filter scrap for this process
+//       const processScrap = allScrap.filter((s) => s.processId === process.id);
+//       processScrap.forEach((scrap) => {
+//         const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
+//         const sQty = Number(scrap.returnQuantity) || 0; // Matching Overview (Strictly returnQuantity)
+
+//         if (hourlyDataMap[hour]) {
+//           hourlyDataMap[hour].scrap += sQty;
+//         }
+//         processTotalScrap += sQty;
+
+//         if (scrap.createdByEmployee) {
+//           employeesSet.set(scrap.createdByEmployee.id, {
+//             name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
+//             profileImage: scrap.createdByEmployee.employeeProfileImg || "",
+//           });
+//         }
+//       });
+
+//       // Grand totals build-up
+//       grandTotalActual += processTotalActual;
+//       grandTotalScrap += processTotalScrap;
+
+//       return {
+//         processId: process.id,
+//         processName: process.processName,
+//         machineName: process.machineName,
+//         hourlyData: Object.entries(hourlyDataMap).map(([hour, data]) => ({
+//           hour,
+//           ...data,
+//         })),
+//         total: {
+//           actual: processTotalActual,
+//           scrap: processTotalScrap,
+//           target: targetPerHour * 24,
+//         },
+//         employees: Array.from(employeesSet.values()),
+//       };
+//     });
+
+//     // Final Grand Totals Object
+//     const grandTotals = {
+//       actual: grandTotalActual,
+//       scrap: grandTotalScrap,
+//       target: allProcessData.reduce((acc, curr) => acc + curr.total.target, 0),
+//     };
+
+//     return res.json({ allProcessData, grandTotals });
+//   } catch (error) {
+//     console.error("Error fetching process hourly:", error);
+//     return res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
 const processHourly = async (req, res) => {
   try {
     const tz = req.query.tz || "UTC";
     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
 
-    // Timezone range fix
-    const startOfDay = moment.tz(selectedDate, tz).startOf("day").toDate();
-    const endOfDay = moment.tz(selectedDate, tz).endOf("day").toDate();
+    // 1. Current Shift Calculation Logic
+    const currentHour = moment().tz(tz).hour();
+    let shift = 1;
+    let shiftStart, shiftEnd;
 
+    if (currentHour >= 6 && currentHour < 14) {
+      shift = 1;
+      shiftStart = moment
+        .tz(selectedDate, tz)
+        .hour(6)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+      shiftEnd = moment
+        .tz(selectedDate, tz)
+        .hour(14)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+    } else if (currentHour >= 14 && currentHour < 22) {
+      shift = 2;
+      shiftStart = moment
+        .tz(selectedDate, tz)
+        .hour(14)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+      shiftEnd = moment
+        .tz(selectedDate, tz)
+        .hour(22)
+        .minute(0)
+        .second(0)
+        .millisecond(0);
+    } else {
+      shift = 3;
+      // Shift 3: Starts at 10 PM, ends at 6 AM next day
+      if (currentHour < 6) {
+        // Agar raat ke 12-6 ke beech check kar rahe hain, toh shift kal raat 10 baje shuru hui thi
+        shiftStart = moment
+          .tz(selectedDate, tz)
+          .subtract(1, "day")
+          .hour(22)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+        shiftEnd = moment
+          .tz(selectedDate, tz)
+          .hour(6)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+      } else {
+        // Agar raat ke 10-12 ke beech check kar rahe hain
+        shiftStart = moment
+          .tz(selectedDate, tz)
+          .hour(22)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+        shiftEnd = moment
+          .tz(selectedDate, tz)
+          .add(1, "day")
+          .hour(6)
+          .minute(0)
+          .second(0)
+          .millisecond(0);
+      }
+    }
+
+    const startRange = shiftStart.toDate();
+    const endRange = shiftEnd.toDate();
+
+    // 2. Saare active processes lein
     const activeProcesses = await prisma.process.findMany({
       where: { isDeleted: false },
       select: {
@@ -6045,17 +6918,16 @@ const processHourly = async (req, res) => {
       },
     });
 
-    // Saare processes ki IDs nikaal lein taaki loop se bacha ja sake (Optional but recommended)
     const processIds = activeProcesses.map((p) => p.id);
 
-    // Saara data ek saath fetch karein
+    // 3. Data Fetching (Only for current shift range)
     const [allProduction, allScrap] = await Promise.all([
       prisma.productionResponse.findMany({
         where: {
           processId: { in: processIds },
           OR: [
-            { submittedDateTime: { gte: startOfDay, lte: endOfDay } },
-            { createdAt: { gte: startOfDay, lte: endOfDay } },
+            { submittedDateTime: { gte: startRange, lte: endRange } },
+            { createdAt: { gte: startRange, lte: endRange } },
           ],
           isDeleted: false,
         },
@@ -6064,12 +6936,15 @@ const processHourly = async (req, res) => {
       prisma.scapEntries.findMany({
         where: {
           processId: { in: processIds },
-          createdAt: { gte: startOfDay, lte: endOfDay },
+          createdAt: { gte: startRange, lte: endRange },
           isDeleted: false,
         },
         include: { createdByEmployee: true },
       }),
     ]);
+
+    let grandTotalActual = 0;
+    let grandTotalScrap = 0;
 
     const allProcessData = activeProcesses.map((process) => {
       const cycleTimeMinutes = process.cycleTime
@@ -6078,18 +6953,20 @@ const processHourly = async (req, res) => {
       const targetPerHour =
         cycleTimeMinutes > 0 ? Math.round(60 / cycleTimeMinutes) : 0;
 
-      // Hourly Map initialize
+      // 4. Hourly Map sirf shift ke 8 ghanton ke liye banayein
       const hourlyDataMap = {};
-      for (let h = 0; h < 24; h++) {
-        const hourKey = `${h.toString().padStart(2, "0")}:00`;
+      let tempHour = shiftStart.clone();
+      for (let i = 0; i < 8; i++) {
+        const hourKey = tempHour.format("HH:00");
         hourlyDataMap[hourKey] = { actual: 0, scrap: 0, target: targetPerHour };
+        tempHour.add(1, "hour");
       }
 
       const employeesSet = new Map();
       let processTotalActual = 0;
       let processTotalScrap = 0;
 
-      // Filter production for THIS process
+      // Filter production for this process
       const processProduction = allProduction.filter(
         (p) => p.processId === process.id,
       );
@@ -6103,10 +6980,9 @@ const processHourly = async (req, res) => {
         if (hourlyDataMap[hour]) {
           hourlyDataMap[hour].actual += qty;
           hourlyDataMap[hour].scrap += sQty;
+          processTotalActual += qty;
+          processTotalScrap += sQty;
         }
-
-        processTotalActual += qty;
-        processTotalScrap += sQty;
 
         if (resData.employeeInfo) {
           employeesSet.set(resData.employeeInfo.id, {
@@ -6116,28 +6992,23 @@ const processHourly = async (req, res) => {
         }
       });
 
-      // Filter scrap for THIS process
+      // Filter scrap for this process
       const processScrap = allScrap.filter((s) => s.processId === process.id);
       processScrap.forEach((scrap) => {
         const hour = moment(scrap.createdAt).tz(tz).format("HH:00");
-        const sQty = Number(
-          scrap.returnQuantity || scrap.scrapQuantity || scrap.quantity || 0,
-        );
+        const sQty = Number(scrap.returnQuantity) || 0;
 
         if (hourlyDataMap[hour]) {
           hourlyDataMap[hour].scrap += sQty;
-        }
-        processTotalScrap += sQty;
-
-        if (scrap.createdByEmployee) {
-          employeesSet.set(scrap.createdByEmployee.id, {
-            name: `${scrap.createdByEmployee.firstName} ${scrap.createdByEmployee.lastName}`,
-            profileImage: scrap.createdByEmployee.employeeProfileImg || "",
-          });
+          processTotalScrap += sQty;
         }
       });
 
+      grandTotalActual += processTotalActual;
+      grandTotalScrap += processTotalScrap;
+
       return {
+        processId: process.id,
         processName: process.processName,
         machineName: process.machineName,
         hourlyData: Object.entries(hourlyDataMap).map(([hour, data]) => ({
@@ -6147,29 +7018,23 @@ const processHourly = async (req, res) => {
         total: {
           actual: processTotalActual,
           scrap: processTotalScrap,
-          target: targetPerHour * 24,
+          target: targetPerHour * 8, // Shift is 8 hours
         },
         employees: Array.from(employeesSet.values()),
       };
     });
 
-    // Grand totals calculation
-    const grandTotals = allProcessData.reduce(
-      (acc, curr) => {
-        acc.actual += curr.total.actual;
-        acc.scrap += curr.total.scrap;
-        acc.target += curr.total.target;
-        return acc;
-      },
-      { actual: 0, scrap: 0, target: 0 },
-    );
+    const grandTotals = {
+      actual: grandTotalActual,
+      scrap: grandTotalScrap,
+      target: allProcessData.reduce((acc, curr) => acc + curr.total.target, 0),
+      shift: shift, // Response mein shift number bhi bhej rahe hain
+    };
 
     return res.json({ allProcessData, grandTotals });
   } catch (error) {
-    console.error("Error details:", error);
-    return res
-      .status(500)
-      .json({ error: "Internal Server Error", message: error.message });
+    console.error("Error fetching process hourly:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 const liveProductionGoalBoard = async (req, res) => {
@@ -6474,101 +7339,337 @@ const liveProductionGoalBoard = async (req, res) => {
 //   }
 // };
 
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     const todayStart = startDate
+//       ? new Date(new Date(startDate).setHours(0, 0, 0, 0))
+//       : new Date(new Date().setHours(0, 0, 0, 0));
+//     const todayEnd = endDate
+//       ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
+//       : new Date(new Date().setHours(23, 59, 59, 999));
+
+//     const dateFilter = { gte: todayStart, lte: todayEnd };
+
+//     // 1. Fetch Production Orders
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false, updatedAt: dateFilter },
+//       include: {
+//         part: { select: { partDescription: true, partNumber: true } },
+//         process: { select: { processName: true, machineName: true } },
+//       },
+//     });
+
+//     // 2. Fetch Manual Scrap/Returns
+//     const scrapEntries = await prisma.scapEntries.findMany({
+//       where: { isDeleted: false, updatedAt: dateFilter },
+//       include: {
+//         // Yahan PartNumber relation use ho raha hai
+//         PartNumber: {
+//           select: {
+//             partDescription: true,
+//             partNumber: true,
+//             // Agar entry me process na ho to part ka default process uthane ke liye
+//             process: { select: { processName: true, machineName: true } },
+//           },
+//         },
+//         process: { select: { processName: true, machineName: true } },
+//       },
+//     });
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let totalScheduled = 0;
+//     const scrapOnlyDetails = [];
+
+//     // Production Scrap
+//     stockOrders.forEach((order) => {
+//       const scrap = Number(order.scrapQuantity) || 0;
+//       totalActual += order.completedQuantity || 0;
+//       totalScheduled += order.scheduleQuantity || 0;
+//       totalScrap += scrap;
+
+//       if (scrap > 0) {
+//         scrapOnlyDetails.push({
+//           processName: order.process?.processName || "Production",
+//           machineName: order.process?.machineName || "N/A",
+//           partNumber: order.part?.partNumber || "N/A", // Added Part Number
+//           partDescription: order.part?.partDescription || "N/A",
+//           actual: order.completedQuantity || 0,
+//           scrap: scrap,
+//           type: "Production",
+//           lastAction: order.updatedAt,
+//         });
+//       }
+//     });
+
+//     // Manual/Entry Scrap
+//     scrapEntries.forEach((entry) => {
+//       const sQty =
+//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+//       totalScrap += sQty;
+
+//       if (sQty > 0) {
+//         // Pehle entry ka process dekho, agar null hai toh part ka process dekho
+//         const pName =
+//           entry.process?.processName ||
+//           entry.PartNumber?.process?.processName ||
+//           "Manual Entry";
+//         const mName =
+//           entry.process?.machineName ||
+//           entry.PartNumber?.process?.machineName ||
+//           "N/A";
+
+//         scrapOnlyDetails.push({
+//           processName: pName,
+//           machineName: mName,
+//           partNumber: entry.PartNumber?.partNumber || "N/A", // Added Part Number
+//           partDescription: entry.PartNumber?.partDescription || "N/A",
+//           actual: 0,
+//           scrap: sQty,
+//           type: entry.type || "Return/Scrap",
+//           lastAction: entry.updatedAt,
+//         });
+//       }
+//     });
+
+//     res.json({
+//       summary: {
+//         totalActual,
+//         totalScrap,
+//         totalScheduled,
+//         totalOrders: stockOrders.length,
+//       },
+//       details: scrapOnlyDetails,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: "Internal Error", details: error.message });
+//   }
+// };
+
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
+
+//     // 1. Timezone ke hisab se Date filter
+//     const todayStart = startDate
+//       ? moment.tz(startDate, tz).startOf("day").toDate()
+//       : moment.tz(tz).startOf("day").toDate();
+//     const todayEnd = endDate
+//       ? moment.tz(endDate, tz).endOf("day").toDate()
+//       : moment.tz(tz).endOf("day").toDate();
+
+//     const dateFilter = { gte: todayStart, lte: todayEnd };
+
+//     // 2. Fetch Production Orders aur Process details (cycleTime ke liye)
+//     const stockOrders = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false, updatedAt: dateFilter },
+//       include: {
+//         part: { select: { partDescription: true, partNumber: true } },
+//         process: {
+//           select: { processName: true, machineName: true, cycleTime: true },
+//         },
+//       },
+//     });
+
+//     // 3. Fetch Manual Scrap/Returns
+//     const scrapEntries = await prisma.scapEntries.findMany({
+//       where: { isDeleted: false, updatedAt: dateFilter },
+//       include: {
+//         PartNumber: {
+//           select: {
+//             partDescription: true,
+//             partNumber: true,
+//             process: {
+//               select: { processName: true, machineName: true, cycleTime: true },
+//             },
+//           },
+//         },
+//         process: {
+//           select: { processName: true, machineName: true, cycleTime: true },
+//         },
+//       },
+//     });
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let totalScheduled = 0;
+//     const allDetails = []; // Pehle ye scrapOnlyDetails tha, ab isme sab aayega
+
+//     // 4. Production Data Processing
+//     stockOrders.forEach((order) => {
+//       const actual = Number(order.completedQuantity) || 0;
+//       const scheduled = Number(order.scheduleQuantity) || 0;
+//       const scrap = Number(order.scrapQuantity) || 0;
+
+//       totalActual += actual;
+//       totalScheduled += scheduled;
+//       totalScrap += scrap;
+
+//       // Cycle time se targetPerHour nikalna (Frontend efficiency ke liye zaruri hai)
+//       const cycleTime = order.process?.cycleTime
+//         ? parseFloat(order.process.cycleTime)
+//         : 0;
+//       const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+//       // Har order ko details mein daalein (Bina scrap condition ke)
+//       allDetails.push({
+//         processName: order.process?.processName || "Production",
+//         machineName: order.process?.machineName || "N/A",
+//         partNumber: order.part?.partNumber || "N/A",
+//         partDescription: order.part?.partDescription || "N/A",
+//         actual: actual,
+//         scheduled: scheduled,
+//         scrap: scrap,
+//         targetPerHour: targetPerHour,
+//         type: "Production",
+//         lastAction: order.updatedAt,
+//       });
+//     });
+
+//     // 5. Manual Scrap Processing
+//     scrapEntries.forEach((entry) => {
+//       const sQty =
+//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+//       totalScrap += sQty;
+
+//       const processInfo = entry.process || entry.PartNumber?.process;
+//       const cycleTime = processInfo?.cycleTime
+//         ? parseFloat(processInfo.cycleTime)
+//         : 0;
+//       const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+//       allDetails.push({
+//         processName: processInfo?.processName || "Manual Entry",
+//         machineName: processInfo?.machineName || "N/A",
+//         partNumber: entry.PartNumber?.partNumber || "N/A",
+//         partDescription: entry.PartNumber?.partDescription || "N/A",
+//         actual: 0,
+//         scheduled: 0,
+//         scrap: sQty,
+//         targetPerHour: targetPerHour,
+//         type: entry.type || "Return/Scrap",
+//         lastAction: entry.updatedAt,
+//       });
+//     });
+
+//     // 6. Final Response
+//     res.json({
+//       summary: {
+//         totalActual,
+//         totalScrap,
+//         totalScheduled,
+//         totalOrders: stockOrders.length,
+//       },
+//       details: allDetails, // Ab ye array khali nahi aayega
+//     });
+//   } catch (error) {
+//     console.error("API Error:", error);
+//     res.status(500).json({ error: "Internal Error", details: error.message });
+//   }
+// };
 const currentStatusOverview = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
 
+    // 1. Timezone based Date Filter
     const todayStart = startDate
-      ? new Date(new Date(startDate).setHours(0, 0, 0, 0))
-      : new Date(new Date().setHours(0, 0, 0, 0));
+      ? moment.tz(startDate, tz).startOf("day").toDate()
+      : moment.tz(tz).startOf("day").toDate();
     const todayEnd = endDate
-      ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
-      : new Date(new Date().setHours(23, 59, 59, 999));
+      ? moment.tz(endDate, tz).endOf("day").toDate()
+      : moment.tz(tz).endOf("day").toDate();
 
     const dateFilter = { gte: todayStart, lte: todayEnd };
 
-    // 1. Fetch Production Orders
-    const stockOrders = await prisma.stockOrderSchedule.findMany({
-      where: { isDeleted: false, updatedAt: dateFilter },
-      include: {
-        part: { select: { partDescription: true, partNumber: true } },
-        process: { select: { processName: true, machineName: true } },
-      },
-    });
-
-    // 2. Fetch Manual Scrap/Returns
-    const scrapEntries = await prisma.scapEntries.findMany({
-      where: { isDeleted: false, updatedAt: dateFilter },
-      include: {
-        // Yahan PartNumber relation use ho raha hai
-        PartNumber: {
-          select: {
-            partDescription: true,
-            partNumber: true,
-            // Agar entry me process na ho to part ka default process uthane ke liye
-            process: { select: { processName: true, machineName: true } },
-          },
+    // 2. Fetch Orders & Manual Scrap
+    const [stockOrders, scrapEntries] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: { isDeleted: false, updatedAt: dateFilter },
+        include: {
+          part: { select: { partDescription: true, partNumber: true } },
+          process: { select: { processName: true, machineName: true, cycleTime: true } },
         },
-        process: { select: { processName: true, machineName: true } },
-      },
-    });
+      }),
+      prisma.scapEntries.findMany({
+        where: { isDeleted: false, updatedAt: dateFilter },
+        include: {
+          PartNumber: {
+            select: {
+              partDescription: true,
+              partNumber: true,
+              process: { select: { processName: true, machineName: true, cycleTime: true } },
+            },
+          },
+          process: { select: { processName: true, machineName: true, cycleTime: true } },
+        },
+      })
+    ]);
 
     let totalActual = 0;
     let totalScrap = 0;
     let totalScheduled = 0;
-    const scrapOnlyDetails = [];
+    const completedDetails = []; // Sirf completed/action waale parts
 
-    // Production Scrap
+    // 3. Process Production Orders
     stockOrders.forEach((order) => {
+      const actual = Number(order.completedQuantity) || 0;
+      const scheduled = Number(order.scheduleQuantity) || 0;
       const scrap = Number(order.scrapQuantity) || 0;
-      totalActual += order.completedQuantity || 0;
-      totalScheduled += order.scheduleQuantity || 0;
+
+      // Summary ke liye hamesha total add karenge
+      totalActual += actual;
+      totalScheduled += scheduled;
       totalScrap += scrap;
 
-      if (scrap > 0) {
-        scrapOnlyDetails.push({
+      // CONDITION: Sirf wahi detail mein jaaye jispar kaam (Actual > 0) hua ho ya Scrap nikla ho
+      if (actual > 0 || scrap > 0) {
+        const cycleTime = order.process?.cycleTime ? parseFloat(order.process.cycleTime) : 0;
+        const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+        completedDetails.push({
           processName: order.process?.processName || "Production",
           machineName: order.process?.machineName || "N/A",
-          partNumber: order.part?.partNumber || "N/A", // Added Part Number
+          partNumber: order.part?.partNumber || "N/A",
           partDescription: order.part?.partDescription || "N/A",
-          actual: order.completedQuantity || 0,
+          actual: actual,
+          scheduled: scheduled,
           scrap: scrap,
+          targetPerHour: targetPerHour,
           type: "Production",
           lastAction: order.updatedAt,
         });
       }
     });
 
-    // Manual/Entry Scrap
+    // 4. Process Manual Scrap (Ye hamesha "Action" mana jata hai)
     scrapEntries.forEach((entry) => {
-      const sQty =
-        Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
-      totalScrap += sQty;
-
+      const sQty = Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+      
       if (sQty > 0) {
-        // Pehle entry ka process dekho, agar null hai toh part ka process dekho
-        const pName =
-          entry.process?.processName ||
-          entry.PartNumber?.process?.processName ||
-          "Manual Entry";
-        const mName =
-          entry.process?.machineName ||
-          entry.PartNumber?.process?.machineName ||
-          "N/A";
+        totalScrap += sQty;
 
-        scrapOnlyDetails.push({
-          processName: pName,
-          machineName: mName,
-          partNumber: entry.PartNumber?.partNumber || "N/A", // Added Part Number
+        const processInfo = entry.process || entry.PartNumber?.process;
+        const cycleTime = processInfo?.cycleTime ? parseFloat(processInfo.cycleTime) : 0;
+        const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+        completedDetails.push({
+          processName: processInfo?.processName || "Manual Entry",
+          machineName: processInfo?.machineName || "N/A",
+          partNumber: entry.PartNumber?.partNumber || "N/A",
           partDescription: entry.PartNumber?.partDescription || "N/A",
           actual: 0,
+          scheduled: 0,
           scrap: sQty,
+          targetPerHour: targetPerHour,
           type: entry.type || "Return/Scrap",
           lastAction: entry.updatedAt,
         });
       }
     });
 
+    // 5. Final Response
     res.json({
       summary: {
         totalActual,
@@ -6576,9 +7677,10 @@ const currentStatusOverview = async (req, res) => {
         totalScheduled,
         totalOrders: stockOrders.length,
       },
-      details: scrapOnlyDetails,
+      details: completedDetails, // Ab list mein sirf kaam waale parts dikhenge
     });
   } catch (error) {
+    console.error("API Error:", error);
     res.status(500).json({ error: "Internal Error", details: error.message });
   }
 };
