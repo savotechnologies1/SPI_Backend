@@ -5944,21 +5944,276 @@ const getDayRange = (dateString) => {
 //     res.status(500).json({ error: "Internal Server Error" });
 //   }
 // };
+
+// const productionOverview = async (req, res) => {
+//   try {
+//     // 1. Default timezone ko "Asia/Kolkata" karein agar query mein nahi aa raha
+//     const tz = req.query.tz || "Asia/Kolkata";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const now = moment().tz(tz);
+//     const currentHour = now.hour(); // Ab ye India ke ghante dikhayega (e.g., 15 for 3 PM)
+
+//     console.log(`Current Time in ${tz}: ${now.format("HH:mm")}`);
+
+//     let shift = 1;
+//     let shiftStart, shiftEnd;
+
+//     // 2. Shift Logic (Ab currentHour sahi aayega)
+//     if (currentHour >= 6 && currentHour < 14) {
+//       shift = 1;
+//       shiftStart = moment
+//         .tz(selectedDate, tz)
+//         .hour(6)
+//         .minute(0)
+//         .second(0)
+//         .millisecond(0);
+//       shiftEnd = moment
+//         .tz(dateQuery, tz)
+//         .hour(14)
+//         .minute(0)
+//         .second(0)
+//         .millisecond(0);
+//     } else if (currentHour >= 14 && currentHour < 22) {
+//       shift = 2; // <--- Ab ye condition match hogi (3 PM = 15)
+//       shiftStart = moment
+//         .tz(selectedDate, tz)
+//         .hour(14)
+//         .minute(0)
+//         .second(0)
+//         .millisecond(0);
+//       shiftEnd = moment
+//         .tz(selectedDate, tz)
+//         .hour(22)
+//         .minute(0)
+//         .second(0)
+//         .millisecond(0);
+//     } else {
+//       shift = 3;
+//       if (currentHour < 6) {
+//         shiftStart = moment
+//           .tz(selectedDate, tz)
+//           .subtract(1, "day")
+//           .hour(22)
+//           .minute(0)
+//           .second(0)
+//           .millisecond(0);
+//         shiftEnd = moment
+//           .tz(selectedDate, tz)
+//           .hour(6)
+//           .minute(0)
+//           .second(0)
+//           .millisecond(0);
+//       } else {
+//         shiftStart = moment
+//           .tz(selectedDate, tz)
+//           .hour(22)
+//           .minute(0)
+//           .second(0)
+//           .millisecond(0);
+//         shiftEnd = moment
+//           .tz(selectedDate, tz)
+//           .add(1, "day")
+//           .hour(6)
+//           .minute(0)
+//           .second(0)
+//           .millisecond(0);
+//       }
+//     }
+
+//     const startRange = shiftStart.toDate();
+//     const endRange = shiftEnd.toDate();
+
+//     // 3. Active Processes Filter
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: { id: true },
+//     });
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // 4. Data Fetching
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           OR: [
+//             { submittedDateTime: { gte: startRange, lte: endRange } },
+//             { createdAt: { gte: startRange, lte: endRange } },
+//           ],
+//           isDeleted: false,
+//         },
+//         select: { completedQuantity: true, scrapQuantity: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           createdAt: { gte: startRange, lte: endRange },
+//           isDeleted: false,
+//         },
+//         select: { returnQuantity: true },
+//       }),
+//     ]);
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+
+//     allProduction.forEach((resData) => {
+//       totalActual += Number(resData.completedQuantity) || 0;
+//       totalScrap += Number(resData.scrapQuantity) || 0;
+//     });
+
+//     allScrap.forEach((scrap) => {
+//       totalScrap += Number(scrap.returnQuantity) || 0;
+//     });
+
+//     res.json({
+//       hourByHour: [
+//         { label: "Shift", value: shift, image: "green.png" },
+//         { label: "Actual", value: totalActual, image: "yellow.png" },
+//         { label: "Scrap", value: totalScrap, image: "orange.png" },
+//       ],
+//       pieChartData: [
+//         { name: "Actual", value: totalActual, color: "#4CAF50" },
+//         { name: "Scrap", value: totalScrap, color: "#FFC107" },
+//       ],
+//       shiftInfo: {
+//         currentShift: shift,
+//         start: shiftStart.format("YYYY-MM-DD HH:mm"),
+//         end: shiftEnd.format("YYYY-MM-DD HH:mm"),
+//         currentTimeInTZ: now.format("HH:mm"), // Debugging ke liye
+//         timezoneUsed: tz,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching overview:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
+// const productionOverview = async (req, res) => {
+//   try {
+//     const tz = req.query.tz || "Asia/Kolkata";
+//     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
+
+//     const now = moment().tz(tz);
+//     const currentHour = now.hour();
+
+//     let shift = 1;
+//     let shiftStart, shiftEnd;
+
+//     // 1. Shift Logic (Fixed dateQuery variable issue)
+//     if (currentHour >= 6 && currentHour < 14) {
+//       shift = 1;
+//       shiftStart = moment.tz(selectedDate, tz).hour(6).minute(0).second(0);
+//       shiftEnd = moment.tz(selectedDate, tz).hour(14).minute(0).second(0);
+//     } else if (currentHour >= 14 && currentHour < 22) {
+//       shift = 2;
+//       shiftStart = moment.tz(selectedDate, tz).hour(14).minute(0).second(0);
+//       shiftEnd = moment.tz(selectedDate, tz).hour(22).minute(0).second(0);
+//     } else {
+//       shift = 3;
+//       if (currentHour < 6) {
+//         shiftStart = moment
+//           .tz(selectedDate, tz)
+//           .subtract(1, "day")
+//           .hour(22)
+//           .minute(0)
+//           .second(0);
+//         shiftEnd = moment.tz(selectedDate, tz).hour(6).minute(0).second(0);
+//       } else {
+//         shiftStart = moment.tz(selectedDate, tz).hour(22).minute(0).second(0);
+//         shiftEnd = moment
+//           .tz(selectedDate, tz)
+//           .add(1, "day")
+//           .hour(6)
+//           .minute(0)
+//           .second(0);
+//       }
+//     }
+
+//     const startRange = shiftStart.toDate();
+//     const endRange = shiftEnd.toDate();
+
+//     // 2. Active Processes
+//     const activeProcesses = await prisma.process.findMany({
+//       where: { isDeleted: false },
+//       select: { id: true },
+//     });
+//     const processIds = activeProcesses.map((p) => p.id);
+
+//     // 3. Data Fetching (Using updatedAt for consistency)
+//     const [allProduction, allScrap] = await Promise.all([
+//       prisma.productionResponse.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           updatedAt: { gte: startRange, lte: endRange }, // Matches QualityPerformance logic
+//           isDeleted: false,
+//         },
+//         select: { completedQuantity: true, scrapQuantity: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           processId: { in: processIds },
+//           updatedAt: { gte: startRange, lte: endRange }, // Consistent Date Filter
+//           isDeleted: false,
+//         },
+//         select: { scrapQuantity: true, returnQuantity: true }, // Both fields
+//       }),
+//     ]);
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+
+//     // 4. Summing up Production & Scrap from ProductionResponse
+//     allProduction.forEach((resData) => {
+//       totalActual += Number(resData.completedQuantity) || 0;
+//       totalScrap += Number(resData.scrapQuantity) || 0;
+//     });
+
+//     // 5. Summing up Manual/Return Scrap from scapEntries (Logic like QualityPerformance)
+//     allScrap.forEach((scrap) => {
+//       const sQty =
+//         (Number(scrap.scrapQuantity) || 0) +
+//         (Number(scrap.returnQuantity) || 0);
+//       totalScrap += sQty;
+//     });
+
+//     res.json({
+//       hourByHour: [
+//         { label: "Shift", value: shift, image: "green.png" },
+//         { label: "Actual", value: totalActual, image: "yellow.png" },
+//         { label: "Scrap", value: totalScrap, image: "orange.png" },
+//       ],
+//       pieChartData: [
+//         { name: "Actual", value: totalActual, color: "#4CAF50" },
+//         { name: "Scrap", value: totalScrap, color: "#FFC107" },
+//       ],
+//       shiftInfo: {
+//         currentShift: shift,
+//         start: shiftStart.format("YYYY-MM-DD HH:mm"),
+//         end: shiftEnd.format("YYYY-MM-DD HH:mm"),
+//         currentTimeInTZ: now.format("HH:mm"),
+//         timezoneUsed: tz,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching overview:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
 const productionOverview = async (req, res) => {
   try {
-    // 1. Default timezone ko "Asia/Kolkata" karein agar query mein nahi aa raha
     const tz = req.query.tz || "Asia/Kolkata";
     const selectedDate = req.query.date || moment().tz(tz).format("YYYY-MM-DD");
 
     const now = moment().tz(tz);
-    const currentHour = now.hour(); // Ab ye India ke ghante dikhayega (e.g., 15 for 3 PM)
-
-    console.log(`Current Time in ${tz}: ${now.format("HH:mm")}`);
+    const currentHour = now.hour();
 
     let shift = 1;
     let shiftStart, shiftEnd;
 
-    // 2. Shift Logic (Ab currentHour sahi aayega)
+    // 1. Shift Logic
     if (currentHour >= 6 && currentHour < 14) {
       shift = 1;
       shiftStart = moment
@@ -5968,13 +6223,13 @@ const productionOverview = async (req, res) => {
         .second(0)
         .millisecond(0);
       shiftEnd = moment
-        .tz(dateQuery, tz)
+        .tz(selectedDate, tz)
         .hour(14)
         .minute(0)
         .second(0)
         .millisecond(0);
     } else if (currentHour >= 14 && currentHour < 22) {
-      shift = 2; // <--- Ab ye condition match hogi (3 PM = 15)
+      shift = 2;
       shiftStart = moment
         .tz(selectedDate, tz)
         .hour(14)
@@ -6023,22 +6278,18 @@ const productionOverview = async (req, res) => {
     const startRange = shiftStart.toDate();
     const endRange = shiftEnd.toDate();
 
-    // 3. Active Processes Filter
     const activeProcesses = await prisma.process.findMany({
       where: { isDeleted: false },
       select: { id: true },
     });
     const processIds = activeProcesses.map((p) => p.id);
 
-    // 4. Data Fetching
-    const [allProduction, allScrap] = await Promise.all([
+    // 2. Data Fetching
+    const [allProduction, allScrapEntries] = await Promise.all([
       prisma.productionResponse.findMany({
         where: {
           processId: { in: processIds },
-          OR: [
-            { submittedDateTime: { gte: startRange, lte: endRange } },
-            { createdAt: { gte: startRange, lte: endRange } },
-          ],
+          updatedAt: { gte: startRange, lte: endRange },
           isDeleted: false,
         },
         select: { completedQuantity: true, scrapQuantity: true },
@@ -6046,22 +6297,25 @@ const productionOverview = async (req, res) => {
       prisma.scapEntries.findMany({
         where: {
           processId: { in: processIds },
-          createdAt: { gte: startRange, lte: endRange },
+          updatedAt: { gte: startRange, lte: endRange },
           isDeleted: false,
         },
-        select: { returnQuantity: true },
+        select: { returnQuantity: true }, // 'scrapQuantity' ko yahan se hata diya gaya hai
       }),
     ]);
 
     let totalActual = 0;
     let totalScrap = 0;
 
+    // 3. Sum Production Response (Machine Scrap)
     allProduction.forEach((resData) => {
       totalActual += Number(resData.completedQuantity) || 0;
       totalScrap += Number(resData.scrapQuantity) || 0;
     });
 
-    allScrap.forEach((scrap) => {
+    // 4. Sum Scrap Entries (Manual/Supplier Scrap)
+    allScrapEntries.forEach((scrap) => {
+      // scapEntries table mein sirf returnQuantity hi quantity field hai
       totalScrap += Number(scrap.returnQuantity) || 0;
     });
 
@@ -6079,13 +6333,15 @@ const productionOverview = async (req, res) => {
         currentShift: shift,
         start: shiftStart.format("YYYY-MM-DD HH:mm"),
         end: shiftEnd.format("YYYY-MM-DD HH:mm"),
-        currentTimeInTZ: now.format("HH:mm"), // Debugging ke liye
+        currentTimeInTZ: now.format("HH:mm"),
         timezoneUsed: tz,
       },
     });
   } catch (error) {
     console.error("Error fetching overview:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 };
 function parseCycleTime(cycleTimeStr) {
@@ -7589,7 +7845,9 @@ const currentStatusOverview = async (req, res) => {
         where: { isDeleted: false, updatedAt: dateFilter },
         include: {
           part: { select: { partDescription: true, partNumber: true } },
-          process: { select: { processName: true, machineName: true, cycleTime: true } },
+          process: {
+            select: { processName: true, machineName: true, cycleTime: true },
+          },
         },
       }),
       prisma.scapEntries.findMany({
@@ -7599,12 +7857,20 @@ const currentStatusOverview = async (req, res) => {
             select: {
               partDescription: true,
               partNumber: true,
-              process: { select: { processName: true, machineName: true, cycleTime: true } },
+              process: {
+                select: {
+                  processName: true,
+                  machineName: true,
+                  cycleTime: true,
+                },
+              },
             },
           },
-          process: { select: { processName: true, machineName: true, cycleTime: true } },
+          process: {
+            select: { processName: true, machineName: true, cycleTime: true },
+          },
         },
-      })
+      }),
     ]);
 
     let totalActual = 0;
@@ -7625,7 +7891,9 @@ const currentStatusOverview = async (req, res) => {
 
       // CONDITION: Sirf wahi detail mein jaaye jispar kaam (Actual > 0) hua ho ya Scrap nikla ho
       if (actual > 0 || scrap > 0) {
-        const cycleTime = order.process?.cycleTime ? parseFloat(order.process.cycleTime) : 0;
+        const cycleTime = order.process?.cycleTime
+          ? parseFloat(order.process.cycleTime)
+          : 0;
         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
 
         completedDetails.push({
@@ -7645,13 +7913,16 @@ const currentStatusOverview = async (req, res) => {
 
     // 4. Process Manual Scrap (Ye hamesha "Action" mana jata hai)
     scrapEntries.forEach((entry) => {
-      const sQty = Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
-      
+      const sQty =
+        Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+
       if (sQty > 0) {
         totalScrap += sQty;
 
         const processInfo = entry.process || entry.PartNumber?.process;
-        const cycleTime = processInfo?.cycleTime ? parseFloat(processInfo.cycleTime) : 0;
+        const cycleTime = processInfo?.cycleTime
+          ? parseFloat(processInfo.cycleTime)
+          : 0;
         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
 
         completedDetails.push({
@@ -7752,6 +8023,130 @@ const currentQualityStatusOverview = async (req, res) => {
       .json({ error: "Internal Server Error", details: error.message });
   }
 };
+// const monitorChartsData = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     let start, end;
+//     if (startDate && endDate) {
+//       start = new Date(startDate);
+//       start.setHours(0, 0, 0, 0);
+//       end = new Date(endDate);
+//       end.setHours(23, 59, 59, 999);
+//     } else {
+//       const today = new Date();
+//       start = new Date(today.setHours(0, 0, 0, 0));
+//       end = new Date(today.setHours(23, 59, 59, 999));
+//     }
+
+//     // 1. Manual Table Data (Schedules)
+//     const manualData = await prisma.stockOrderSchedule.findMany({
+//       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//       include: {
+//         part: { select: { partNumber: true, partDescription: true } },
+//         process: { select: { processName: true, machineName: true } },
+//       },
+//     });
+
+//     const manualGrouped = {};
+//     manualData.forEach((item) => {
+//       const pDisplay = `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`;
+//       const partD =
+//         item.part?.partDescription || item.part?.partNumber || "N/A";
+//       const key = `${pDisplay}-${partD}`;
+
+//       if (!manualGrouped[key]) {
+//         manualGrouped[key] = {
+//           process: pDisplay,
+//           part: partD,
+//           qty: 0,
+//           scrap: 0,
+//         };
+//       }
+//       manualGrouped[key].qty += item.completedQuantity || 0;
+//       manualGrouped[key].scrap += item.scrapQuantity || 0;
+//     });
+
+//     // 2. Production Data for Timing (Monitor Table)
+//     const productionData = await prisma.productionResponse.findMany({
+//       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
+//       include: {
+//         PartNumber: { select: { partNumber: true, partDescription: true } },
+//         process: { select: { processName: true, machineName: true } },
+//       },
+//     });
+
+//     const monitorTable = productionData
+//       .filter((item) => item.completedQuantity > 0 || item.scrapQuantity > 0)
+//       .map((item) => {
+//         const sTime = new Date(item.cycleTimeStart);
+//         const eTime = item.cycleTimeEnd
+//           ? new Date(item.cycleTimeEnd)
+//           : new Date();
+//         const diffSec = (eTime - sTime) / 1000;
+
+//         return {
+//           process: `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`,
+//           part:
+//             item.PartNumber?.partDescription ||
+//             item.PartNumber?.partNumber ||
+//             "N/A",
+//           cycleTime:
+//             diffSec < 60
+//               ? `${diffSec.toFixed(0)} sec`
+//               : `${(diffSec / 60).toFixed(2)} min`,
+//         };
+//       });
+
+//     // --- 3. FIX: Scrap Table Data (Fetching from scapEntries) ---
+//     const scrapEntries = await prisma.scapEntries.findMany({
+//       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
+//       include: {
+//         PartNumber: { select: { partNumber: true, partDescription: true } },
+//         process: { select: { processName: true, machineName: true } },
+//       },
+//     });
+
+//     const scrapGroupedMap = {};
+//     scrapEntries.forEach((entry) => {
+//       const pDisplay = `${entry.process?.processName || "N/A"} (${entry.process?.machineName || ""})`;
+//       const partD =
+//         entry.PartNumber?.partDescription ||
+//         entry.PartNumber?.partNumber ||
+//         "N/A";
+//       const key = `${pDisplay}-${partD}`;
+
+//       if (!scrapGroupedMap[key]) {
+//         scrapGroupedMap[key] = { process: pDisplay, part: partD, scrap: 0 };
+//       }
+//       // returnQuantity hi asal mein scrap count hai
+//       scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
+//     });
+
+//     const productionScrap = Object.values(scrapGroupedMap).sort(
+//       (a, b) => b.scrap - a.scrap,
+//     );
+
+//     return res.status(200).json({
+//       manualTable: Object.values(manualGrouped),
+//       monitorTable,
+//       productionScrap,
+//       totals: {
+//         totalCompletedQty: manualData.reduce(
+//           (sum, i) => sum + (i.completedQuantity || 0),
+//           0,
+//         ),
+//         totalScrapQty: scrapEntries.reduce(
+//           (sum, i) => sum + (i.returnQuantity || 0),
+//           0,
+//         ),
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
 const monitorChartsData = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -7768,11 +8163,13 @@ const monitorChartsData = async (req, res) => {
       end = new Date(today.setHours(23, 59, 59, 999));
     }
 
-    // 1. Manual Table Data (Schedules)
+    // 1. Manual Table Data (Schedules - Stock + Custom dono ke liye)
     const manualData = await prisma.stockOrderSchedule.findMany({
       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
       include: {
-        part: { select: { partNumber: true, partDescription: true } },
+        part: { select: { partNumber: true, partDescription: true } }, // Stock Part
+        customPart: { select: { partNumber: true } }, // Custom Part logic
+        CustomOrder: { select: { partNumber: true } }, // Agar CustomOrder table mein partNumber ho
         process: { select: { processName: true, machineName: true } },
       },
     });
@@ -7780,8 +8177,15 @@ const monitorChartsData = async (req, res) => {
     const manualGrouped = {};
     manualData.forEach((item) => {
       const pDisplay = `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`;
+
+      // FIX: Naming logic to handle Custom Parts
       const partD =
-        item.part?.partDescription || item.part?.partNumber || "N/A";
+        item.part?.partDescription ||
+        item.part?.partNumber ||
+        item.customPart?.partNumber ||
+        item.CustomOrder?.partNumber ||
+        "Custom Part";
+
       const key = `${pDisplay}-${partD}`;
 
       if (!manualGrouped[key]) {
@@ -7796,11 +8200,12 @@ const monitorChartsData = async (req, res) => {
       manualGrouped[key].scrap += item.scrapQuantity || 0;
     });
 
-    // 2. Production Data for Timing (Monitor Table)
+    // 2. Production Timing (Monitor Table)
     const productionData = await prisma.productionResponse.findMany({
       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
       include: {
         PartNumber: { select: { partNumber: true, partDescription: true } },
+        CustomOrder: { select: { partNumber: true } }, // Include Custom Order
         process: { select: { processName: true, machineName: true } },
       },
     });
@@ -7819,7 +8224,8 @@ const monitorChartsData = async (req, res) => {
           part:
             item.PartNumber?.partDescription ||
             item.PartNumber?.partNumber ||
-            "N/A",
+            item.CustomOrder?.partNumber ||
+            "Custom Part",
           cycleTime:
             diffSec < 60
               ? `${diffSec.toFixed(0)} sec`
@@ -7827,12 +8233,13 @@ const monitorChartsData = async (req, res) => {
         };
       });
 
-    // --- 3. FIX: Scrap Table Data (Fetching from scapEntries) ---
+    // 3. Scrap Entries Table (Independent Entries)
     const scrapEntries = await prisma.scapEntries.findMany({
       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
       include: {
         PartNumber: { select: { partNumber: true, partDescription: true } },
         process: { select: { processName: true, machineName: true } },
+        StockOrder: { select: { orderNumber: true } }, // Stock order link check karne ke liye
       },
     });
 
@@ -7842,14 +8249,30 @@ const monitorChartsData = async (req, res) => {
       const partD =
         entry.PartNumber?.partDescription ||
         entry.PartNumber?.partNumber ||
-        "N/A";
+        "Manual Scrap";
       const key = `${pDisplay}-${partD}`;
 
       if (!scrapGroupedMap[key]) {
         scrapGroupedMap[key] = { process: pDisplay, part: partD, scrap: 0 };
       }
-      // returnQuantity hi asal mein scrap count hai
       scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
+    });
+
+    // Combine both scrap sources: Independent entries + Schedule scrap
+    // Taki custom orders ka scrap jo production ke waqt dala gaya wo bhi dikhe
+    Object.values(manualGrouped).forEach((item) => {
+      if (item.scrap > 0) {
+        if (!scrapGroupedMap[`${item.process}-${item.part}`]) {
+          scrapGroupedMap[`${item.process}-${item.part}`] = {
+            process: item.process,
+            part: item.part,
+            scrap: item.scrap,
+          };
+        } else {
+          // Note: Avoid double counting if you record scrap in both tables
+          // Agar aap sirf ek hi jagah record karte hain toh ye sahi hai
+        }
+      }
     });
 
     const productionScrap = Object.values(scrapGroupedMap).sort(
@@ -7865,13 +8288,15 @@ const monitorChartsData = async (req, res) => {
           (sum, i) => sum + (i.completedQuantity || 0),
           0,
         ),
-        totalScrapQty: scrapEntries.reduce(
-          (sum, i) => sum + (i.returnQuantity || 0),
+        // Total scrap = Manual entries + Production schedule scrap
+        totalScrapQty: Object.values(scrapGroupedMap).reduce(
+          (sum, i) => sum + i.scrap,
           0,
         ),
       },
     });
   } catch (error) {
+    console.error("Monitor Charts Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -8719,7 +9144,56 @@ const dashBoardData = async (req, res) => {
     //     totalInventoryCost += extra * unitVal;
     //   }
     // });
-    const parts = await prisma.partNumber.findMany({
+    // const parts = await prisma.partNumber.findMany({
+    //   where: { isDeleted: false },
+    //   include: { process: true },
+    // });
+
+    // let totalInventoryCost = 0;
+    // let totalInventoryCount = 0;
+
+    // parts.forEach((p) => {
+    //   const avail = p.availStock || 0;
+    //   // Document Formula: Part cost = Cost + (Cycle Time * Rate)
+    //   const partCost =
+    //     (parseFloat(p.cost) || 0) +
+    //     ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
+
+    //   // Document: Sum for all parts (Part cost X Part inventory)
+    //   totalInventoryCount += avail;
+    //   totalInventoryCost += avail * partCost;
+    // });
+    // const parts = await prisma.partNumber.findMany({
+    //   where: { isDeleted: false },
+    //   include: { process: true },
+    // });
+
+    // let totalInventoryCost = 0;
+    // let totalInventoryCount = 0;
+
+    // parts.forEach((p) => {
+    //   const avail = p.availStock || 0;
+    //   const min = p.minStock || 0;
+
+    //   // 1. Client Formula ka pehla part: (availableStock - minStock)
+    //   const extraStock = avail - min;
+
+    //   // Hum calculation sirf tabhi karenge jab extra stock 0 se zyada ho
+    //   if (extraStock > 0) {
+    //     // 2. Client Formula ka dusra part: (partCost + cycleTime × ratePerHour)
+    //     // Note: Cycle time minutes mein hota hai, isliye /60 kiya gaya hai
+    //     const unitValue =
+    //       (parseFloat(p.cost) || 0) +
+    //       ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
+
+    //     // 3. Inventory Cost calculation as per client
+    //     totalInventoryCount += extraStock;
+    //     totalInventoryCost += extraStock * unitValue;
+    //   }
+    // });
+    // --- IS SECTION KO REPLACE KAREIN (Pehle wale parts logic ki jagah) ---
+
+    const allInventoryItems = await prisma.partNumber.findMany({
       where: { isDeleted: false },
       include: { process: true },
     });
@@ -8727,17 +9201,30 @@ const dashBoardData = async (req, res) => {
     let totalInventoryCost = 0;
     let totalInventoryCount = 0;
 
-    parts.forEach((p) => {
-      const avail = p.availStock || 0;
-      // Document Formula: Part cost = Cost + (Cycle Time * Rate)
-      const partCost =
-        (parseFloat(p.cost) || 0) +
-        ((p.cycleTime || 0) / 60) * (p.process?.ratePerHour || 0);
+    allInventoryItems.forEach((item) => {
+      const avail = item.availStock || 0;
+      const min = item.minStock || 0;
 
-      // Document: Sum for all parts (Part cost X Part inventory)
-      totalInventoryCount += avail;
-      totalInventoryCost += avail * partCost;
+      // 1. Client Formula: (availableStock - minStock)
+      const extraStock = avail - min;
+
+      // Hum calculation sirf tabhi karenge jab extra stock 0 se zyada ho
+      if (extraStock > 0) {
+        // 2. Client Formula: (partCost + cycleTime × ratePerHour)
+        // Cycle time ko 60 se divide kiya hours nikalne ke liye
+        const unitValue =
+          (parseFloat(item.cost) || 0) +
+          ((parseFloat(item.cycleTime) || 0) / 60) *
+            (item.process?.ratePerHour || 0);
+
+        // 3. Final Sum (Jo client ne manga tha)
+        totalInventoryCount += extraStock;
+        totalInventoryCost += extraStock * unitValue;
+      }
     });
+
+    // --- REPLACEMENT KHATAM ---
+
     const fetchSchedules = async (start, end) =>
       await prisma.stockOrderSchedule.findMany({
         where: { isDeleted: false, order_date: { gte: start, lte: end } },
@@ -8856,6 +9343,7 @@ const dashBoardData = async (req, res) => {
       fulfilledOrders,
     });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -9059,120 +9547,120 @@ const capacityStatus = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
-const productionEfficieny = async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
 
-    // Date filter logic: Production metrics ke liye hum updatedAt ya completed_date use karenge
-    // kyunki createdAt order banne ka time hai, kaam khatam hone ka nahi.
-    let dateFilter = { isDeleted: false };
+//     // Date filter logic: Production metrics ke liye hum updatedAt ya completed_date use karenge
+//     // kyunki createdAt order banne ka time hai, kaam khatam hone ka nahi.
+//     let dateFilter = { isDeleted: false };
 
-    if (startDate || endDate) {
-      const filterRange = {};
-      if (startDate) filterRange.gte = new Date(startDate);
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        filterRange.lte = end;
-      }
-      // Hum updatedAt use kar rahe hain kyunki jab status 'completed' hota hai toh ye update hota hai
-      dateFilter.updatedAt = filterRange;
-    }
+//     if (startDate || endDate) {
+//       const filterRange = {};
+//       if (startDate) filterRange.gte = new Date(startDate);
+//       if (endDate) {
+//         const end = new Date(endDate);
+//         end.setHours(23, 59, 59, 999);
+//         filterRange.lte = end;
+//       }
+//       // Hum updatedAt use kar rahe hain kyunki jab status 'completed' hota hai toh ye update hota hai
+//       dateFilter.updatedAt = filterRange;
+//     }
 
-    const [schedules, scrapEntries] = await Promise.all([
-      prisma.stockOrderSchedule.findMany({
-        where: dateFilter,
-        select: {
-          updatedAt: true, // Grouping ke liye
-          completedQuantity: true,
-          scheduleQuantity: true,
-          scrapQuantity: true,
-          status: true,
-          part: { select: { cost: true } },
-        },
-        orderBy: { updatedAt: "asc" },
-      }),
-      prisma.scapEntries.findMany({
-        where: {
-          isDeleted: false,
-          // Scrap entries hamesha usi din ki dikhni chahiye jab wo bani
-          ...(startDate || endDate ? { createdAt: dateFilter.updatedAt } : {}),
-        },
-        select: {
-          createdAt: true,
-          returnQuantity: true,
-          PartNumber: { select: { cost: true } },
-        },
-      }),
-    ]);
+//     const [schedules, scrapEntries] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: dateFilter,
+//         select: {
+//           updatedAt: true, // Grouping ke liye
+//           completedQuantity: true,
+//           scheduleQuantity: true,
+//           scrapQuantity: true,
+//           status: true,
+//           part: { select: { cost: true } },
+//         },
+//         orderBy: { updatedAt: "asc" },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           isDeleted: false,
+//           // Scrap entries hamesha usi din ki dikhni chahiye jab wo bani
+//           ...(startDate || endDate ? { createdAt: dateFilter.updatedAt } : {}),
+//         },
+//         select: {
+//           createdAt: true,
+//           returnQuantity: true,
+//           PartNumber: { select: { cost: true } },
+//         },
+//       }),
+//     ]);
 
-    const dailyMap = new Map();
-    let totalCompleted = 0;
-    let totalScrapCost = 0;
+//     const dailyMap = new Map();
+//     let totalCompleted = 0;
+//     let totalScrapCost = 0;
 
-    // Timezone safe Date formatter (YYYY-MM-DD)
-    const getLocalDate = (date) => {
-      const d = new Date(date);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    };
+//     // Timezone safe Date formatter (YYYY-MM-DD)
+//     const getLocalDate = (date) => {
+//       const d = new Date(date);
+//       const year = d.getFullYear();
+//       const month = String(d.getMonth() + 1).padStart(2, "0");
+//       const day = String(d.getDate()).padStart(2, "0");
+//       return `${year}-${month}-${day}`;
+//     };
 
-    schedules.forEach((item) => {
-      // Sirf wahi records count karein jo 'completed' hain (optional, depends on your need)
-      if (item.completedQuantity > 0) {
-        const dateKey = getLocalDate(item.updatedAt);
+//     schedules.forEach((item) => {
+//       // Sirf wahi records count karein jo 'completed' hain (optional, depends on your need)
+//       if (item.completedQuantity > 0) {
+//         const dateKey = getLocalDate(item.updatedAt);
 
-        if (!dailyMap.has(dateKey)) {
-          dailyMap.set(dateKey, { date: dateKey, completed: 0 });
-        }
+//         if (!dailyMap.has(dateKey)) {
+//           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+//         }
 
-        const current = dailyMap.get(dateKey);
-        const qty = item.completedQuantity || 0;
+//         const current = dailyMap.get(dateKey);
+//         const qty = item.completedQuantity || 0;
 
-        current.completed += qty;
-        totalCompleted += qty;
+//         current.completed += qty;
+//         totalCompleted += qty;
 
-        // Scrap Cost from schedules
-        const partCost = parseFloat(item.part?.cost || 0);
-        totalScrapCost += partCost * (item.scrapQuantity || 0);
-      }
-    });
+//         // Scrap Cost from schedules
+//         const partCost = parseFloat(item.part?.cost || 0);
+//         totalScrapCost += partCost * (item.scrapQuantity || 0);
+//       }
+//     });
 
-    // Scrap Cost from independent Scrap Entries
-    scrapEntries.forEach((entry) => {
-      const entryCost = parseFloat(entry.PartNumber?.cost || 0);
-      const entryQty = Number(entry.returnQuantity) || 0;
-      totalScrapCost += entryCost * entryQty;
+//     // Scrap Cost from independent Scrap Entries
+//     scrapEntries.forEach((entry) => {
+//       const entryCost = parseFloat(entry.PartNumber?.cost || 0);
+//       const entryQty = Number(entry.returnQuantity) || 0;
+//       totalScrapCost += entryCost * entryQty;
 
-      // Agar aap scrap ko bhi graph mein dikhana chahte hain toh yahan logic add kar sakte hain
-    });
+//       // Agar aap scrap ko bhi graph mein dikhana chahte hain toh yahan logic add kar sakte hain
+//     });
 
-    // Map ko array mein convert karke sort karein
-    const graphData = Array.from(dailyMap.values()).sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-    );
+//     // Map ko array mein convert karke sort karein
+//     const graphData = Array.from(dailyMap.values()).sort(
+//       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+//     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Production Quantity Data",
-      data: graphData,
-      totals: {
-        totalOrders: schedules.length,
-        totalCompleted,
-        totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
-      },
-    });
-  } catch (error) {
-    console.error("Error in productionEfficiency:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server Error",
-      error: error.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       success: true,
+//       message: "Production Quantity Data",
+//       data: graphData,
+//       totals: {
+//         totalOrders: schedules.length,
+//         totalCompleted,
+//         totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error in productionEfficiency:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// };
 // const productionEfficieny = async (req, res) => {
 //   try {
 //     const { startDate, endDate } = req.query;
@@ -9252,6 +9740,124 @@ const productionEfficieny = async (req, res) => {
 //       .json({ message: "Server Error", error: error.message });
 //   }
 // };
+const productionEfficieny = async (req, res) => {
+  try {
+    const { startDate, endDate, year } = req.query;
+
+    // 1. Filters (Same as costingApi)
+    const scheduleWhere = { status: "completed", isDeleted: false };
+    const scrapWhere = { isDeleted: false };
+
+    if (startDate || endDate) {
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+
+      const dateRange = {};
+      if (start) dateRange.gte = start;
+      if (end) dateRange.lte = end;
+
+      scheduleWhere.completed_date = dateRange;
+      scrapWhere.createdAt = dateRange;
+    } else if (year) {
+      const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+      const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+
+      scheduleWhere.completed_date = { gte: startOfYear, lte: endOfYear };
+      scrapWhere.createdAt = { gte: startOfYear, lte: endOfYear };
+    }
+
+    const [schedules, scrapEntries] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: scheduleWhere,
+        select: {
+          completed_date: true,
+          completedQuantity: true,
+          scrapQuantity: true, // Ye available hai
+          // supplierReturnQuantity ko yahan se hata diya gaya hai kyunki ye DB mein nahi hai
+          part: { select: { cost: true } },
+        },
+        orderBy: { completed_date: "asc" },
+      }),
+      prisma.scapEntries.findMany({
+        where: scrapWhere,
+        select: {
+          createdAt: true,
+          returnQuantity: true,
+          supplierId: true,
+          type: true,
+          PartNumber: { select: { cost: true } },
+        },
+      }),
+    ]);
+
+    const dailyMap = new Map();
+    let totalCompleted = 0;
+    let totalScrapCost = 0;
+    let totalSupplierReturn = 0;
+
+    const getLocalDate = (date) => {
+      const d = new Date(date || new Date());
+      return d.toISOString().split("T")[0];
+    };
+
+    // 2. Loop through Schedules (Stock Orders)
+    schedules.forEach((item) => {
+      const dateKey = getLocalDate(item.completed_date);
+      const qty = item.completedQuantity || 0;
+      const partCost = parseFloat(item.part?.cost || 0);
+
+      // Graph Data
+      if (!dailyMap.has(dateKey)) {
+        dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+      }
+      const current = dailyMap.get(dateKey);
+      current.completed += qty;
+      totalCompleted += qty;
+
+      // Scrap Cost calculation (From Schedule)
+      totalScrapCost += (item.scrapQuantity || 0) * partCost;
+    });
+
+    // 3. Loop through Scrap Entries (Independent/Manual)
+    // Yahan supplier logic handle hoga jaisa costingApi mein tha
+    scrapEntries.forEach((entry) => {
+      const mPartCost = parseFloat(entry.PartNumber?.cost || 0);
+      const mQty = Number(entry.returnQuantity) || 0;
+      const entryTotalCost = mQty * mPartCost;
+
+      if (entry.supplierId || entry.type === "supplier") {
+        totalSupplierReturn += entryTotalCost;
+      } else {
+        totalScrapCost += entryTotalCost;
+      }
+    });
+
+    const graphData = Array.from(dailyMap.values()).sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Production Quantity and Scrap Data",
+      data: graphData,
+      totals: {
+        totalOrders: schedules.length,
+        totalCompleted,
+        totalScrapCost: parseFloat(totalScrapCost.toFixed(2)),
+        totalSupplierReturn: parseFloat(totalSupplierReturn.toFixed(2)),
+        // In teeno ka sum aapke total cost logic ko match karega
+      },
+    });
+  } catch (error) {
+    console.error("Error in productionEfficiency:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;
