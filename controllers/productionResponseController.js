@@ -1006,237 +1006,115 @@ const findNextJobForProcess = async (processId) => {
 //   }
 // };
 
-// const completeScheduleOrder = async (req, res) => {
-//   try {
-//     const { id: productionResponseId } = req.params;
-//     const { orderId, partId, employeeId, order_type } = req.body;
-
-//     if (!orderId || !order_type) {
-//       return res
-//         .status(400)
-//         .json({ message: "orderId and order_type are required." });
-//     }
-
-//     const result = await prisma.$transaction(async (tx) => {
-//       const orderSchedule = await tx.stockOrderSchedule.findFirst({
-//         where: {
-//           order_id: orderId,
-//           order_type: order_type,
-//           isDeleted: false,
-//           OR: [{ part_id: partId }, { customPartId: partId }],
-//         },
-//       });
-
-//       if (!orderSchedule) throw new Error(`Schedule not found`);
-
-//       const totalQty = orderSchedule.scheduleQuantity || 0;
-//       const currentQty = orderSchedule.completedQuantity || 0;
-//       if (currentQty >= totalQty) return { alreadyCompleted: true };
-
-//       const now = new Date();
-//       let perPartCycleTimeSeconds = 0;
-
-//       // --- NAYA LOGIC: Per Part Cycle Time Calculation ---
-//       if (productionResponseId && productionResponseId !== "null") {
-//         const existingResponse = await tx.productionResponse.findUnique({
-//           where: { id: productionResponseId },
-//         });
-
-//         if (existingResponse) {
-//           // Agar cycleTimeEnd null hai (matlab pehla part hai), toh cycleTimeStart use karein
-//           const startTime = existingResponse.cycleTimeEnd
-//             ? new Date(existingResponse.cycleTimeEnd)
-//             : new Date(existingResponse.cycleTimeStart);
-
-//           perPartCycleTimeSeconds = Math.floor((now - startTime) / 1000);
-
-//           await tx.productionResponse.update({
-//             where: { id: productionResponseId },
-//             data: {
-//               cycleTimeEnd: now, // Agle part ke liye timer yahin se shuru hoga
-//               completedQuantity: { increment: 1 },
-//               submittedDateTime: now,
-//               stationUserId: employeeId,
-//             },
-//           });
-//         }
-//       } else {
-//         // Agar productionResponseId nahi hai toh naya create karein (Existing functionality)
-//         await tx.productionResponse.create({
-//           data: {
-//             orderId: order_type.includes("Stock") ? orderId : null,
-//             customOrderId: order_type.includes("Custom") ? orderId : null,
-//             partId: orderSchedule.part_id,
-//             processId: orderSchedule.processId || "",
-//             completedQuantity: 1,
-//             cycleTimeStart: new Date(Date.now() - 5000), // Default 5 sec diff
-//             cycleTimeEnd: now,
-//             order_type: order_type,
-//             stationUserId: employeeId,
-//           },
-//         });
-//       }
-
-//       // --- Rest of the existing logic ---
-//       const newCompletedQty = currentQty + 1;
-//       const updatedStatus =
-//         newCompletedQty >= totalQty ? "completed" : "progress";
-
-//       if (
-//         order_type.replace(/\s/g, "") === "StockOrder" &&
-//         orderSchedule.part_id
-//       ) {
-//         await tx.partNumber.update({
-//           where: { part_id: orderSchedule.part_id },
-//           data: { availStock: { increment: 1 } },
-//         });
-//       }
-
-//       await tx.stockOrderSchedule.update({
-//         where: { id: orderSchedule.id },
-//         data: {
-//           completedQuantity: newCompletedQty,
-//           status: updatedStatus,
-//           remainingQty: Math.max(0, totalQty - newCompletedQty),
-//           completed_date: updatedStatus === "completed" ? now : undefined,
-//           completed_EmpId: employeeId,
-//         },
-//       });
-
-//       return {
-//         status: updatedStatus,
-//         lastPartTime: perPartCycleTimeSeconds, // Frontend ke liye cycle time info
-//       };
-//     });
-
-//     return res.status(200).json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
 const completeScheduleOrder = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params; // Active session ID
+    const { id: productionResponseId } = req.params;
     const { orderId, partId, employeeId, order_type } = req.body;
-    const now = new Date();
 
-    if (!orderId || !partId || !employeeId) {
+    if (!orderId || !order_type) {
       return res
         .status(400)
-        .json({
-          message: "Missing required data (OrderID, PartID, or EmployeeID).",
-        });
+        .json({ message: "orderId and order_type are required." });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Pehle Job Schedule dhoondo
-      const schedule = await tx.stockOrderSchedule.findFirst({
+      const orderSchedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
-          part_id: partId,
-          order_type,
+          order_type: order_type,
           isDeleted: false,
+          OR: [{ part_id: partId }, { customPartId: partId }],
         },
       });
-      if (!schedule) throw new Error("Job Schedule not found.");
 
-      // 2. PRODUCTION RESPONSE CLOSE KAREIN (Current Piece Timer Stop)
-      // Bilkul scrap logic ki tarah updateMany use karenge
-      let wasUpdated = false;
-      if (
-        productionResponseId &&
-        productionResponseId !== "null" &&
-        productionResponseId !== "undefined"
-      ) {
-        const updateResult = await tx.productionResponse.updateMany({
-          where: {
-            id: productionResponseId,
-            completedQuantity: 0, // Sirf unhe close karo jo abhi tak 0 hain
-            scrap: false,
-          },
-          data: {
-            completedQuantity: 1, // Is unit ko 1 mark karo
-            cycleTimeEnd: now,
-            submittedDateTime: now,
-            stationUserId: employeeId,
-          },
+      if (!orderSchedule) throw new Error(`Schedule not found`);
+
+      const totalQty = orderSchedule.scheduleQuantity || 0;
+      const currentQty = orderSchedule.completedQuantity || 0;
+      if (currentQty >= totalQty) return { alreadyCompleted: true };
+
+      const now = new Date();
+      let perPartCycleTimeSeconds = 0;
+
+      // --- NAYA LOGIC: Per Part Cycle Time Calculation ---
+      if (productionResponseId && productionResponseId !== "null") {
+        const existingResponse = await tx.productionResponse.findUnique({
+          where: { id: productionResponseId },
         });
-        if (updateResult.count > 0) wasUpdated = true;
-      }
 
-      // SAFETY: Agar record update nahi hua (Race condition), toh naya completed record banao
-      if (!wasUpdated) {
+        if (existingResponse) {
+          // Agar cycleTimeEnd null hai (matlab pehla part hai), toh cycleTimeStart use karein
+          const startTime = existingResponse.cycleTimeEnd
+            ? new Date(existingResponse.cycleTimeEnd)
+            : new Date(existingResponse.cycleTimeStart);
+
+          perPartCycleTimeSeconds = Math.floor((now - startTime) / 1000);
+
+          await tx.productionResponse.update({
+            where: { id: productionResponseId },
+            data: {
+              cycleTimeEnd: now, // Agle part ke liye timer yahin se shuru hoga
+              completedQuantity: { increment: 1 },
+              submittedDateTime: now,
+              stationUserId: employeeId,
+            },
+          });
+        }
+      } else {
+        // Agar productionResponseId nahi hai toh naya create karein (Existing functionality)
         await tx.productionResponse.create({
           data: {
-            processId: schedule.processId,
-            stationUserId: employeeId,
-            partId: partId,
-            orderId: orderId,
-            order_type: order_type,
-            cycleTimeStart: now,
-            cycleTimeEnd: now, // Turant close
+            orderId: order_type.includes("Stock") ? orderId : null,
+            customOrderId: order_type.includes("Custom") ? orderId : null,
+            partId: orderSchedule.part_id,
+            processId: orderSchedule.processId || "",
             completedQuantity: 1,
-            submittedDateTime: now,
+            cycleTimeStart: new Date(Date.now() - 5000), // Default 5 sec diff
+            cycleTimeEnd: now,
+            order_type: order_type,
+            stationUserId: employeeId,
           },
         });
       }
 
-      // 3. Update Overall Schedule Table
-      const newCompletedQty = (schedule.completedQuantity || 0) + 1;
-      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
-      const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+      // --- Rest of the existing logic ---
+      const newCompletedQty = currentQty + 1;
+      const updatedStatus =
+        newCompletedQty >= totalQty ? "completed" : "progress";
+
+      if (
+        order_type.replace(/\s/g, "") === "StockOrder" &&
+        orderSchedule.part_id
+      ) {
+        await tx.partNumber.update({
+          where: { part_id: orderSchedule.part_id },
+          data: { availStock: { increment: 1 } },
+        });
+      }
 
       await tx.stockOrderSchedule.update({
-        where: { id: schedule.id },
+        where: { id: orderSchedule.id },
         data: {
           completedQuantity: newCompletedQty,
-          remainingQty: newRemaining,
           status: updatedStatus,
+          remainingQty: Math.max(0, totalQty - newCompletedQty),
           completed_date: updatedStatus === "completed" ? now : undefined,
           completed_EmpId: employeeId,
         },
       });
 
-      // 4. AGLE PIECE KE LIYE NAYA SESSION (Timer Reset to 0)
-      // Yahi wo part hai jo cycle time ko reset karega
-      let nextProductionId = null;
-      if (updatedStatus !== "completed") {
-        const nextSession = await tx.productionResponse.create({
-          data: {
-            processId: schedule.processId,
-            stationUserId: employeeId,
-            partId: partId,
-            orderId: orderId,
-            order_type: order_type,
-            cycleTimeStart: now, // Naya timer yahin se shuru
-            completedQuantity: 0,
-            scrap: false,
-          },
-        });
-        nextProductionId = nextSession.id;
-      }
-
-      // 5. Stock Inventory Update (Only for StockOrders)
-      if (order_type.toLowerCase().includes("stock")) {
-        await tx.partNumber.update({
-          where: { part_id: partId },
-          data: { availStock: { increment: 1 } },
-        });
-      }
-
       return {
         status: updatedStatus,
-        newProductionId: nextProductionId, // Frontend timer ke liye use karega
-        isJobFinished: updatedStatus === "completed",
+        lastPartTime: perPartCycleTimeSeconds, // Frontend ke liye cycle time info
       };
     });
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error("Complete Order Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 // const completeScheduleOrder = async (req, res) => {
 //   try {
 //     const { id: productionResponseId } = req.params; // Current Session ID
@@ -6260,25 +6138,14 @@ const scanScrapAction = async (req, res) => {
 
     const result = await prisma.$transaction(async (tx) => {
       const schedule = await tx.stockOrderSchedule.findFirst({
-        where: {
-          order_id: orderId,
-          part_id: partId,
-          order_type,
-          isDeleted: false,
-        },
+        where: { order_id: orderId, part_id: partId, order_type, isDeleted: false },
       });
       if (!schedule) throw new Error("Job Schedule not found.");
 
       // 1. Close scrapped unit
       await tx.productionResponse.updateMany({
         where: { id: productionResponseId, scrap: false },
-        data: {
-          scrap: true,
-          scrapQuantity: 1,
-          cycleTimeEnd: now,
-          submittedDateTime: now,
-          stationUserId: employeeId,
-        },
+        data: { scrap: true, scrapQuantity: 1, cycleTimeEnd: now, submittedDateTime: now, stationUserId: employeeId },
       });
 
       const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
