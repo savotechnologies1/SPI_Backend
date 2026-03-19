@@ -2931,6 +2931,37 @@ const selectScheudleProductNumber = async (req, res) => {
   }
 };
 
+// const getScrapEntryById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const entry = await prisma.scapEntries.findUnique({
+//       where: { id },
+//       include: {
+//         PartNumber: {
+//           select: {
+//             part_id: true,
+//             partNumber: true,
+//           },
+//         },
+//         supplier: {
+//           select: {
+//             firstName: true,
+//             lastName: true,
+//           },
+//         },
+//       },
+//     });
+
+//     if (!entry) {
+//       return res.status(404).json({ error: "Scrap entry not found" });
+//     }
+
+//     res.status(200).json({ data: entry });
+//   } catch (error) {
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// };
 const getScrapEntryById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2938,16 +2969,29 @@ const getScrapEntryById = async (req, res) => {
     const entry = await prisma.scapEntries.findUnique({
       where: { id },
       include: {
+        // 1. Part details
         PartNumber: {
           select: {
             part_id: true,
             partNumber: true,
           },
         },
+        // 2. Supplier details (for 'part' type entries)
         supplier: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
+            companyName: true,
+          },
+        },
+        // 3. Customer details (for 'product' type entries) - NEW ADDITION
+        customers: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
           },
         },
       },
@@ -2957,12 +3001,20 @@ const getScrapEntryById = async (req, res) => {
       return res.status(404).json({ error: "Scrap entry not found" });
     }
 
-    res.status(200).json({ data: entry });
+    // Response ko clean karne ke liye (Optionally combine names)
+    const formattedData = {
+      ...entry,
+      customerName: entry.customers
+        ? `${entry.customers.firstName} ${entry.customers.lastName}`.trim()
+        : null,
+    };
+
+    res.status(200).json({ data: formattedData });
   } catch (error) {
+    console.error("Error fetching scrap entry:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 const updateScrapEntry = async (req, res) => {
   try {
     const { id } = req.params;
@@ -3028,7 +3080,7 @@ const updateScrapEntry = async (req, res) => {
     ]);
 
     res.status(200).json({
-      message: "Scrap entry updated and stock adjusted",
+      message: "Scrap entry updated successfully !",
       data: updatedEntry,
     });
   } catch (error) {

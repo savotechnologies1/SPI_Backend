@@ -49,6 +49,8 @@ const {
   allEmployeeTimeLine,
   selectCustomerForStockOrder,
   getProductParts,
+  getSelectParts,
+  getSelectProducts,
 } = require("../controllers/adminController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
@@ -129,4 +131,6 @@ router.get(
 router.get("/product-parts/:id", validateToken, getProductParts);
 router.post("/scan-complete/:id", validateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", validateToken, scanScrapAction);
+router.get("/select-parts", validateToken, getSelectParts);
+router.get("/select-products", validateToken, getSelectProducts);
 module.exports = router;

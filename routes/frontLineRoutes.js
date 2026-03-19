@@ -63,6 +63,8 @@ const {
   getParts,
   getLowStockParts,
   getProductParts,
+  getSelectParts,
+  getSelectProducts,
 } = require("../controllers/adminController");
 const {
   stationSendNotification,
@@ -312,4 +314,6 @@ router.get("/get-parts", getParts);
 router.get("/product-parts/:id", validateToken, getProductParts);
 router.post("/scan-complete/:id", validateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", validateToken, scanScrapAction);
+router.get("/select-parts", validateToken, getSelectParts);
+router.get("/select-products", validateToken, getSelectProducts);
 module.exports = router;

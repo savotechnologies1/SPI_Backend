@@ -4171,66 +4171,144 @@ const updateSupplierOrder = async (req, res) => {
   }
 };
 
+// const updateSupplierOrderStatus = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { status, quantity, part_id } = req.body;
+//     const existingOrder = await prisma.supplier_orders.findUnique({
+//       where: { id },
+//       select: { status: true },
+//     });
+//     const record = await prisma.partNumber.findUnique({
+//       where: { part_id },
+//     });
+//     if (!record) {
+//       return res.status(404).json({ message: "Part/Product record not found" });
+//     }
+//     if (!existingOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+//     const oldStatus = existingOrder.status;
+
+//     await prisma.supplier_orders.update({
+//       where: { id },
+//       data: { status },
+//     });
+
+//     if (status === "Delivered" && oldStatus !== "Delivered") {
+//       await prisma.partNumber.update({
+//         where: { part_id },
+//         data: {
+//           supplierOrderQty: { increment: quantity },
+//           availStock: { increment: quantity },
+//         },
+//       });
+//       await prisma.supplier_inventory.updateMany({
+//         where: { part_id },
+//         data: { availStock: { increment: quantity } },
+//       });
+//     } else if (oldStatus === "Delivered" && status !== "Delivered") {
+//       await prisma.partNumber.update({
+//         where: { part_id },
+//         data: {
+//           supplierOrderQty: { decrement: quantity },
+//           availStock: { decrement: quantity },
+//         },
+//       });
+//       await prisma.supplier_inventory.updateMany({
+//         where: { part_id },
+//         data: { availStock: { decrement: quantity } },
+//       });
+//     }
+
+//     return res.status(200).json({
+//       message: "Order status updated successfully",
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
 const updateSupplierOrderStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status, quantity, part_id } = req.body;
+    const { id } = req.params; // Order ID
+    const { status } = req.body; // Naya status (e.g., "Delivered")
+
+    // 1. Pehle pura order fetch karein taaki hume part_id aur quantity mil sake
     const existingOrder = await prisma.supplier_orders.findUnique({
       where: { id },
-      select: { status: true },
     });
-    const record = await prisma.partNumber.findUnique({
-      where: { part_id },
-    });
-    if (!record) {
-      return res.status(404).json({ message: "Part/Product record not found" });
-    }
+
     if (!existingOrder) {
       return res.status(404).json({ message: "Order not found" });
     }
-    const oldStatus = existingOrder.status;
 
+    const oldStatus = existingOrder.status;
+    const part_id = existingOrder.part_id;
+    const quantity = parseInt(existingOrder.quantity) || 0; // Ensure it's a number
+
+    if (!part_id) {
+      return res.status(400).json({ message: "This order is not linked to any Part" });
+    }
+
+    // 2. Order status update karein
     await prisma.supplier_orders.update({
       where: { id },
       data: { status },
     });
 
-    if (status === "Delivered" && oldStatus !== "Delivered") {
-      await prisma.partNumber.update({
-        where: { part_id },
-        data: {
-          supplierOrderQty: { increment: quantity },
-          availStock: { increment: quantity },
-        },
-      });
-      await prisma.supplier_inventory.updateMany({
-        where: { part_id },
-        data: { availStock: { increment: quantity } },
-      });
-    } else if (oldStatus === "Delivered" && status !== "Delivered") {
-      await prisma.partNumber.update({
-        where: { part_id },
-        data: {
-          supplierOrderQty: { decrement: quantity },
-          availStock: { decrement: quantity },
-        },
-      });
-      await prisma.supplier_inventory.updateMany({
-        where: { part_id },
-        data: { availStock: { decrement: quantity } },
-      });
+    // 3. Inventory Update Logic
+    // Status normalization (Optional: dono ko lowercase karke compare karein)
+    const isNowDelivered = status.toLowerCase() === "delivered";
+    const wasPreviouslyDelivered = oldStatus ? oldStatus.toLowerCase() === "delivered" : false;
+
+    // Case A: Status "Delivered" hua (Pehle nahi tha) -> Stock Badhao
+    if (isNowDelivered && !wasPreviouslyDelivered) {
+      await prisma.$transaction([
+        prisma.partNumber.update({
+          where: { part_id },
+          data: {
+            supplierOrderQty: { increment: quantity },
+            availStock: { increment: quantity },
+          },
+        }),
+        prisma.supplier_inventory.updateMany({
+          where: { part_id },
+          data: { availStock: { increment: quantity } },
+        }),
+      ]);
+    } 
+    // Case B: Status "Delivered" se hata kar kuch aur kiya gaya -> Stock Kam karo (Revert)
+    else if (!isNowDelivered && wasPreviouslyDelivered) {
+      await prisma.$transaction([
+        prisma.partNumber.update({
+          where: { part_id },
+          data: {
+            supplierOrderQty: { decrement: quantity },
+            availStock: { decrement: quantity },
+          },
+        }),
+        prisma.supplier_inventory.updateMany({
+          where: { part_id },
+          data: { availStock: { decrement: quantity } },
+        }),
+      ]);
     }
 
     return res.status(200).json({
-      message: "Order status updated successfully",
+      message: "Order status and inventory updated successfully",
     });
+
   } catch (error) {
+    console.error("Update Error:", error); // Debugging ke liye
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
+      error: error.message
     });
   }
 };
-
 const deleteSupplierOrder = async (req, res) => {
   try {
     const id = req.params.id;
