@@ -112,6 +112,8 @@ const {
   updateInventoryData,
   revenueApi,
   revenueApi1,
+  getSelectParts,
+  getSelectProducts,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -509,4 +511,6 @@ router.get("/product-parts/:id", adminValidateToken, getProductParts);
 router.post("/send-order-to-supplier", adminValidateToken, sendOrderToSupplier);
 router.post("/scan-complete/:id", adminValidateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", adminValidateToken, scanScrapAction);
+router.get("/select-parts", adminValidateToken, getSelectParts);
+router.get("/select-products", adminValidateToken, getSelectProducts);
 module.exports = router;
