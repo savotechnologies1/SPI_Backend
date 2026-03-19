@@ -121,6 +121,29 @@ const crypto = require("crypto");
 //     });
 //   }
 // };
+// const stationLogout = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     if (!id)
+//       return res
+//         .status(400)
+//         .json({ message: "Production Response ID required." });
+
+//     await prisma.productionResponse.update({
+//       where: { id: id },
+//       data: {
+//         cycleTimeEnd: null, // Aapne manga: logout ke condition me null jayegi
+//         submittedDateTime: new Date(),
+//       },
+//     });
+
+//     return res
+//       .status(200)
+//       .json({ message: "You have successfully logged out." });
+//   } catch (error) {
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
 const stationLogout = async (req, res) => {
   try {
     const { id } = req.params;
@@ -132,7 +155,7 @@ const stationLogout = async (req, res) => {
     await prisma.productionResponse.update({
       where: { id: id },
       data: {
-        cycleTimeEnd: null, // Aapne manga: logout ke condition me null jayegi
+        cycleTimeEnd: new Date(), // Ab null nahi, balki logout ke waqt ka time jayega
         submittedDateTime: new Date(),
       },
     });
