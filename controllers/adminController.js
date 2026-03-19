@@ -417,48 +417,109 @@ const customerDetail = async (req, res) => {
   }
 };
 
+// const editCustomerDetail = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     const { firstName, lastName, email, customerPhone, address, billingTerms } =
+//       req.body;
+//     const existingOtherCustomer = await prisma.customers.findFirst({
+//       where: {
+//         id: {
+//           not: id,
+//         },
+//         isDeleted: false,
+//         OR: [{ email: email.trim() }, { customerPhone: customerPhone.trim() }],
+//       },
+//     });
+
+//     if (existingOtherCustomer) {
+//       return res.status(400).json({
+//         message:
+//           "Customer with this email or phone number already exists for another customer.",
+//       });
+//     }
+
+//     await prisma.customers.update({
+//       where: {
+//         id: id,
+//         isDeleted: false,
+//       },
+//       data: {
+//         firstName: firstName,
+//         lastName: lastName,
+//         email: email,
+//         customerPhone: customerPhone,
+//         address: address,
+//         billingTerms: billingTerms,
+//       },
+//     });
+
+//     return res.status(200).send({
+//       message: "Customer detail updated successfully !",
+//     });
+//   } catch (error) {
+//     return res.status(500).send({
+//       message: "Something went wrong. Please try again later.",
+//     });
+//   }
+// };
+
 const editCustomerDetail = async (req, res) => {
   try {
     const id = req.params.id;
     const { firstName, lastName, email, customerPhone, address, billingTerms } =
       req.body;
-    const existingOtherCustomer = await prisma.customers.findFirst({
-      where: {
-        id: {
-          not: id,
-        },
-        isDeleted: false,
-        OR: [{ email: email }, { customerPhone: customerPhone }],
-      },
-    });
 
-    if (existingOtherCustomer) {
-      return res.status(400).json({
-        message:
-          "Customer with this email or phone number already exists for another customer.",
+    // 1. Data ko sanitize karein (Extra space hatayein aur check karein ki null toh nahi)
+    const trimmedEmail = email ? email.trim() : "";
+    const trimmedPhone = customerPhone ? customerPhone.trim() : "";
+
+    // 2. Dynamic OR Condition banayein
+    // Hum sirf tabhi check karenge jab email ya phone field mein koi value ho
+    const orConditions = [];
+    if (trimmedEmail !== "") orConditions.push({ email: trimmedEmail });
+    if (trimmedPhone !== "") orConditions.push({ customerPhone: trimmedPhone });
+
+    // 3. Agar check karne ke liye email ya phone hai, toh check karein
+    if (orConditions.length > 0) {
+      const existingOtherCustomer = await prisma.customers.findFirst({
+        where: {
+          id: { not: id }, // Apni current ID ko chhod kar kisi aur mein check karein
+          isDeleted: false,
+          OR: orConditions,
+        },
       });
+
+      if (existingOtherCustomer) {
+        // Pata lagayein ki kaunsa field match hua hai
+        const isEmailConflict = existingOtherCustomer.email === trimmedEmail;
+        return res.status(400).json({
+          message: `Customer with this ${isEmailConflict ? "email" : "phone number"} already exists for another customer.`,
+        });
+      }
     }
 
+    // 4. Customer update karein
     await prisma.customers.update({
       where: {
         id: id,
-        isDeleted: false,
       },
       data: {
         firstName: firstName,
         lastName: lastName,
-        email: email,
-        customerPhone: customerPhone,
+        email: trimmedEmail,
+        customerPhone: trimmedPhone,
         address: address,
         billingTerms: billingTerms,
       },
     });
 
-    return res.status(200).send({
-      message: "Customer detail updated successfully !",
+    return res.status(200).json({
+      message: "Customer detail updated successfully!",
     });
   } catch (error) {
-    return res.status(500).send({
+    console.error("Edit Customer Error:", error);
+    return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
   }
@@ -4250,7 +4311,9 @@ const updateSupplierOrderStatus = async (req, res) => {
     const quantity = parseInt(existingOrder.quantity) || 0; // Ensure it's a number
 
     if (!part_id) {
-      return res.status(400).json({ message: "This order is not linked to any Part" });
+      return res
+        .status(400)
+        .json({ message: "This order is not linked to any Part" });
     }
 
     // 2. Order status update karein
@@ -4262,7 +4325,9 @@ const updateSupplierOrderStatus = async (req, res) => {
     // 3. Inventory Update Logic
     // Status normalization (Optional: dono ko lowercase karke compare karein)
     const isNowDelivered = status.toLowerCase() === "delivered";
-    const wasPreviouslyDelivered = oldStatus ? oldStatus.toLowerCase() === "delivered" : false;
+    const wasPreviouslyDelivered = oldStatus
+      ? oldStatus.toLowerCase() === "delivered"
+      : false;
 
     // Case A: Status "Delivered" hua (Pehle nahi tha) -> Stock Badhao
     if (isNowDelivered && !wasPreviouslyDelivered) {
@@ -4279,7 +4344,7 @@ const updateSupplierOrderStatus = async (req, res) => {
           data: { availStock: { increment: quantity } },
         }),
       ]);
-    } 
+    }
     // Case B: Status "Delivered" se hata kar kuch aur kiya gaya -> Stock Kam karo (Revert)
     else if (!isNowDelivered && wasPreviouslyDelivered) {
       await prisma.$transaction([
@@ -4300,12 +4365,11 @@ const updateSupplierOrderStatus = async (req, res) => {
     return res.status(200).json({
       message: "Order status and inventory updated successfully",
     });
-
   } catch (error) {
     console.error("Update Error:", error); // Debugging ke liye
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
-      error: error.message
+      error: error.message,
     });
   }
 };
