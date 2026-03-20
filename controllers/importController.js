@@ -123,16 +123,27 @@ const importParts = async (req, res) => {
   let filePath = null;
   try {
     const fileData = await fileUploadFunc(req, res);
-    // if (fileData.type === "fileNotFound" || !fileData.data) {
-    //   return res
-    //     .status(400)
-    //     .json({ success: false, message: "CSV file is required" });
-    // }
 
+    // 1. Check if fileData or fileData.data is missing (This prevents the crash)
+    if (!fileData || !fileData.data || fileData.data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No file was uploaded. Please select a CSV file.",
+      });
+    }
+
+    // 2. Safely look for the ImportFile
     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
+
+    if (!csvFile) {
+      return res.status(400).json({
+        success: false,
+        message: "CSV file missing in 'ImportFile' field.",
+      });
+    }
+
     filePath = csvFile.path;
     const csvData = [];
-
     const stream = fs.createReadStream(filePath).pipe(csv());
     for await (const row of stream) {
       csvData.push(row);
