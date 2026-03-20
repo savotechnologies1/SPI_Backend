@@ -6163,17 +6163,172 @@ const customerRelation = async (req, res) => {
 //       .json({ message: "Internal Server Error", error: error.message });
 //   }
 // };
+// right code
+// const getScheduleProcessInformation = async (req, res) => {
+//   try {
+//     const { id: processId } = req.params;
+//     const { stationUserId } = req.query;
+//     if (!processId || !stationUserId) {
+//       return res
+//         .status(400)
+//         .json({ message: "processId and stationUserId are required." });
+//     }
+
+//     // 1. Saare potential jobs uthao (Aapka Original Fetch)
+//     const candidates = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         processId: processId,
+//         isDeleted: false,
+//         status: { in: ["new", "progress"] },
+//       },
+//       include: {
+//         part: true,
+//         customPart: true,
+//         process: true,
+//         StockOrder: { select: { orderNumber: true } },
+//         CustomOrder: { select: { orderNumber: true } },
+//       },
+//     });
+
+//     if (candidates.length === 0) {
+//       return res
+//         .status(404)
+//         .json({ message: "No jobs assigned to this station." });
+//     }
+
+//     // --- PARENT BEFORE CHILD SORTING (Aapka Original Logic - No Change) ---
+//     const partIds = candidates.map((c) => c.part_id).filter(Boolean);
+//     const relations = await prisma.productTree.findMany({
+//       where: {
+//         product_id: { in: partIds },
+//         part_id: { in: partIds },
+//         isDeleted: false,
+//       },
+//     });
+
+//     const sortedCandidates = candidates.sort((a, b) => {
+//       if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
+//       const isAParentOfB = relations.some(
+//         (r) => r.product_id === a.part_id && r.part_id === b.part_id,
+//       );
+//       if (isAParentOfB) return -1;
+//       const isBParentOfA = relations.some(
+//         (r) => r.product_id === b.part_id && r.part_id === a.part_id,
+//       );
+//       if (isBParentOfA) return 1;
+//       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+//     });
+
+//     const nextJob = sortedCandidates[0];
+//     const currentPartId = nextJob.part_id || nextJob.customPartId;
+
+//     // --- UPCOMING JOBS LIST (Aapka format preserved) ---
+//     const incomingJobs = sortedCandidates.slice(1).map((job) => ({
+//       scheduleId: job.id,
+//       orderNumber:
+//         job.StockOrder?.orderNumber || job.CustomOrder?.orderNumber || "N/A",
+//       partNumber: job.part?.partNumber || job.customPart?.partNumber || "N/A",
+//       quantity: job.scheduleQuantity || job.quantity,
+//       remainingQty: job.remainingQty,
+//       status: job.status,
+//       type: job.order_type,
+//       scheudleDate: job.order_date,
+//     }));
+
+//     // --- TIMER RESET LOGIC (Fix: Only fetch active, non-scrapped session) ---
+//     const currentSession = await prisma.productionResponse.findFirst({
+//       where: {
+//         processId: processId,
+//         stationUserId: stationUserId,
+//         partId: currentPartId,
+//         orderId: nextJob.order_id,
+//         completedQuantity: 0,
+//         scrap: false, // <--- Isse scrap wala record skip hoga
+//         cycleTimeEnd: null, // <--- Isse sirf active timer wala milega
+//         isDeleted: false,
+//       },
+//       orderBy: { createdAt: "desc" },
+//       include: { employeeInfo: true },
+//     });
+
+//     // Fallback: Agar naya session nahi mila, tabhi pichla uthayein
+//     const lastProduction =
+//       currentSession ||
+//       (await prisma.productionResponse.findFirst({
+//         where: { processId, stationUserId, isDeleted: false },
+//         orderBy: { createdAt: "desc" },
+//         include: { employeeInfo: true },
+//       }));
+
+//     // 3. Stats & Instructions (Aapka Original)
+//     const [orderData, workInstructions, stats] = await Promise.all([
+//       nextJob.order_type === "StockOrder"
+//         ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
+//         : prisma.customOrder.findUnique({ where: { id: nextJob.order_id } }),
+//       prisma.workInstruction.findFirst({
+//         where: {
+//           productId: currentPartId || undefined,
+//           processId: processId,
+//           isDeleted: false,
+//         },
+//         include: {
+//           steps: {
+//             where: { isDeleted: false },
+//             orderBy: { stepNumber: "asc" },
+//             include: { images: true, videos: true },
+//           },
+//         },
+//       }),
+//       prisma.stockOrderSchedule.aggregate({
+//         where: {
+//           order_id: nextJob.order_id,
+//           processId,
+//           isDeleted: false,
+//         },
+//         _sum: { completedQuantity: true, scrapQuantity: true },
+//       }),
+//     ]);
+
+//     return res.status(200).json({
+//       message: "Job Found",
+//       data: {
+//         ...nextJob,
+//         processName: nextJob.process?.processName || "N/A",
+//         partNumber:
+//           nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
+//         order: orderData,
+//         workInstructionSteps: workInstructions?.steps || [],
+//         instructionTitle:
+//           workInstructions?.instructionTitle || "No Instructions Found",
+//         productionId: lastProduction?.id || null,
+//         employeeInfo: lastProduction?.employeeInfo || null,
+//         employeeCompletedQty: stats._sum.completedQuantity || 0,
+//         employeeScrapQty: stats._sum.scrapQuantity || 0,
+//         incomingJobs: incomingJobs,
+//         cycleTime: lastProduction?.cycleTimeStart || null, // Reset Timer yahan se hoga
+//       },
+//     });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
+
+// right code
+
 const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
     const { stationUserId } = req.query;
+
     if (!processId || !stationUserId) {
       return res
         .status(400)
         .json({ message: "processId and stationUserId are required." });
     }
 
-    // 1. Saare potential jobs uthao (Aapka Original Fetch)
+    // 1. Saare potential jobs uthao
     const candidates = await prisma.stockOrderSchedule.findMany({
       where: {
         processId: processId,
@@ -6195,33 +6350,84 @@ const getScheduleProcessInformation = async (req, res) => {
         .json({ message: "No jobs assigned to this station." });
     }
 
-    // --- PARENT BEFORE CHILD SORTING (Aapka Original Logic - No Change) ---
+    // 2. Product Tree relations nikalo (Hierarchy check karne ke liye)
     const partIds = candidates.map((c) => c.part_id).filter(Boolean);
     const relations = await prisma.productTree.findMany({
       where: {
-        product_id: { in: partIds },
-        part_id: { in: partIds },
+        product_id: { in: partIds }, // product_id is Parent
         isDeleted: false,
       },
     });
 
-    const sortedCandidates = candidates.sort((a, b) => {
+    // 3. --- CHILD COMPLETION LOGIC ---
+    // Hum har candidate ko check karenge ki uske children complete hue ya nahi
+    const validatedCandidates = [];
+
+    for (const job of candidates) {
+      const currentPartId = job.part_id;
+
+      // Is part ke bacche (children) dhundo ProductTree mein
+      const childRelations = relations.filter(
+        (r) => r.product_id === currentPartId,
+      );
+
+      if (childRelations.length > 0) {
+        // Agar bache hain, toh check karo kya unki remainingQty usi Order mein 0 hai?
+        const childPartIds = childRelations.map((r) => r.part_id);
+
+        const unfinishedChildren = await prisma.stockOrderSchedule.findMany({
+          where: {
+            order_id: job.order_id,
+            part_id: { in: childPartIds },
+            remainingQty: { gt: 0 }, // Abhi bhi kaam baki hai
+            isDeleted: false,
+          },
+        });
+
+        // Agar koi bhi child unfinished hai, toh ye Parent "Locked" hai
+        if (unfinishedChildren.length === 0) {
+          validatedCandidates.push({ ...job, isLocked: false });
+        } else {
+          // Parent ko list mein rakhenge but status locked dikha sakte hain ya exclude kar sakte hain
+          // filhal hum ise skip kar rahe hain taaki next available job mil sake
+          continue;
+        }
+      } else {
+        // Agar koi child nahi hai, toh ye directly process ho sakta hai
+        validatedCandidates.push({ ...job, isLocked: false });
+      }
+    }
+
+    if (validatedCandidates.length === 0) {
+      return res.status(400).json({
+        message:
+          "Waiting for child parts to be completed. No jobs available currently.",
+      });
+    }
+
+    // 4. --- SORTING (Validated Jobs Only) ---
+    const sortedCandidates = validatedCandidates.sort((a, b) => {
       if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
+
+      // Hierarchy sorting (Parent should come after Child logic is already handled by validation above,
+      // but keeping it for safety within available jobs)
       const isAParentOfB = relations.some(
         (r) => r.product_id === a.part_id && r.part_id === b.part_id,
       );
-      if (isAParentOfB) return -1;
+      if (isAParentOfB) return 1; // Parent niche jaye, child upar (Priority)
+
       const isBParentOfA = relations.some(
         (r) => r.product_id === b.part_id && r.part_id === a.part_id,
       );
-      if (isBParentOfA) return 1;
+      if (isBParentOfA) return -1;
+
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
     const nextJob = sortedCandidates[0];
     const currentPartId = nextJob.part_id || nextJob.customPartId;
 
-    // --- UPCOMING JOBS LIST (Aapka format preserved) ---
+    // --- UPCOMING JOBS LIST ---
     const incomingJobs = sortedCandidates.slice(1).map((job) => ({
       scheduleId: job.id,
       orderNumber:
@@ -6234,7 +6440,7 @@ const getScheduleProcessInformation = async (req, res) => {
       scheudleDate: job.order_date,
     }));
 
-    // --- TIMER RESET LOGIC (Fix: Only fetch active, non-scrapped session) ---
+    // --- TIMER RESET LOGIC ---
     const currentSession = await prisma.productionResponse.findFirst({
       where: {
         processId: processId,
@@ -6242,15 +6448,14 @@ const getScheduleProcessInformation = async (req, res) => {
         partId: currentPartId,
         orderId: nextJob.order_id,
         completedQuantity: 0,
-        scrap: false, // <--- Isse scrap wala record skip hoga
-        cycleTimeEnd: null, // <--- Isse sirf active timer wala milega
+        scrap: false,
+        cycleTimeEnd: null,
         isDeleted: false,
       },
       orderBy: { createdAt: "desc" },
       include: { employeeInfo: true },
     });
 
-    // Fallback: Agar naya session nahi mila, tabhi pichla uthayein
     const lastProduction =
       currentSession ||
       (await prisma.productionResponse.findFirst({
@@ -6259,7 +6464,7 @@ const getScheduleProcessInformation = async (req, res) => {
         include: { employeeInfo: true },
       }));
 
-    // 3. Stats & Instructions (Aapka Original)
+    // --- STATS & INSTRUCTIONS ---
     const [orderData, workInstructions, stats] = await Promise.all([
       nextJob.order_type === "StockOrder"
         ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
@@ -6279,11 +6484,7 @@ const getScheduleProcessInformation = async (req, res) => {
         },
       }),
       prisma.stockOrderSchedule.aggregate({
-        where: {
-          order_id: nextJob.order_id,
-          processId,
-          isDeleted: false,
-        },
+        where: { order_id: nextJob.order_id, processId, isDeleted: false },
         _sum: { completedQuantity: true, scrapQuantity: true },
       }),
     ]);
@@ -6304,7 +6505,7 @@ const getScheduleProcessInformation = async (req, res) => {
         employeeCompletedQty: stats._sum.completedQuantity || 0,
         employeeScrapQty: stats._sum.scrapQuantity || 0,
         incomingJobs: incomingJobs,
-        cycleTime: lastProduction?.cycleTimeStart || null, // Reset Timer yahan se hoga
+        cycleTime: lastProduction?.cycleTimeStart || null,
       },
     });
   } catch (error) {

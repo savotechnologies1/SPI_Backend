@@ -66,6 +66,7 @@ const smtpTransport = require("nodemailer-smtp-transport");
 const prisma = require("../config/prisma");
 
 module.exports.sendMail = (templateName, mailVariables, email) => {
+  console.log("process.env.SMTP_PASSWORD", process.env);
   return new Promise(async function (resolve, reject) {
     try {
       const template = await prisma.mailTemplate.findFirst({
@@ -101,13 +102,13 @@ module.exports.sendMail = (templateName, mailVariables, email) => {
         html = html?.replaceAll(key, mailVariables[key]);
         text = text?.replaceAll(key, mailVariables[key]);
       }
-
+      const cleanHtml = html.replace(/\r/g, "").replace(/\n/g, "");
       const options = {
         from: process.env.SMTP_EMAIL,
         to: email,
         subject: subject,
         text: text,
-        html: html,
+        html: cleanHtml,
       };
 
       transporter.sendMail(options, function (error) {
