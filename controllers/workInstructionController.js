@@ -249,7 +249,7 @@ const allWorkInstructions = async (req, res) => {
         where: finalWhereFilter,
         include: {
           PartNumber: { select: { partNumber: true } },
-          process: { select: { processName: true } },
+          process: { select: { processName: true, machineName: true } },
           steps: {
             where: { isDeleted: false },
             include: {

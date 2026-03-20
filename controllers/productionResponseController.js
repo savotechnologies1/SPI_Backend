@@ -369,9 +369,63 @@ const stationLogout = async (req, res) => {
 //       .json({ message: "Database Error", error: error.message });
 //   }
 // };
+// const stationLogin = async (req, res) => {
+//   try {
+//     const { processId, stationUserId, type, partId } = req.body;
+
+//     if (!stationUserId || !processId) {
+//       return res
+//         .status(400)
+//         .json({ message: "Invalid Station User or Process ID." });
+//     }
+
+//     const nextJob = await findNextJobForProcess(processId);
+//     const currentPartId = partId || nextJob?.part_id || nextJob?.customPartId;
+
+//     // --- FRESH START LOGIC ---
+//     // Jab bhi worker login karega (Production ho ya Training),
+//     // cycleTimeStart humesha 'Abhi ka current time' hoga.
+//     // Isse frontend par timer humesha 0 se shuru dikhayega.
+
+//     const createData = {
+//       process: { connect: { id: processId } },
+//       employeeInfo: { connect: { id: stationUserId } },
+//       type,
+//       traniningStatus: false,
+//       cycleTimeStart: new Date(), // Reset to 0 (Current Time)
+//       order_type:
+//         nextJob?.order_type || (type === "training" ? "Training" : "N/A"),
+//       scheduleQuantity: nextJob?.scheduleQuantity || 0,
+//     };
+
+//     if (currentPartId) {
+//       createData.PartNumber = { connect: { part_id: currentPartId } };
+//     }
+
+//     if (nextJob?.order_type === "StockOrder" && nextJob?.order_id) {
+//       createData.StockOrder = { connect: { id: nextJob.order_id } };
+//     } else if (nextJob?.order_type === "CustomOrder" && nextJob?.order_id) {
+//       createData.CustomOrder = { connect: { id: nextJob.order_id } };
+//     }
+
+//     const processLoginData = await prisma.productionResponse.create({
+//       data: createData,
+//     });
+
+//     return res.status(200).json({
+//       message: "Login successful. Timer started at 0.",
+//       data: processLoginData,
+//     });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Database Error", error: error.message });
+//   }
+// };
+
 const stationLogin = async (req, res) => {
   try {
-    const { processId, stationUserId, type, partId } = req.body;
+    const { processId, stationUserId, type } = req.body;
 
     if (!stationUserId || !processId) {
       return res
@@ -379,47 +433,39 @@ const stationLogin = async (req, res) => {
         .json({ message: "Invalid Station User or Process ID." });
     }
 
-    const nextJob = await findNextJobForProcess(processId);
-    const currentPartId = partId || nextJob?.part_id || nextJob?.customPartId;
-
-    // --- FRESH START LOGIC ---
-    // Jab bhi worker login karega (Production ho ya Training),
-    // cycleTimeStart humesha 'Abhi ka current time' hoga.
-    // Isse frontend par timer humesha 0 se shuru dikhayega.
-
-    const createData = {
-      process: { connect: { id: processId } },
-      employeeInfo: { connect: { id: stationUserId } },
-      type,
-      traniningStatus: false,
-      cycleTimeStart: new Date(), // Reset to 0 (Current Time)
-      order_type:
-        nextJob?.order_type || (type === "training" ? "Training" : "N/A"),
-      scheduleQuantity: nextJob?.scheduleQuantity || 0,
-    };
-
-    if (currentPartId) {
-      createData.PartNumber = { connect: { part_id: currentPartId } };
+    if (type === "training") {
+      // --- CYCLE RESET LOGIC ---
+      // Jab bhi user login kare, uske purane saare training records ko delete mark kar do.
+      // Isse next API (getTrainingScheduleInformation) use Part 1 se shuru karwayegi.
+      await prisma.productionResponse.updateMany({
+        where: {
+          stationUserId: stationUserId,
+          processId: processId,
+          type: "training",
+          isDeleted: false,
+        },
+        data: { isDeleted: true },
+      });
     }
 
-    if (nextJob?.order_type === "StockOrder" && nextJob?.order_id) {
-      createData.StockOrder = { connect: { id: nextJob.order_id } };
-    } else if (nextJob?.order_type === "CustomOrder" && nextJob?.order_id) {
-      createData.CustomOrder = { connect: { id: nextJob.order_id } };
-    }
-
+    // Naya login session create karein
     const processLoginData = await prisma.productionResponse.create({
-      data: createData,
+      data: {
+        process: { connect: { id: processId } },
+        employeeInfo: { connect: { id: stationUserId } },
+        type,
+        traniningStatus: false,
+        cycleTimeStart: new Date(),
+        order_type: type === "training" ? "Training" : "N/A",
+      },
     });
 
     return res.status(200).json({
-      message: "Login successful. Timer started at 0.",
+      message: "Logged in. Training restarted from Part 1.",
       data: processLoginData,
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Database Error", error: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 const createProductionResponse = async (req, res) => {
@@ -7333,84 +7379,192 @@ const checkTraningStatus = async (req, res) => {
 //     return res.status(500).json({ message: "Server Error", error: error.message });
 //   }
 // };
+// const getTrainingScheduleInformation = async (req, res) => {
+//   try {
+//     const { id: processId } = req.params;
+//     const { stationUserId } = req.query;
+
+//     if (!processId || !stationUserId) {
+//       return res
+//         .status(400)
+//         .json({ message: "ProcessId and StationUserId are required." });
+//     }
+
+//     // 1. Bas itna dekho ki is station par koi job hai ya nahi
+//     const nextJob = await prisma.stockOrderSchedule.findFirst({
+//       where: { processId, isDeleted: false },
+//       include: { part: true, customPart: true, process: true },
+//     });
+
+//     if (!nextJob) {
+//       return res
+//         .status(404)
+//         .json({ message: "No jobs available for training at this station." });
+//     }
+
+//     const currentPartId = nextJob.part_id || nextJob.customPartId;
+
+//     // 2. Find or Create Training Session (Plain & Simple)
+//     let production = await prisma.productionResponse.findFirst({
+//       where: {
+//         stationUserId,
+//         processId,
+//         partId: currentPartId,
+//         type: "training",
+//         traniningStatus: false,
+//         isDeleted: false,
+//       },
+//     });
+
+//     if (!production) {
+//       production = await prisma.productionResponse.create({
+//         data: {
+//           processId,
+//           stationUserId,
+//           partId: currentPartId,
+//           type: "training",
+//           traniningStatus: false,
+//           cycleTimeStart: new Date(),
+//         },
+//       });
+//     }
+
+//     // 3. Get Instructions
+//     const workInstructions = await prisma.workInstruction.findFirst({
+//       where: { productId: currentPartId, processId, isDeleted: false },
+//       include: {
+//         steps: {
+//           where: { isDeleted: false },
+//           orderBy: { stepNumber: "asc" },
+//           include: { images: true, videos: true },
+//         },
+//       },
+//     });
+
+//     return res.status(200).json({
+//       message: "Training Session Ready",
+//       data: {
+//         ...nextJob,
+//         productionId: production.id,
+//         workInstructionSteps: workInstructions?.steps || [],
+//         instructionTitle: workInstructions?.instructionTitle || "Manual",
+//         cycleTime: production.cycleTimeStart,
+//         partNumber:
+//           nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
+//       },
+//     });
+//   } catch (error) {
+//     return res
+//       .status(500)
+//       .json({ message: "Server Error", error: error.message });
+//   }
+// };
 const getTrainingScheduleInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
     const { stationUserId } = req.query;
 
-    if (!processId || !stationUserId) {
-      return res
-        .status(400)
-        .json({ message: "ProcessId and StationUserId are required." });
+    if (!processId || !stationUserId || stationUserId === "undefined") {
+      return res.status(400).json({ message: "Invalid Process or User ID" });
     }
 
-    // 1. Bas itna dekho ki is station par koi job hai ya nahi
-    const nextJob = await prisma.stockOrderSchedule.findFirst({
-      where: { processId, isDeleted: false },
-      include: { part: true, customPart: true, process: true },
+    // 1. GET EMPLOYEE NAME (Added this part)
+    const employee = await prisma.employee.findUnique({
+      where: { id: stationUserId },
+      select: { fullName: true, firstName: true, lastName: true },
+    });
+    const loggedInUserName = employee
+      ? employee.fullName || `${employee.firstName} ${employee.lastName}`
+      : "Employee";
+
+    // 2. GET SYLLABUS (All parts with instructions)
+    const syllabus = await prisma.workInstruction.findMany({
+      where: { processId: processId, isDeleted: false },
+      include: { PartNumber: true },
+      orderBy: { createdAt: "asc" },
     });
 
-    if (!nextJob) {
-      return res
-        .status(404)
-        .json({ message: "No jobs available for training at this station." });
+    if (syllabus.length === 0) {
+      return res.status(404).json({ message: "No instructions found." });
     }
 
-    const currentPartId = nextJob.part_id || nextJob.customPartId;
-
-    // 2. Find or Create Training Session (Plain & Simple)
-    let production = await prisma.productionResponse.findFirst({
+    // 3. GET PROGRESS (How many have been completed in this cycle)
+    const completedSessions = await prisma.productionResponse.findMany({
       where: {
         stationUserId,
         processId,
-        partId: currentPartId,
+        type: "training",
+        traniningStatus: true,
+        isDeleted: false,
+      },
+      orderBy: { updatedAt: "asc" },
+    });
+
+    // 4. FIND NEXT PART INDEX
+    let nextPartIndex = completedSessions.length;
+
+    // 5. CHECK IF FINISHED
+    if (nextPartIndex >= syllabus.length) {
+      return res.status(200).json({
+        allCompleted: true,
+        message: "Cycle finished.",
+      });
+    }
+
+    const nextPart = syllabus[nextPartIndex];
+
+    // 6. MANAGE SESSION
+    let currentSession = await prisma.productionResponse.findFirst({
+      where: {
+        stationUserId,
+        processId,
+        partId: nextPart.productId,
         type: "training",
         traniningStatus: false,
         isDeleted: false,
       },
     });
 
-    if (!production) {
-      production = await prisma.productionResponse.create({
+    if (!currentSession) {
+      currentSession = await prisma.productionResponse.create({
         data: {
           processId,
           stationUserId,
-          partId: currentPartId,
+          partId: nextPart.productId,
           type: "training",
           traniningStatus: false,
           cycleTimeStart: new Date(),
+          order_type: "Training",
         },
       });
     }
 
-    // 3. Get Instructions
-    const workInstructions = await prisma.workInstruction.findFirst({
-      where: { productId: currentPartId, processId, isDeleted: false },
-      include: {
-        steps: {
-          where: { isDeleted: false },
-          orderBy: { stepNumber: "asc" },
-          include: { images: true, videos: true },
-        },
-      },
+    // 7. GET STEPS
+    const steps = await prisma.workInstructionSteps.findMany({
+      where: { workInstructionId: nextPart.id, isDeleted: false },
+      orderBy: { stepNumber: "asc" },
+      include: { images: true, videos: true },
     });
 
+    // 8. FINAL RESPONSE (With Employee Name)
     return res.status(200).json({
-      message: "Training Session Ready",
+      allCompleted: false,
       data: {
-        ...nextJob,
-        productionId: production.id,
-        workInstructionSteps: workInstructions?.steps || [],
-        instructionTitle: workInstructions?.instructionTitle || "Manual",
-        cycleTime: production.cycleTimeStart,
-        partNumber:
-          nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
+        productionId: currentSession.id,
+        employeeName: loggedInUserName, // Name is now here
+        workInstructionSteps: steps,
+        instructionTitle: nextPart.instructionTitle,
+        partNumber: nextPart.PartNumber?.partNumber || "N/A",
+        processName: syllabus[0].PartNumber?.processDesc || "Training",
+        cycleTime: currentSession.cycleTimeStart,
+        incomingJobs: syllabus.slice(nextPartIndex + 1).map((s) => ({
+          partNumber: s.PartNumber?.partNumber,
+        })),
       },
     });
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Server Error", error: error.message });
+    console.error("Training Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 // const scanCompleteAction = async (req, res) => {

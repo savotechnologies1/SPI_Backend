@@ -249,7 +249,7 @@ const importParts = async (req, res) => {
             processOrderRequired:
               row.processOrderRequired?.toUpperCase() === "TRUE",
             instructionRequired:
-              row.instructionRequired?.toUpperCase() === "TRUE",
+              row.instructionRequired?.toUpperCase() === "1" || 1,
             processDesc: row.processDesc,
             companyName: row.companyId, // Saving the ID here
             processId: row.processId,
@@ -323,24 +323,73 @@ const importProductTree = async (req, res) => {
     }, {});
 
     // Conflict Check
+    // const conflicts = [];
+    // if (!isConfirmed) {
+    //   for (const [pNumber, group] of Object.entries(groupedProducts)) {
+    //     const existing = await prisma.partNumber.findUnique({
+    //       where: { partNumber: pNumber },
+    //     });
+    //     if (existing) {
+    //       const d = group.details;
+    //       const diffs = [];
+    //       if (parseFloat(d.minStock) !== existing.minStock)
+    //         diffs.push("Min Stock");
+    //       if (parseFloat(d.cost) !== existing.cost) diffs.push("Cost");
+    //       if (diffs.length > 0)
+    //         conflicts.push({ productNumber: pNumber, changes: diffs });
+    //     }
+    //   }
+    // }
+
+    // Conflict Check
     const conflicts = [];
     if (!isConfirmed) {
       for (const [pNumber, group] of Object.entries(groupedProducts)) {
         const existing = await prisma.partNumber.findUnique({
           where: { partNumber: pNumber },
         });
+
         if (existing) {
           const d = group.details;
-          const diffs = [];
-          if (parseFloat(d.minStock) !== existing.minStock)
-            diffs.push("Min Stock");
-          if (parseFloat(d.cost) !== existing.cost) diffs.push("Cost");
-          if (diffs.length > 0)
-            conflicts.push({ productNumber: pNumber, changes: diffs });
+
+          // Min Stock Check
+          if (
+            d.minStock !== undefined &&
+            parseFloat(d.minStock) !== existing.minStock
+          ) {
+            conflicts.push({
+              productNumber: pNumber,
+              fieldName: "Min Stock",
+              oldValue: existing.minStock,
+              newValue: d.minStock,
+            });
+          }
+
+          // Cost Check
+          if (d.cost !== undefined && parseFloat(d.cost) !== existing.cost) {
+            conflicts.push({
+              productNumber: pNumber,
+              fieldName: "Cost",
+              oldValue: existing.cost,
+              newValue: d.cost,
+            });
+          }
+
+          // Lead Time Check (Optional)
+          if (
+            d.leadTime !== undefined &&
+            parseInt(d.leadTime) !== existing.leadTime
+          ) {
+            conflicts.push({
+              productNumber: pNumber,
+              fieldName: "Lead Time",
+              oldValue: existing.leadTime,
+              newValue: d.leadTime,
+            });
+          }
         }
       }
     }
-
     if (conflicts.length > 0 && !isConfirmed) {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       return res
