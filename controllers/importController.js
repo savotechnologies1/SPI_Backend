@@ -123,11 +123,11 @@ const importParts = async (req, res) => {
   let filePath = null;
   try {
     const fileData = await fileUploadFunc(req, res);
-    if (fileData.type === "fileNotFound" || !fileData.data) {
-      return res
-        .status(400)
-        .json({ success: false, message: "CSV file is required" });
-    }
+    // if (fileData.type === "fileNotFound" || !fileData.data) {
+    //   return res
+    //     .status(400)
+    //     .json({ success: false, message: "CSV file is required" });
+    // }
 
     const csvFile = fileData.data.find((f) => f.fieldname === "ImportFile");
     filePath = csvFile.path;
