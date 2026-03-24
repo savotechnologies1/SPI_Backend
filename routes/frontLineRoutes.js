@@ -257,9 +257,6 @@ router.get(
   validateToken,
   getTrainingScheduleInformation,
 );
-// router.get("/profile-detail", validateToken, profileDetail);
-// router.put("/profile-update", validateToken, updateProfileApi);
-// router.put("/delete-profile-image", validateToken, deleteProfileImage);
 router.post("/station-login", validateToken, stationLogin);
 router.post("/station-logout/:id", validateToken, stationLogout);
 router.post("/stock-order-schedule", validateToken, stockOrderSchedule);

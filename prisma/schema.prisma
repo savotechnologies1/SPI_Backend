@@ -279,36 +279,34 @@ model StockOrder {
 }
 
 model CustomOrder {
-  id                 String               @id @default(uuid()) @db.Char(36)
-  orderNumber        String               @unique
+  id                 String                    @id @default(uuid()) @db.Char(36)
+  orderNumber        String                    @unique
   orderDate          DateTime?
   shipDate           DateTime?
-  customerId         String               @db.Char(36)
+  customerId         String                    @db.Char(36)
   customerName       String
   customerEmail      String
   customerPhone      String
-  cost               Decimal              @db.Decimal(10, 2)
+  cost               Decimal                   @db.Decimal(10, 2)
   productQuantity    Int
-  productId          String?              @db.Char(36)
-  partId             String?              @db.Char(36)
+  productId          String?                   @db.Char(36)
+  partId             String?                   @db.Char(36)
   partNumber         String?
   type               String?
-  status             String               @default("") @db.VarChar(60)
-  createdBy          String?              @db.Char(36)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  isDeleted          Boolean              @default(false)
-  totalCost          Decimal              @db.Decimal(10, 2)
-  customer           customers            @relation(fields: [customerId], references: [id])
-  part               PartNumber?          @relation(fields: [partId], references: [part_id])
-  product            PartNumber?          @relation("ProductForOrder", fields: [productId], references: [part_id])
+  status             String                    @default("") @db.VarChar(60)
+  createdBy          String?                   @db.Char(36)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  isDeleted          Boolean                   @default(false)
+  totalCost          Decimal                   @db.Decimal(10, 2)
+  customer           customers                 @relation(fields: [customerId], references: [id])
+  part               PartNumber?               @relation(fields: [partId], references: [part_id])
+  product            PartNumber?               @relation("ProductForOrder", fields: [productId], references: [part_id])
   customPart         CustomPart[]
   processDetails     ProcessDetail[]
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
-
-  // Is line ko rakhein aur upar wali purani line (customOrderExistingParts) ko delete kar dein
-  existingParts CustomOrderExistingPart[]
+  existingParts      CustomOrderExistingPart[]
 
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
@@ -335,18 +333,16 @@ model CustomPart {
 }
 
 model CustomOrderExistingPart {
-  id                  String  @id @default(uuid()) @db.Char(36)
-  customOrderId       String  @db.Char(36)
-  partId              String  @db.Char(36)
-  processId           String? @db.VarChar(10) // Naya field
+  id                  String      @id @default(uuid()) @db.Char(36)
+  customOrderId       String      @db.Char(36)
+  partId              String      @db.Char(36)
+  processId           String?     @db.VarChar(10)
   quantity            Int
-  cycleTime           String? @db.VarChar(255) // Naya field
-  instructionRequired Boolean @default(false) // Naya field
-
-  // Relations
-  customOrder CustomOrder @relation(fields: [customOrderId], references: [id])
-  part        PartNumber  @relation(fields: [partId], references: [part_id])
-  process     process?    @relation(fields: [processId], references: [id])
+  cycleTime           String?     @db.VarChar(255)
+  instructionRequired Boolean     @default(false)
+  customOrder         CustomOrder @relation(fields: [customOrderId], references: [id])
+  part                PartNumber  @relation(fields: [partId], references: [part_id])
+  process             process?    @relation(fields: [processId], references: [id])
 
   @@index([customOrderId])
   @@index([partId])
@@ -406,8 +402,7 @@ model PartNumber {
   supplier_inventory                              supplier_inventory?
   supplier_orders                                 supplier_orders[]
   customOrderExistingParts                        CustomOrderExistingPart[]
-  // PartNumber model के अंदर
-  companyName                                     String?                   @db.VarChar(100) // ये भी EXACT VarChar(100) होना चाहिए, Char नहीं।
+  companyName                                     String?                   @db.VarChar(100)
   supplier                                        suppliers?                @relation(fields: [companyName], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([processId], map: "PartNumber_processId_fkey")
@@ -791,7 +786,7 @@ model DailyInventory {
   date               DateTime @db.Date
   partNumber         String
   availableStock     Int?
-  minStock           Int? // <--- Ye line check karein, ye honi chahiye
+  minStock           Int?
   inventoryLevel     Int
   costPerUnit        Float
   inventoryCost      Float
