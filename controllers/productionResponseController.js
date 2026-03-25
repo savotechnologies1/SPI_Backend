@@ -2559,74 +2559,192 @@ const scanCompleteAction = async (req, res) => {
     const { id: productionResponseId } = req.params;
     const { orderId, partId, employeeId, order_type } = req.body;
     const now = new Date();
+
     if (!orderId || !partId || !employeeId) {
       return res.status(400).json({ message: "Missing required data." });
     }
-    const result = await prisma.$transaction(async (tx) => {
-      const schedule = await tx.stockOrderSchedule.findFirst({
-        where: {
-          order_id: orderId,
-          part_id: partId,
-          order_type,
-          isDeleted: false,
-        },
-      });
-      if (!schedule) throw new Error("Job Schedule not found.");
-      let wasUpdated = false;
-      if (
-        productionResponseId &&
-        productionResponseId !== "null" &&
-        productionResponseId !== "undefined"
-      ) {
-        const updateResult = await tx.productionResponse.updateMany({
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const schedule = await tx.stockOrderSchedule.findFirst({
           where: {
-            id: productionResponseId,
-            completedQuantity: 0,
-            scrap: false,
+            order_id: orderId,
+            part_id: partId,
+            order_type,
+            isDeleted: false,
           },
+        });
+        if (!schedule) throw new Error("Job Schedule not found.");
+
+        let wasUpdated = false;
+        if (
+          productionResponseId &&
+          productionResponseId !== "null" &&
+          productionResponseId !== "undefined"
+        ) {
+          const updateResult = await tx.productionResponse.updateMany({
+            where: {
+              id: productionResponseId,
+              completedQuantity: 0,
+              scrap: false,
+            },
+            data: {
+              completedQuantity: 1,
+              cycleTimeEnd: now,
+              submittedDateTime: now,
+              stationUserId: employeeId,
+            },
+          });
+          if (updateResult.count > 0) wasUpdated = true;
+        }
+
+        if (!wasUpdated) {
+          await tx.productionResponse.create({
+            data: {
+              processId: schedule.processId,
+              stationUserId: employeeId,
+              partId: partId,
+              orderId: orderId,
+              order_type: order_type,
+              cycleTimeStart: now,
+              cycleTimeEnd: now,
+              completedQuantity: 1,
+              submittedDateTime: now,
+            },
+          });
+        }
+
+        // --- START: Stock Quantity Logic (Jo aapne pucha tha) ---
+        if (partId) {
+          const itemInDb = await tx.partNumber.findUnique({
+            where: { part_id: partId },
+            select: { type: true },
+          });
+
+          if (itemInDb && itemInDb.type) {
+            const itemType = itemInDb.type.toLowerCase();
+
+            if (itemType.includes("part")) {
+              // Agar type mein "part" hai to stock kam karo (-1)
+              await tx.partNumber.update({
+                where: { part_id: partId },
+                data: { availStock: { decrement: 1 } },
+              });
+            } else if (itemType.includes("product")) {
+              // Agar type mein "product" hai to stock badhao (+1)
+              await tx.partNumber.update({
+                where: { part_id: partId },
+                data: { availStock: { increment: 1 } },
+              });
+            }
+          }
+        }
+        const newCompletedQty = (schedule.completedQuantity || 0) + 1;
+        const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+        const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+
+        await tx.stockOrderSchedule.update({
+          where: { id: schedule.id },
           data: {
-            completedQuantity: 1,
+            completedQuantity: newCompletedQty,
+            remainingQty: newRemaining,
+            status: updatedStatus,
+            completed_date: updatedStatus === "completed" ? now : undefined,
+            completed_EmpId: employeeId,
+          },
+        });
+
+        let nextProductionId = null;
+        let nextCycleStartTime = null;
+
+        if (updatedStatus !== "completed") {
+          const nextSession = await tx.productionResponse.create({
+            data: {
+              processId: schedule.processId,
+              stationUserId: employeeId,
+              partId: partId,
+              orderId: orderId,
+              order_type: order_type,
+              cycleTimeStart: new Date(),
+              completedQuantity: 0,
+              scrap: false,
+            },
+          });
+          nextProductionId = nextSession.id;
+          nextCycleStartTime = nextSession.cycleTimeStart;
+        }
+
+        return {
+          message: "Action completed and stock updated successfully.",
+          newProductionId: nextProductionId,
+          nextCycleStartTime: nextCycleStartTime,
+          isJobFinished: updatedStatus === "completed",
+        };
+      },
+      {
+        timeout: 15000,
+      },
+    );
+
+    return res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+const scanScrapAction = async (req, res) => {
+  try {
+    const { id: productionResponseId } = req.params;
+    const { orderId, partId, employeeId, order_type } = req.body;
+    const now = new Date();
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const schedule = await tx.stockOrderSchedule.findFirst({
+          where: {
+            order_id: orderId,
+            part_id: partId,
+            order_type,
+            isDeleted: false,
+          },
+        });
+        if (!schedule) throw new Error("Job Schedule not found.");
+
+        await tx.productionResponse.updateMany({
+          where: { id: productionResponseId, scrap: false },
+          data: {
+            scrap: true,
+            scrapQuantity: 1,
             cycleTimeEnd: now,
             submittedDateTime: now,
             stationUserId: employeeId,
           },
         });
-        if (updateResult.count > 0) wasUpdated = true;
-      }
-      if (!wasUpdated) {
-        await tx.productionResponse.create({
-          data: {
-            processId: schedule.processId,
-            stationUserId: employeeId,
-            partId: partId,
-            orderId: orderId,
-            order_type: order_type,
-            cycleTimeStart: now,
-            cycleTimeEnd: now,
-            completedQuantity: 1,
-            submittedDateTime: now,
-          },
-        });
-      }
 
-      const newCompletedQty = (schedule.completedQuantity || 0) + 1;
-      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
-      const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+        if (partId) {
+          const itemInDb = await tx.partNumber.findUnique({
+            where: { part_id: partId },
+            select: { type: true },
+          });
 
-      await tx.stockOrderSchedule.update({
-        where: { id: schedule.id },
-        data: {
-          completedQuantity: newCompletedQty,
-          remainingQty: newRemaining,
-          status: updatedStatus,
-          completed_date: updatedStatus === "completed" ? now : undefined,
-          completed_EmpId: employeeId,
-        },
-      });
-      let nextProductionId = null;
-      let nextCycleStartTime = null;
+          if (itemInDb && itemInDb.type) {
+            const itemType = itemInDb.type.toLowerCase();
+            if (itemType.includes("part")) {
+              await tx.partNumber.update({
+                where: { part_id: partId },
+                data: { availStock: { decrement: 1 } },
+              });
+            } else if (itemType.includes("product")) {
+              await tx.partNumber.update({
+                where: { part_id: partId },
+                data: { availStock: { increment: 1 } },
+              });
+            }
+          }
+        }
 
-      if (updatedStatus !== "completed") {
+        const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
+        const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
+
         const nextSession = await tx.productionResponse.create({
           data: {
             processId: schedule.processId,
@@ -2634,83 +2752,27 @@ const scanCompleteAction = async (req, res) => {
             partId: partId,
             orderId: orderId,
             order_type: order_type,
-            cycleTimeStart: new Date(),
+            cycleTimeStart: now,
             completedQuantity: 0,
             scrap: false,
           },
         });
-        nextProductionId = nextSession.id;
-        nextCycleStartTime = nextSession.cycleTimeStart;
-      }
 
-      return {
-        message: "Scrap recorded successfully.",
-        newProductionId: nextProductionId,
-        nextCycleStartTime: nextCycleStartTime,
-        isJobFinished: updatedStatus === "completed",
-      };
-    });
+        await tx.stockOrderSchedule.update({
+          where: { id: schedule.id },
+          data: {
+            scrapQuantity: { increment: 1 },
+            remainingQty: newRemaining,
+            status: updatedStatus,
+            completed_date: updatedStatus === "completed" ? now : undefined,
+          },
+        });
 
-    return res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+        return { message: "Scrapped & Reset", newProductionId: nextSession.id };
+      },
+      { timeout: 15000 },
+    );
 
-const scanScrapAction = async (req, res) => {
-  try {
-    const { id: productionResponseId } = req.params;
-    const { orderId, partId, employeeId, order_type } = req.body;
-    const now = new Date();
-
-    const result = await prisma.$transaction(async (tx) => {
-      const schedule = await tx.stockOrderSchedule.findFirst({
-        where: {
-          order_id: orderId,
-          part_id: partId,
-          order_type,
-          isDeleted: false,
-        },
-      });
-      if (!schedule) throw new Error("Job Schedule not found.");
-      await tx.productionResponse.updateMany({
-        where: { id: productionResponseId, scrap: false },
-        data: {
-          scrap: true,
-          scrapQuantity: 1,
-          cycleTimeEnd: now,
-          submittedDateTime: now,
-          stationUserId: employeeId,
-        },
-      });
-
-      const newRemaining = Math.max(0, (schedule.remainingQty || 0) - 1);
-      const updatedStatus = newRemaining <= 0 ? "completed" : "progress";
-      const nextSession = await tx.productionResponse.create({
-        data: {
-          processId: schedule.processId,
-          stationUserId: employeeId,
-          partId: partId,
-          orderId: orderId,
-          order_type: order_type,
-          cycleTimeStart: now,
-          completedQuantity: 0,
-          scrap: false,
-        },
-      });
-
-      await tx.stockOrderSchedule.update({
-        where: { id: schedule.id },
-        data: {
-          scrapQuantity: { increment: 1 },
-          remainingQty: newRemaining,
-          status: updatedStatus,
-          completed_date: updatedStatus === "completed" ? now : undefined,
-        },
-      });
-
-      return { message: "Scrapped & Reset", newProductionId: nextSession.id };
-    });
     return res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
