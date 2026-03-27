@@ -10,17 +10,17 @@ const userRegister = [
     .exists({ checkFalsy: true })
     .withMessage("Please enter the email")
     .matches(
-      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
     )
     .withMessage("Please enter valid email Id"),
   body("password")
     .exists({ checkFalsy: true })
     .withMessage("Please enter the password")
     .matches(
-      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{8,}$/
+      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{8,}$/,
     )
     .withMessage(
-      "Password contain 8 character which has at least one uppercase letter, one lowercase letter, and one number"
+      "Password contain 8 character which has at least one uppercase letter, one lowercase letter, and one number",
     ),
 ];
 
@@ -36,7 +36,7 @@ const forgotPass = [
     .exists({ checkFalsy: true })
     .withMessage("Please enter the email")
     .matches(
-      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
     )
     .withMessage("Please enter valid email Id"),
 ];
@@ -46,10 +46,10 @@ const resetPass = [
     .exists({ checkFalsy: true })
     .withMessage("Please enter the new Password")
     .matches(
-      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{8,}$/
+      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{8,}$/,
     )
     .withMessage(
-      "Password contain 8 character which has at least one uppercase letter, one lowercase letter, and one number"
+      "Password contain 8 character which has at least one uppercase letter, one lowercase letter, and one number",
     ),
   body("confirmPassword")
     .exists({ checkFalsy: true })
@@ -61,7 +61,7 @@ const loginData = [
     .exists({ checkFalsy: true })
     .withMessage("Please enter the email")
     .matches(
-      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
     )
     .withMessage("Please enter valid email Id"),
   body("password")
@@ -70,10 +70,10 @@ const loginData = [
     .isLength({ min: 5 })
     .withMessage("Password should be at least 5 characters")
     .matches(
-      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{5,}$/
+      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{5,}$/,
     )
     .withMessage(
-      "Password contain 5 character which has at least one uppercase letter, one lowercase letter, and one number"
+      "Password contain 5 character which has at least one uppercase letter, one lowercase letter, and one number",
     ),
 ];
 
@@ -87,13 +87,13 @@ const userChangePassword = [
     .withMessage("Please enter the new Password")
     .isLength({ min: 8 })
     .withMessage(
-      "The Password must be a minimum of 8 characters long and include at least one number digit, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &)."
+      "The Password must be a minimum of 8 characters long and include at least one number digit, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &).",
     )
     .matches(
-      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{5,}$/
+      /^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W]){1,})(?!.*\s).{5,}$/,
     )
     .withMessage(
-      "The Password must be a minimum of 8 characters long and include at least one number digit, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &)."
+      "The Password must be a minimum of 8 characters long and include at least one number digit, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &).",
     ),
 
   body("confirmPassword")
@@ -120,7 +120,7 @@ const customerValidation = [
     .withMessage("Please enter the customer phone number.")
     .isNumeric()
     .withMessage(
-      "Phone number must contain digits only (no spaces or symbols)."
+      "Phone number must contain digits only (no spaces or symbols).",
     )
     .isLength({ min: 7, max: 15 })
     .withMessage("Phone number must be between 7 to 15 digits."),
@@ -217,7 +217,7 @@ const stockOrderValidation = [
     .exists({ checkFalsy: true })
     .withMessage("Please enter the email")
     .matches(
-      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
     )
     .withMessage("Please enter valid email id"),
 
@@ -227,17 +227,12 @@ const stockOrderValidation = [
     .withMessage("Please enter the customer phone number.")
     .isNumeric()
     .withMessage(
-      "Phone number must contain digits only (no spaces or symbols)."
+      "Phone number must contain digits only (no spaces or symbols).",
     )
     .isLength({ min: 7, max: 15 })
     .withMessage("Phone number must be between 7 to 15 digits."),
 
   body("orderDate").trim().notEmpty().withMessage("Please select order date ."),
-
-  // body("productNumber")
-  //   .trim()
-  //   .notEmpty()
-  //   .withMessage("Please enter the product number."),
 
   body("cost")
     .trim()
@@ -257,7 +252,7 @@ const stockOrderValidation = [
     .withMessage("Please enter the product quantity.")
     .isNumeric()
     .withMessage(
-      "Product quantity must contain digits only (no spaces or symbols)."
+      "Product quantity must contain digits only (no spaces or symbols).",
     ),
 ];
 

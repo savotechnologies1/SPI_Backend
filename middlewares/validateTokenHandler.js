@@ -37,7 +37,6 @@ const validateToken = async (req, res, next) => {
       next();
     });
   } catch (error) {
-    console.error("Error in token validation middleware:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };

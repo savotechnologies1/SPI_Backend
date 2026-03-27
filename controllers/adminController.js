@@ -461,7 +461,6 @@ const editCustomerDetail = async (req, res) => {
       message: "Customer detail updated successfully!",
     });
   } catch (error) {
-    console.error("Edit Customer Error:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -815,7 +814,6 @@ const supplierOrder = async (req, res) => {
 
     res.status(201).json({ message: "Supplier order created" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -901,7 +899,6 @@ const sendSupplierEmail = async (req, res) => {
       message: "Email successfully sent to the supplier.",
     });
   } catch (error) {
-    console.log("error", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -1026,8 +1023,6 @@ const addProcess = async (req, res) => {
       message: "Process added successfully !",
     });
   } catch (error) {
-    console.log("errorerror", error);
-
     return res.status(500).send({
       message: "Something went wrong . please try again later .",
     });
@@ -2021,7 +2016,6 @@ const createProductNumber = async (req, res) => {
         where: { part_id: productId },
         data: commonData,
       });
-      console.log(`Updated existing entry ${trimmedNumber} to type: product`);
     } else {
       productId = uuidv4().slice(0, 6);
       await prisma.partNumber.create({
@@ -2141,7 +2135,6 @@ const createProductTree = async (req, res) => {
       message: "Product tree entry created successfully.",
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
     });
@@ -2913,22 +2906,29 @@ const searchStockOrders = async (req, res) => {
       isDeleted: false,
       status: "Pending",
     };
-
     if (customerName) {
       const name = customerName.trim();
-      const parts = name.split(/\s+/);
       whereClause.customer = {
         OR: [
-          { firstName: { contains: name, mode: "insensitive" } },
-          { lastName: { contains: name, mode: "insensitive" } },
+          { firstName: { contains: name } },
+          { lastName: { contains: name } },
         ],
       };
     }
-
     if (partNumber) {
-      whereClause.part = {
-        partNumber: { contains: partNumber.trim(), mode: "insensitive" },
-      };
+      const pNum = partNumber.trim();
+      whereClause.AND = [
+        {
+          OR: [
+            { productNumber: { contains: pNum } },
+            {
+              part: {
+                partNumber: { contains: pNum },
+              },
+            },
+          ],
+        },
+      ];
     }
 
     if (shipDate) {
@@ -3034,14 +3034,12 @@ const searchStockOrders = async (req, res) => {
       data: orders,
     });
   } catch (error) {
-    console.error("SEARCH ERROR:", error);
     return res.status(500).json({
       message: "Something went wrong.",
       error: error.message,
     });
   }
 };
-
 const formatOrders = (orders) => {
   return orders.map((order) => {
     const { part, product, ...rest } = order;
@@ -3092,6 +3090,7 @@ const formatOrders = (orders) => {
     return { ...rest, productFamily };
   });
 };
+
 const searchCustomOrders = async (req, res) => {
   try {
     const { customerName, shipDate, partNumber, orderNumber } = req.query;
@@ -3114,7 +3113,7 @@ const searchCustomOrders = async (req, res) => {
 
     if (orderNumber) {
       andConditions.push({
-        orderNumber: { contains: orderNumber.trim(), mode: "insensitive" },
+        orderNumber: { contains: orderNumber.trim() },
       });
     }
 
@@ -3122,12 +3121,12 @@ const searchCustomOrders = async (req, res) => {
       const name = customerName.trim();
       andConditions.push({
         OR: [
-          { customerName: { contains: name, mode: "insensitive" } },
+          { customerName: { contains: name } },
           {
             customer: {
               OR: [
-                { firstName: { contains: name, mode: "insensitive" } },
-                { lastName: { contains: name, mode: "insensitive" } },
+                { firstName: { contains: name } },
+                { lastName: { contains: name } },
               ],
             },
           },
@@ -3154,17 +3153,18 @@ const searchCustomOrders = async (req, res) => {
       const pNum = partNumber.trim();
       andConditions.push({
         OR: [
-          { partNumber: { contains: pNum, mode: "insensitive" } },
+          { partNumber: { contains: pNum } },
+          { product: { partNumber: { contains: pNum } } },
           {
             existingParts: {
               some: {
-                part: { partNumber: { contains: pNum, mode: "insensitive" } },
+                part: { partNumber: { contains: pNum } },
               },
             },
           },
           {
             customPart: {
-              some: { partNumber: { contains: pNum, mode: "insensitive" } },
+              some: { partNumber: { contains: pNum } },
             },
           },
         ],
@@ -3207,7 +3207,6 @@ const searchCustomOrders = async (req, res) => {
       data: formattedOrders,
     });
   } catch (error) {
-    console.error("Search Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -3499,7 +3498,6 @@ const customOrderSchedule = async (req, res) => {
       message: "Parent and components scheduled successfully",
     });
   } catch (error) {
-    console.error("Scheduling Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -3652,7 +3650,6 @@ const scheduleStockOrdersList = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.log("error", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -3863,7 +3860,6 @@ const getAllSupplierOrder = async (req, res) => {
       pagination: getPagination,
     });
   } catch (error) {
-    console.log(error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -3966,7 +3962,6 @@ const updateSupplierOrderStatus = async (req, res) => {
       message: "Order status and inventory updated successfully",
     });
   } catch (error) {
-    console.error("Update Error:", error);
     return res.status(500).json({
       message: "Something went wrong. Please try again later.",
       error: error.message,
@@ -4043,7 +4038,6 @@ const validateStockQty = async (req, res) => {
       message: ` Available quantity: ${availStock}. You can add maximum ${maxAddableQty}.`,
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -4450,7 +4444,6 @@ const allEmployeeTimeLine = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).send({ message: "Internal Server Error" });
   }
 };
@@ -4757,7 +4750,6 @@ const sendVacationStatus = async (req, res) => {
       message: "Email sent successfully",
     });
   } catch (error) {
-    console.error("Email error:", error);
     return res.status(500).json({
       message: "Something went wrong",
       error: error.message,
@@ -4800,7 +4792,6 @@ const getLiveProduction = async (req, res) => {
       target,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Error fetching live production data" });
   }
 };
@@ -4942,7 +4933,6 @@ const productionOverview = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching overview:", error);
     res
       .status(500)
       .json({ error: "Internal Server Error", details: error.message });
@@ -5148,7 +5138,6 @@ const processHourly = async (req, res) => {
 
     return res.json({ allProcessData, grandTotals });
   } catch (error) {
-    console.error("Error fetching process hourly:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -5286,6 +5275,128 @@ const liveProductionGoalBoard = async (req, res) => {
   }
 };
 
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
+
+//     const todayStart = startDate
+//       ? moment.tz(startDate, tz).startOf("day").toDate()
+//       : moment.tz(tz).startOf("day").toDate();
+//     const todayEnd = endDate
+//       ? moment.tz(endDate, tz).endOf("day").toDate()
+//       : moment.tz(tz).endOf("day").toDate();
+
+//     const dateFilter = { gte: todayStart, lte: todayEnd };
+
+//     const [stockOrders, scrapEntries] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: { isDeleted: false, updatedAt: dateFilter },
+//         include: {
+//           part: { select: { partDescription: true, partNumber: true } },
+//           process: {
+//             select: { processName: true, machineName: true, cycleTime: true },
+//           },
+//         },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { isDeleted: false, updatedAt: dateFilter },
+//         include: {
+//           PartNumber: {
+//             select: {
+//               partDescription: true,
+//               partNumber: true,
+//               process: {
+//                 select: {
+//                   processName: true,
+//                   machineName: true,
+//                   cycleTime: true,
+//                 },
+//               },
+//             },
+//           },
+//           process: {
+//             select: { processName: true, machineName: true, cycleTime: true },
+//           },
+//         },
+//       }),
+//     ]);
+
+//     let totalActual = 0;
+//     let totalScrap = 0;
+//     let totalScheduled = 0;
+//     const completedDetails = [];
+
+//     stockOrders.forEach((order) => {
+//       const actual = Number(order.completedQuantity) || 0;
+//       const scheduled = Number(order.scheduleQuantity) || 0;
+//       const scrap = Number(order.scrapQuantity) || 0;
+//       totalActual += actual;
+//       totalScheduled += scheduled;
+//       totalScrap += scrap;
+
+//       if (actual > 0 || scrap > 0) {
+//         const cycleTime = order.process?.cycleTime
+//           ? parseFloat(order.process.cycleTime)
+//           : 0;
+//         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+//         completedDetails.push({
+//           processName: order.process?.processName || "Production",
+//           machineName: order.process?.machineName || "N/A",
+//           partNumber: order.part?.partNumber || "N/A",
+//           partDescription: order.part?.partDescription || "N/A",
+//           actual: actual,
+//           scheduled: scheduled,
+//           scrap: scrap,
+//           targetPerHour: targetPerHour,
+//           type: "Production",
+//           lastAction: order.updatedAt,
+//         });
+//       }
+//     });
+
+//     scrapEntries.forEach((entry) => {
+//       const sQty =
+//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
+
+//       if (sQty > 0) {
+//         totalScrap += sQty;
+
+//         const processInfo = entry.process || entry.PartNumber?.process;
+//         const cycleTime = processInfo?.cycleTime
+//           ? parseFloat(processInfo.cycleTime)
+//           : 0;
+//         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
+
+//         completedDetails.push({
+//           processName: processInfo?.processName || "Manual Entry",
+//           machineName: processInfo?.machineName || "N/A",
+//           partNumber: entry.PartNumber?.partNumber || "N/A",
+//           partDescription: entry.PartNumber?.partDescription || "N/A",
+//           actual: 0,
+//           scheduled: 0,
+//           scrap: sQty,
+//           targetPerHour: targetPerHour,
+//           type: entry.type || "Return/Scrap",
+//           lastAction: entry.updatedAt,
+//         });
+//       }
+//     });
+
+//     res.json({
+//       summary: {
+//         totalActual,
+//         totalScrap,
+//         totalScheduled,
+//         totalOrders: stockOrders.length,
+//       },
+//       details: completedDetails,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: "Internal Error", details: error.message });
+//   }
+// };
+
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
@@ -5341,6 +5452,7 @@ const currentStatusOverview = async (req, res) => {
       const actual = Number(order.completedQuantity) || 0;
       const scheduled = Number(order.scheduleQuantity) || 0;
       const scrap = Number(order.scrapQuantity) || 0;
+
       totalActual += actual;
       totalScheduled += scheduled;
       totalScrap += scrap;
@@ -5351,6 +5463,13 @@ const currentStatusOverview = async (req, res) => {
           : 0;
         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
 
+        // Efficiency & Productivity Calculation (Individual)
+        // Productivity: Actual vs Scheduled
+        // Efficiency: (Actual + Scrap) vs Scheduled (Yadi efficiency total effort par nikaalni ho)
+        const rowProductivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
+        const rowEfficiency =
+          scheduled > 0 ? ((actual + scrap) / scheduled) * 100 : 0;
+
         completedDetails.push({
           processName: order.process?.processName || "Production",
           machineName: order.process?.machineName || "N/A",
@@ -5360,6 +5479,9 @@ const currentStatusOverview = async (req, res) => {
           scheduled: scheduled,
           scrap: scrap,
           targetPerHour: targetPerHour,
+          // 100% se upar na jaye isliye Math.min use kiya hai
+          productivity: Math.min(rowProductivity, 100).toFixed(2),
+          efficiency: Math.min(rowEfficiency, 100).toFixed(2),
           type: "Production",
           lastAction: order.updatedAt,
         });
@@ -5388,11 +5510,21 @@ const currentStatusOverview = async (req, res) => {
           scheduled: 0,
           scrap: sQty,
           targetPerHour: targetPerHour,
+          productivity: "0.00",
+          efficiency: "0.00",
           type: entry.type || "Return/Scrap",
           lastAction: entry.updatedAt,
         });
       }
     });
+
+    // Summary calculations
+    const overallProductivity =
+      totalScheduled > 0 ? (totalActual / totalScheduled) * 100 : 0;
+    const overallEfficiency =
+      totalScheduled > 0
+        ? ((totalActual + totalScrap) / totalScheduled) * 100
+        : 0;
 
     res.json({
       summary: {
@@ -5400,11 +5532,13 @@ const currentStatusOverview = async (req, res) => {
         totalScrap,
         totalScheduled,
         totalOrders: stockOrders.length,
+        // Overall metrics capped at 100%
+        productivity: Math.min(overallProductivity, 100).toFixed(2),
+        efficiency: Math.min(overallEfficiency, 100).toFixed(2),
       },
       details: completedDetails,
     });
   } catch (error) {
-    console.error("API Error:", error);
     res.status(500).json({ error: "Internal Error", details: error.message });
   }
 };
@@ -5617,7 +5751,6 @@ const monitorChartsData = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Monitor Charts Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -5801,6 +5934,146 @@ const getDiveApi = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+// const cycleTimeComparisionData = async (req, res) => {
+//   try {
+//     let { startDate, endDate, partId, processId } = req.query;
+//     if (!partId) {
+//       return res.status(400).json({ error: "partId is required" });
+//     }
+//     const start = new Date(startDate || "2024-01-01");
+//     const end = new Date(endDate || "2025-12-31");
+
+//     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//       return res
+//         .status(400)
+//         .json({ error: "Invalid date format (YYYY-MM-DD)" });
+//     }
+
+//     const respWhere = {
+//       partId: partId,
+//       isDeleted: false,
+//     };
+
+//     if (processId) {
+//       respWhere.processId = processId;
+//     }
+
+//     const productionResponses = await prisma.productionResponse.findMany({
+//       where: respWhere,
+//       include: {
+//         process: { select: { processName: true, machineName: true } },
+//         PartNumber: { select: { cycleTime: true } },
+//       },
+//     });
+
+//     const grouped = {};
+//     productionResponses.forEach((resp) => {
+//       if (!grouped[resp.processId]) {
+//         grouped[resp.processId] = {
+//           processName: resp.process?.processName || "Unknown",
+//           machineName: resp.process?.machineName || "N/A",
+//           manualCTs: [],
+//           idealCT: resp.PartNumber?.cycleTime
+//             ? Number(resp.PartNumber.cycleTime) / 60
+//             : 0,
+//         };
+//       }
+
+//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
+//         const durationMin =
+//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
+//           1000 /
+//           60;
+//         if (durationMin > 0)
+//           grouped[resp.processId].manualCTs.push(durationMin);
+//       }
+//     });
+
+//     const processWiseCT = Object.values(grouped).map((p) => ({
+//       processName: p.processName,
+//       machineName: p.machineName,
+//       manualCT:
+//         p.manualCTs.length > 0
+//           ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
+//           : 0,
+//       idealCT: p.idealCT,
+//     }));
+
+//     const stepTrackings = await prisma.productionStepTracking.findMany({
+//       where: {
+//         status: "completed",
+//         stepStartTime: { not: null },
+//         stepEndTime: { not: null },
+//         productionResponse: {
+//           processId: processId || undefined,
+//           isDeleted: false,
+//         },
+//       },
+//       include: {
+//         workInstructionStep: {
+//           select: {
+//             id: true,
+//             stepNumber: true,
+//             title: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const stepGrouped = {};
+//     stepTrackings.forEach((st) => {
+//       const stepId = st.workInstructionStep?.id;
+//       if (!stepId) return;
+
+//       const duration =
+//         (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
+
+//       if (!stepGrouped[stepId]) {
+//         stepGrouped[stepId] = {
+//           stepId,
+//           stepTitle: st.workInstructionStep.title,
+//           stepNumber: st.workInstructionStep.stepNumber,
+//           durations: [],
+//         };
+//       }
+//       if (duration > 0) stepGrouped[stepId].durations.push(duration);
+//     });
+
+//     const stepAverages = Object.values(stepGrouped)
+//       .map((s) => ({
+//         stepId: s.stepId,
+//         stepTitle: s.stepTitle,
+//         stepNumber: s.stepNumber,
+//         averageDuration:
+//           s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+//         count: s.durations.length,
+//       }))
+//       .sort((a, b) => a.stepNumber - b.stepNumber);
+
+//     const overallAverage =
+//       stepAverages.length > 0
+//         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
+//           stepAverages.length
+//         : 0;
+
+//     res.json({
+//       message: "Cycle Time Comparison fetched successfully",
+//       data: {
+//         processWiseCT,
+//         stepWiseCT: {
+//           stepAverages,
+//           overallAverage,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       error: "Internal Server Error",
+//       details: error.message,
+//     });
+//   }
+// };
+
 const cycleTimeComparisionData = async (req, res) => {
   try {
     let { startDate, endDate, partId, processId } = req.query;
@@ -6213,7 +6486,6 @@ const dashBoardData = async (req, res) => {
       totalOrders: openOrdersList.length + fulfilledList.length,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -6411,7 +6683,6 @@ const capacityStatus = async (req, res) => {
       data: getProcess,
     });
   } catch (error) {
-    console.error("capacityStatus error:", error);
     return res
       .status(500)
       .json({ message: "Server Error", error: error.message });
@@ -6495,7 +6766,6 @@ const productionEfficieny = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Efficiency Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -6679,134 +6949,384 @@ const getParts = async (req, res) => {
   }
 };
 
+// const revenueApi1 = async (req, res) => {
+//   try {
+//     const year = parseInt(req.query.year);
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: { isDeleted: false },
+//       include: {
+//         part: true,
+//         process: true,
+//         StockOrder: true,
+//         CustomOrder: true,
+//       },
+//     });
+
+//     const fixedCosts = await prisma.fixedCost.findMany({
+//       select: { expenseCost: true },
+//     });
+
+//     const totalFixedCost = fixedCosts.reduce(
+//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
+//       0,
+//     );
+
+//     let totalRevenue = 0;
+//     let totalCOGS = 0;
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+
+//     let projectionOpenOrderRevenue = 0;
+//     let projectionOpenPartsCost = 0;
+//     let projectionOpenLaborCost = 0;
+
+//     const monthlyRevenue = {};
+//     const monthlyCOGS = {};
+//     const dailyCashFlow = {};
+
+//     schedules.forEach((order) => {
+//       const date = new Date(order.order_date);
+//       if (year && date.getFullYear() !== year) return;
+
+//       const qtyFulfilled = order.completedQuantity || 0;
+//       const qtyUnfulfilled = order.remainingQty || 0;
+
+//       const monthKey =
+//         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+//       const dateKey = date.toISOString().slice(0, 10);
+
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const productCost = parseFloat(
+//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
+//       );
+//       const cycleTimeMinutes = order.part?.cycleTime || 0;
+//       const cycleTimeHours = cycleTimeMinutes / 60;
+//       const ratePerHour = order?.process?.ratePerHour || 0;
+
+//       const orderCOGS =
+//         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
+//       const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
+
+//       totalRevenue += fulfilledRevenue;
+//       totalCOGS += orderCOGS;
+
+//       monthlyRevenue[monthKey] =
+//         (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
+//       monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+
+//       const unfulfilledRevenue = (partCost + productCost) * qtyUnfulfilled;
+//       projectionOpenOrderRevenue += unfulfilledRevenue;
+
+//       const unfulfilledPartsCost = partCost * qtyUnfulfilled;
+//       projectionOpenPartsCost += unfulfilledPartsCost;
+
+//       const unfulfilledLaborCost =
+//         cycleTimeHours * ratePerHour * qtyUnfulfilled;
+//       projectionOpenLaborCost += unfulfilledLaborCost;
+
+//       const currentScrap = order.scrapQuantity
+//         ? partCost * order.scrapQuantity
+//         : 0;
+//       scrapCost += currentScrap;
+//       supplierReturn += currentScrap;
+
+//       dailyCashFlow[dateKey] =
+//         (dailyCashFlow[dateKey] || 0) + (partCost + productCost) * qtyFulfilled;
+//     });
+
+//     res.json({
+//       totalRevenue,
+//       totalCOGS,
+//       grossProfit: totalRevenue - totalCOGS - scrapCost - supplierReturn,
+//       scrapCost,
+//       supplierReturn,
+//       totalFixedCost,
+//       monthlyRevenue,
+//       monthlyCOGS,
+//       dailyCashFlow,
+
+//       projections: {
+//         orderCard: {
+//           title: "Total Open Order Revenue",
+//           value: projectionOpenOrderRevenue,
+//         },
+//         partCard: {
+//           title: "Total Open Parts Cost",
+//           value: projectionOpenPartsCost,
+//         },
+//         employeeCard: {
+//           title: "Total Open Labor Cost",
+//           value: projectionOpenLaborCost,
+//         },
+//         fixedCostCard: {
+//           title: "Total Fixed Cost",
+//           value: totalFixedCost,
+//         },
+//       },
+
+//       unfulfilledRevenue: projectionOpenOrderRevenue,
+//       cashflowNeeded:
+//         totalFixedCost + projectionOpenPartsCost + projectionOpenLaborCost,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Something went wrong while fetching revenue & COGS.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// const revenueApi1 = async (req, res) => {
+//   try {
+//     const { startDate, endDate, year } = req.query;
+
+//     // 1. Date Range Logic (Timezone Friendly)
+//     let start, end;
+//     if (startDate) {
+//       start = new Date(startDate);
+//       start.setHours(0, 0, 0, 0);
+//       const endRef = endDate ? new Date(endDate) : new Date(startDate);
+//       end = new Date(endRef);
+//       end.setHours(23, 59, 59, 999);
+//     } else if (year) {
+//       start = new Date(`${year}-01-01T00:00:00.000Z`);
+//       end = new Date(`${year}-12-31T23:59:59.999Z`);
+//     } else {
+//       // Default: Current Year
+//       const currentYear = new Date().getFullYear();
+//       start = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+//       end = new Date(`${currentYear}-12-31T23:59:59.999Z`);
+//     }
+
+//     // 2. Fetch Data (Prisma level filter for performance)
+//     const [schedules, fixedCosts] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//           isDeleted: false,
+//           // Note: Agar projections saare dekhne hain regardless of date,
+//           // toh yahan se order_date filter hatana padega.
+//           // Lekin reporting ke liye filtered data hi sahi rehta hai.
+//           order_date: { gte: start, lte: end },
+//         },
+//         include: {
+//           part: true,
+//           process: true,
+//           StockOrder: true,
+//           CustomOrder: true,
+//         },
+//       }),
+//       prisma.fixedCost.findMany({ where: { isDeleted: false } }),
+//     ]);
+
+//     const totalFixedCost = fixedCosts.reduce(
+//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
+//       0,
+//     );
+
+//     let totalRevenue = 0,
+//       totalCOGS = 0,
+//       scrapCost = 0,
+//       supplierReturn = 0;
+//     let projOpenRev = 0,
+//       projOpenParts = 0,
+//       projOpenLabor = 0;
+
+//     const monthlyRevenue = {},
+//       monthlyCOGS = {},
+//       dailyCashFlow = {};
+
+//     schedules.forEach((order) => {
+//       const date = new Date(order.order_date);
+//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+//       const dateKey = date.toISOString().slice(0, 10);
+
+//       const qtyFulfilled = Number(order.completedQuantity) || 0;
+//       const qtyUnfulfilled = Number(order.remainingQty) || 0; // Ye 0 ho jata hai completion pe
+
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const productCost = parseFloat(
+//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
+//       );
+//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
+//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
+
+//       // --- ACTUAL REVENUE (Jo complete ho gaya) ---
+//       const orderCOGS =
+//         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
+//       const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
+
+//       totalRevenue += fulfilledRevenue;
+//       totalCOGS += orderCOGS;
+
+//       if (qtyFulfilled > 0) {
+//         monthlyRevenue[monthKey] =
+//           (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
+//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+//         dailyCashFlow[dateKey] =
+//           (dailyCashFlow[dateKey] || 0) + fulfilledRevenue;
+//       }
+
+//       // --- PROJECTIONS (Jo abhi pending hai) ---
+//       projOpenRev += (partCost + productCost) * qtyUnfulfilled;
+//       projOpenParts += partCost * qtyUnfulfilled;
+//       projOpenLabor += cycleTimeHours * ratePerHour * qtyUnfulfilled;
+
+//       // Scrap logic
+//       const currentScrap = (Number(order.scrapQuantity) || 0) * partCost;
+//       scrapCost += currentScrap;
+//     });
+
+//     res.json({
+//       success: true,
+//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+//       grossProfit: parseFloat(
+//         (totalRevenue - totalCOGS - scrapCost).toFixed(2),
+//       ),
+//       scrapCost: parseFloat(scrapCost.toFixed(2)),
+//       totalFixedCost,
+//       monthlyRevenue,
+//       monthlyCOGS,
+//       dailyCashFlow,
+//       projections: {
+//         totalOpenOrderRevenue: projOpenRev,
+//         totalOpenPartsCost: projOpenParts,
+//         totalOpenLaborCost: projOpenLabor,
+//         cashflowNeeded: totalFixedCost + projOpenParts + projOpenLabor,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 const revenueApi1 = async (req, res) => {
   try {
-    const year = parseInt(req.query.year);
-    const schedules = await prisma.stockOrderSchedule.findMany({
-      where: { isDeleted: false },
-      include: {
-        part: true,
-        process: true,
-        StockOrder: true,
-        CustomOrder: true,
-      },
-    });
+    const { startDate, endDate, year } = req.query;
 
-    const fixedCosts = await prisma.fixedCost.findMany({
-      select: { expenseCost: true },
-    });
+    let start, end;
+    if (startDate) {
+      start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const endRef = endDate ? new Date(endDate) : new Date(startDate);
+      end = new Date(endRef);
+      end.setHours(23, 59, 59, 999);
+    } else if (year) {
+      start = new Date(`${year}-01-01T00:00:00.000Z`);
+      end = new Date(`${year}-12-31T23:59:59.999Z`);
+    } else {
+      const currentYear = new Date().getFullYear();
+      start = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+      end = new Date(`${currentYear}-12-31T23:59:59.999Z`);
+    }
+
+    const [schedules, fixedCosts] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: {
+          isDeleted: false,
+          order_date: { gte: start, lte: end },
+        },
+        include: {
+          part: true,
+          process: true,
+          StockOrder: true,
+          CustomOrder: true,
+        },
+      }),
+      prisma.fixedCost.findMany({ where: { isDeleted: false } }),
+    ]);
 
     const totalFixedCost = fixedCosts.reduce(
       (sum, item) => sum + parseFloat(item.expenseCost || 0),
       0,
     );
 
-    let totalRevenue = 0;
-    let totalCOGS = 0;
-    let scrapCost = 0;
-    let supplierReturn = 0;
+    let totalRevenue = 0,
+      totalCOGS = 0,
+      scrapCost = 0;
+    let projOpenRev = 0,
+      projOpenParts = 0,
+      projOpenLabor = 0;
 
-    let projectionOpenOrderRevenue = 0;
-    let projectionOpenPartsCost = 0;
-    let projectionOpenLaborCost = 0;
-
-    const monthlyRevenue = {};
-    const monthlyCOGS = {};
-    const dailyCashFlow = {};
+    const monthlyRevenue = {},
+      monthlyCOGS = {},
+      dailyCashFlow = {};
 
     schedules.forEach((order) => {
       const date = new Date(order.order_date);
-      if (year && date.getFullYear() !== year) return;
-
-      const qtyFulfilled = order.completedQuantity || 0;
-      const qtyUnfulfilled = order.remainingQty || 0;
-
-      const monthKey =
-        date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const dateKey = date.toISOString().slice(0, 10);
+
+      // --- QUANTITY LOGIC FIX ---
+      const plannedQty = Number(order.plannedQuantity) || 0; // Total jitna banana hai
+      const qtyFulfilled = Number(order.completedQuantity) || 0; // Jitna ban chuka hai
+
+      // Agar remainingQty 0 hai but planned > completed, toh difference ko projection maane
+      let qtyUnfulfilled = Number(order.remainingQty) || 0;
+      if (qtyUnfulfilled === 0 && plannedQty > qtyFulfilled) {
+        qtyUnfulfilled = plannedQty - qtyFulfilled;
+      }
 
       const partCost = parseFloat(order.part?.cost || 0);
       const productCost = parseFloat(
         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
       );
-      const cycleTimeMinutes = order.part?.cycleTime || 0;
-      const cycleTimeHours = cycleTimeMinutes / 60;
-      const ratePerHour = order?.process?.ratePerHour || 0;
+      const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
+      const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
 
-      const orderCOGS =
-        (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
-      const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
+      // --- ACTUALS (Completed) ---
+      if (qtyFulfilled > 0) {
+        const orderCOGS =
+          (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
+        const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
 
-      totalRevenue += fulfilledRevenue;
-      totalCOGS += orderCOGS;
+        totalRevenue += fulfilledRevenue;
+        totalCOGS += orderCOGS;
 
-      monthlyRevenue[monthKey] =
-        (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
-      monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+        monthlyRevenue[monthKey] =
+          (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
+        monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+        dailyCashFlow[dateKey] =
+          (dailyCashFlow[dateKey] || 0) + fulfilledRevenue;
+      }
 
-      const unfulfilledRevenue = (partCost + productCost) * qtyUnfulfilled;
-      projectionOpenOrderRevenue += unfulfilledRevenue;
+      // --- PROJECTIONS (Pending) ---
+      if (qtyUnfulfilled > 0) {
+        projOpenRev += (partCost + productCost) * qtyUnfulfilled;
+        projOpenParts += partCost * qtyUnfulfilled;
+        projOpenLabor += cycleTimeHours * ratePerHour * qtyUnfulfilled;
+      }
 
-      const unfulfilledPartsCost = partCost * qtyUnfulfilled;
-      projectionOpenPartsCost += unfulfilledPartsCost;
-
-      const unfulfilledLaborCost =
-        cycleTimeHours * ratePerHour * qtyUnfulfilled;
-      projectionOpenLaborCost += unfulfilledLaborCost;
-
-      const currentScrap = order.scrapQuantity
-        ? partCost * order.scrapQuantity
-        : 0;
+      // Scrap
+      const currentScrap = (Number(order.scrapQuantity) || 0) * partCost;
       scrapCost += currentScrap;
-      supplierReturn += currentScrap;
-
-      dailyCashFlow[dateKey] =
-        (dailyCashFlow[dateKey] || 0) + (partCost + productCost) * qtyFulfilled;
     });
 
     res.json({
-      totalRevenue,
-      totalCOGS,
-      grossProfit: totalRevenue - totalCOGS - scrapCost - supplierReturn,
-      scrapCost,
-      supplierReturn,
+      success: true,
+      totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+      totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+      grossProfit: parseFloat(
+        (totalRevenue - totalCOGS - scrapCost).toFixed(2),
+      ),
+      scrapCost: parseFloat(scrapCost.toFixed(2)),
       totalFixedCost,
       monthlyRevenue,
       monthlyCOGS,
       dailyCashFlow,
-
       projections: {
-        orderCard: {
-          title: "Total Open Order Revenue",
-          value: projectionOpenOrderRevenue,
-        },
-        partCard: {
-          title: "Total Open Parts Cost",
-          value: projectionOpenPartsCost,
-        },
-        employeeCard: {
-          title: "Total Open Labor Cost",
-          value: projectionOpenLaborCost,
-        },
-        fixedCostCard: {
-          title: "Total Fixed Cost",
-          value: totalFixedCost,
-        },
+        totalOpenOrderRevenue: parseFloat(projOpenRev.toFixed(2)),
+        totalOpenPartsCost: parseFloat(projOpenParts.toFixed(2)),
+        totalOpenLaborCost: parseFloat(projOpenLabor.toFixed(2)),
+        cashflowNeeded: parseFloat(
+          (totalFixedCost + projOpenParts + projOpenLabor).toFixed(2),
+        ),
       },
-
-      unfulfilledRevenue: projectionOpenOrderRevenue,
-      cashflowNeeded:
-        totalFixedCost + projectionOpenPartsCost + projectionOpenLaborCost,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Something went wrong while fetching revenue & COGS.",
-      error: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 };
-
 const scheudleInventory = async (req, res) => {
   try {
     const { search } = req.query;
@@ -6978,13 +7498,137 @@ const getLabourForcast = async (req, res) => {
     });
   }
 };
+
+// const businessAnalysisApi = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     if (!startDate || !endDate) {
+//       return res
+//         .status(400)
+//         .json({ message: "startDate and endDate are required." });
+//     }
+
+//     // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
+//     const [sy, sm, sd] = startDate.split("-").map(Number);
+//     const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
+
+//     const [ey, em, ed] = endDate.split("-").map(Number);
+//     const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
+
+//     const timeDifference = end.getTime() - start.getTime();
+//     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
+
+//     // Fetch Schedules based on the corrected date range
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         order_date: { gte: start, lte: end },
+//       },
+//       include: {
+//         part: true,
+//         process: true,
+//         StockOrder: true,
+//         CustomOrder: true,
+//       },
+//     });
+
+//     const fixedCostsData = await prisma.fixedCost.findMany({
+//       where: { isDeleted: false },
+//       select: { expenseCost: true },
+//     });
+
+//     const sumFixedCosts = fixedCostsData.reduce(
+//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
+//       0,
+//     );
+
+//     // Prorate fixed cost based on days selected
+//     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
+
+//     let totalRevenue = 0;
+//     let bomCost = 0;
+//     let laborCost = 0;
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+//     let inventoryCost = 0;
+
+//     schedules.forEach((order) => {
+//       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
+//       const qtyRemaining = parseFloat(order.remainingQty || 0);
+//       const scrapQty = parseFloat(order.scrapQuantity || 0);
+
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const salePrice = parseFloat(
+//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
+//       );
+
+//       // --- Time & Labor Calculation (Synced with Costing API) ---
+//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
+//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
+//       const unitLabor = cycleTimeHours * ratePerHour;
+
+//       // Calculations
+//       const revenuePerUnit = partCost + salePrice;
+//       totalRevenue += revenuePerUnit * qtyFulfilled;
+
+//       bomCost += partCost * qtyFulfilled;
+//       laborCost += unitLabor * qtyFulfilled;
+
+//       scrapCost += scrapQty * partCost;
+//       supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
+
+//       // Inventory = Unfinished Qty * (Material + Labor effort put so far)
+//       inventoryCost += qtyRemaining * (partCost + unitLabor);
+//     });
+
+//     const totalCOGS = bomCost + laborCost;
+//     const operatingExpenses = totalCOGS + proratedFixedCost + scrapCost;
+//     const profit = totalRevenue - operatingExpenses;
+
+//     res.status(200).json({
+//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+//       bomCost: parseFloat(bomCost.toFixed(2)),
+//       laborCost: parseFloat(laborCost.toFixed(2)),
+//       totalFixedCost: parseFloat(proratedFixedCost.toFixed(2)),
+//       operatingExpenses: parseFloat(operatingExpenses.toFixed(2)),
+//       Profit: parseFloat(profit.toFixed(2)),
+//       InventoryCost: parseFloat(inventoryCost.toFixed(2)),
+//       scrapCost: parseFloat(scrapCost.toFixed(2)),
+//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
+//       cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
+//       daysInPeriod,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Error fetching business analysis data",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const businessAnalysisApi = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+
+    if (!startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ message: "startDate and endDate are required." });
+    }
+
+    // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
+    const [sy, sm, sd] = startDate.split("-").map(Number);
+    const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
+
+    const [ey, em, ed] = endDate.split("-").map(Number);
+    const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
+
     const timeDifference = end.getTime() - start.getTime();
     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
+
+    // Fetch Schedules based on the corrected date range
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: {
         isDeleted: false,
@@ -6999,13 +7643,18 @@ const businessAnalysisApi = async (req, res) => {
     });
 
     const fixedCostsData = await prisma.fixedCost.findMany({
+      where: { isDeleted: false },
       select: { expenseCost: true },
     });
+
     const sumFixedCosts = fixedCostsData.reduce(
       (sum, item) => sum + parseFloat(item.expenseCost || 0),
       0,
     );
+
+    // Prorate fixed cost based on days selected
     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
+
     let totalRevenue = 0;
     let bomCost = 0;
     let laborCost = 0;
@@ -7017,39 +7666,48 @@ const businessAnalysisApi = async (req, res) => {
       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
       const qtyRemaining = parseFloat(order.remainingQty || 0);
       const scrapQty = parseFloat(order.scrapQuantity || 0);
+
       const partCost = parseFloat(order.part?.cost || 0);
-      const productCost = parseFloat(
+      const salePrice = parseFloat(
         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
       );
-      const cycleTimeHours = parseFloat(order.part?.cycleTime || 0) / 60;
+
+      // --- Time & Labor Calculation (Synced with Costing API) ---
+      const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-      const laborUnitCost = cycleTimeHours * ratePerHour;
-      const revenuePerUnit = partCost + productCost;
+      const unitLabor = cycleTimeHours * ratePerHour;
+
+      // Calculations
+      const revenuePerUnit = partCost + salePrice;
       totalRevenue += revenuePerUnit * qtyFulfilled;
+
       bomCost += partCost * qtyFulfilled;
-      laborCost += laborUnitCost * qtyFulfilled;
+      laborCost += unitLabor * qtyFulfilled;
+
       scrapCost += scrapQty * partCost;
-      inventoryCost += qtyRemaining * (partCost + laborUnitCost);
-      if (order.scrapQuantity > 0) {
-        supplierReturn += order.scrapQuantity * partCost;
-      }
+      supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
+
+      // Inventory = Unfinished Qty * (Material + Labor effort put so far)
+      inventoryCost += qtyRemaining * (partCost + unitLabor);
     });
+
     const totalCOGS = bomCost + laborCost;
-    const operatingExpenses = totalCOGS + proratedFixedCost;
+    const operatingExpenses = totalCOGS + proratedFixedCost + scrapCost;
     const profit = totalRevenue - operatingExpenses;
-    const cashFlow = profit;
+
     res.status(200).json({
-      totalRevenue,
-      totalCOGS,
-      bomCost,
-      laborCost,
-      totalFixedCost: proratedFixedCost,
-      operatingExpenses,
-      Profit: profit,
-      InventoryCost: inventoryCost,
-      scrapCost,
-      supplierReturn,
-      cashFlow,
+      totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+      totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+      bomCost: parseFloat(bomCost.toFixed(2)),
+      laborCost: parseFloat(laborCost.toFixed(2)),
+      totalFixedCost: parseFloat(proratedFixedCost.toFixed(2)),
+      operatingExpenses: parseFloat(operatingExpenses.toFixed(2)),
+      Profit: parseFloat(profit.toFixed(2)),
+      InventoryCost: parseFloat(inventoryCost.toFixed(2)),
+      scrapCost: parseFloat(scrapCost.toFixed(2)),
+      supplierReturn: parseFloat(supplierReturn.toFixed(2)),
+      cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
+      daysInPeriod,
     });
   } catch (error) {
     res.status(500).json({
@@ -7058,6 +7716,86 @@ const businessAnalysisApi = async (req, res) => {
     });
   }
 };
+// const businessAnalysisApi = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+//     const timeDifference = end.getTime() - start.getTime();
+//     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         order_date: { gte: start, lte: end },
+//       },
+//       include: {
+//         part: true,
+//         process: true,
+//         StockOrder: true,
+//         CustomOrder: true,
+//       },
+//     });
+
+//     const fixedCostsData = await prisma.fixedCost.findMany({
+//       select: { expenseCost: true },
+//     });
+//     const sumFixedCosts = fixedCostsData.reduce(
+//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
+//       0,
+//     );
+//     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
+//     let totalRevenue = 0;
+//     let bomCost = 0;
+//     let laborCost = 0;
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+//     let inventoryCost = 0;
+
+//     schedules.forEach((order) => {
+//       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
+//       const qtyRemaining = parseFloat(order.remainingQty || 0);
+//       const scrapQty = parseFloat(order.scrapQuantity || 0);
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const productCost = parseFloat(
+//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
+//       );
+//       const cycleTimeHours = parseFloat(order.part?.cycleTime || 0) / 60;
+//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
+//       const laborUnitCost = cycleTimeHours * ratePerHour;
+//       const revenuePerUnit = partCost + productCost;
+//       totalRevenue += revenuePerUnit * qtyFulfilled;
+//       bomCost += partCost * qtyFulfilled;
+//       laborCost += laborUnitCost * qtyFulfilled;
+//       scrapCost += scrapQty * partCost;
+//       inventoryCost += qtyRemaining * (partCost + laborUnitCost);
+//       if (order.scrapQuantity > 0) {
+//         supplierReturn += order.scrapQuantity * partCost;
+//       }
+//     });
+//     const totalCOGS = bomCost + laborCost;
+//     const operatingExpenses = totalCOGS + proratedFixedCost;
+//     const profit = totalRevenue - operatingExpenses;
+//     const cashFlow = profit;
+//     res.status(200).json({
+//       totalRevenue,
+//       totalCOGS,
+//       bomCost,
+//       laborCost,
+//       totalFixedCost: proratedFixedCost,
+//       operatingExpenses,
+//       Profit: profit,
+//       InventoryCost: inventoryCost,
+//       scrapCost,
+//       supplierReturn,
+//       cashFlow,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Error fetching business analysis data",
+//       error: error.message,
+//     });
+//   }
+// };
 const getProductParts = async (req, res) => {
   try {
     const { id } = req.params;

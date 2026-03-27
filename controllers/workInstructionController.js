@@ -267,7 +267,7 @@ const allWorkInstructions = async (req, res) => {
         where: finalWhereFilter,
         include: {
           PartNumber: { select: { partNumber: true } },
-          process: { select: { processName: true } },
+          process: { select: { processName: true, machineName: true } },
           workInstruction: {
             include: {
               steps: {
@@ -850,35 +850,48 @@ const applyWorkInstruction = async (req, res) => {
     });
   }
 };
-
 const selectByProductNumberOrDesc = async (req, res) => {
   try {
-    const process = await prisma.partNumber.findMany({
+    // Frontend se search query nikalna (e.g., ?search=123)
+    const { search } = req.query;
+
+    const whereCondition = {
+      isDeleted: false,
+      instructionRequired: true,
+      ...(search && {
+        OR: [
+          { partNumber: { contains: search } },
+          { partDescription: { contains: search } },
+        ],
+      }),
+    };
+
+    const parts = await prisma.partNumber.findMany({
+      where: whereCondition,
       select: {
         part_id: true,
         partNumber: true,
         partDescription: true,
       },
-      where: {
-        isDeleted: false,
-      },
+      take: 20, // Performance ke liye results limit karein
     });
 
-    const formattedProcess = process.map((part) => ({
+    const formattedProcess = parts.map((part) => ({
       id: part.part_id,
       partNumber: part.partNumber,
       partDescription: part.partDescription,
     }));
+
     res.status(200).json({
       data: formattedProcess,
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).send({
-      message: "Something went wrong . please try again later .",
+      message: "Something went wrong. Please try again later.",
     });
   }
 };
-
 const deleteWorkInstructionImg = async (req, res) => {
   try {
     const { id } = req.params;
