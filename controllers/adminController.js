@@ -5462,10 +5462,6 @@ const currentStatusOverview = async (req, res) => {
           ? parseFloat(order.process.cycleTime)
           : 0;
         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
-
-        // Efficiency & Productivity Calculation (Individual)
-        // Productivity: Actual vs Scheduled
-        // Efficiency: (Actual + Scrap) vs Scheduled (Yadi efficiency total effort par nikaalni ho)
         const rowProductivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
         const rowEfficiency =
           scheduled > 0 ? ((actual + scrap) / scheduled) * 100 : 0;
