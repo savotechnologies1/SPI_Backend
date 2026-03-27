@@ -6597,7 +6597,58 @@ const dashBoardData = async (req, res) => {
 
     const cT = getTotals(currSched, currScrapEntries);
     const lT = getTotals(lastSched, lastScrapEntries);
+const scrapFromProduction = productionResponses.reduce((sum, record) => {
+  const qty = record.scrapQuantity || 0;
+  const cost = parseFloat(record.PartNumber?.cost || 0); // PartNumber relation hona chahiye
+  return sum + (qty * cost);
+}, 0);
 
+const scrapQtyFromProduction = productionResponses.reduce((sum, record) => sum + (record.scrapQuantity || 0), 0);
+
+// 2. ScapEntries se scrap nikalna (General/Supplier scrap)
+const scrapFromEntriesCost = currScrapEntries.reduce((sum, e) => {
+  const qty = Number(e.returnQuantity) || 0;
+  const cost = parseFloat(e.PartNumber?.cost || 0);
+  return sum + (qty * cost);
+}, 0);
+
+const scrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+
+// TOTALS
+const totalScrapCost = scrapFromProduction + scrapFromEntriesCost;
+const totalScrapQty = scrapQtyFromProduction + scrapQtyFromEntries
+
+const lastMonthProductionResponses = await prisma.productionResponse.findMany({
+  where: {
+    isDeleted: false,
+    submittedDateTime: { gte: lastMonthStart, lte: lastMonthEnd },
+  },
+  include: { PartNumber: true },
+});
+
+// 2. CURRENT MONTH SCRAP (ProductionResponse + ScapEntries)
+const currentScrapQtyFromProd = productionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
+const currentScrapCostFromProd = productionResponses.reduce((sum, r) => 
+  sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
+
+const currentScrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+const currentScrapCostFromEntries = currScrapEntries.reduce((sum, e) => 
+  sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
+
+const totalCurrentScrapQty = currentScrapQtyFromProd + currentScrapQtyFromEntries;
+const totalCurrentScrapCost = currentScrapCostFromProd + currentScrapCostFromEntries;
+
+// 3. LAST MONTH SCRAP (Comparison ke liye)
+const lastScrapQtyFromProd = lastMonthProductionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
+const lastScrapCostFromProd = lastMonthProductionResponses.reduce((sum, r) => 
+  sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
+
+const lastScrapQtyFromEntries = lastScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+const lastScrapCostFromEntries = lastScrapEntries.reduce((sum, e) => 
+  sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
+
+const totalLastScrapQty = lastScrapQtyFromProd + lastScrapQtyFromEntries;
+const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
     res.status(200).json({
       productivityData,
       currentRevenue,
@@ -6619,14 +6670,19 @@ const dashBoardData = async (req, res) => {
         currentScrapQty: cT.sQty,
         currentScrapCost: cT.sCost.toFixed(2),
         lastScrapCost: lT.sCost.toFixed(2),
-        scrapChangePercent: getStats(cT.sQty, lT.sQty, true).percent,
-        scrapIndicator: getStats(cT.sQty, lT.sQty, true).indicator,
+        // scrapChangePercent: getStats(cT.sQty, lT.sQty, true).percent,
+        // scrapIndicator: getStats(cT.sQty, lT.sQty, true).indicator,
+       
+    scrapChangePercent: getStats(totalCurrentScrapQty, totalLastScrapQty, true).percent,
+    scrapIndicator: getStats(totalCurrentScrapQty, totalLastScrapQty, true).indicator,
       },
       openOrders: { total: openOrdersList.length, list: openOrdersList },
       fulfilledOrders: { total: fulfilledList.length, list: fulfilledList },
       totalOrders: openOrdersList.length + fulfilledList.length,
     });
   } catch (error) {
+    console.log(error);
+    
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -6829,7 +6885,6 @@ const capacityStatus = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
-
 const productionEfficieny = async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -6837,19 +6892,18 @@ const productionEfficieny = async (req, res) => {
     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const [scheduleData, scrapFromEntries] = await Promise.all([
+    const [scheduleData, scrapFromEntries, productionResponses] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
-        where: {
-          isDeleted: false,
-          order_date: { gte: startDate, lte: endDate },
-        },
+        where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
         include: { part: true },
       }),
       prisma.scapEntries.findMany({
-        where: {
-          isDeleted: false,
-          createdAt: { gte: startDate, lte: endDate },
-        },
+        where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
+        include: { PartNumber: true },
+      }),
+      // Dashboard se match karne ke liye ye table zaroori hai
+      prisma.productionResponse.findMany({
+        where: { isDeleted: false, submittedDateTime: { gte: startDate, lte: endDate } },
         include: { PartNumber: true },
       }),
     ]);
@@ -6859,26 +6913,32 @@ const productionEfficieny = async (req, res) => {
     let totalSupplierReturn = 0;
     const dailyMap = new Map();
 
-    scheduleData.forEach((item) => {
-      const d = new Date(item.order_date || item.createdAt);
-      const dateKey = d.toISOString().split("T")[0];
+    // 1. Production Response se Scrap Cost calculate karein
+    productionResponses.forEach((record) => {
+      const sQty = record.scrapQuantity || 0;
+      const sCost = parseFloat(record.PartNumber?.cost || 0);
+      totalScrapCost += (sQty * sCost);
+    });
 
+    // 2. Stock Order Schedule calculation (Completed Qty)
+    scheduleData.forEach((item) => {
+      const d = new Date(item.createdAt);
+      const dateKey = d.toISOString().split("T")[0];
       const compQty = item.completedQuantity || 0;
-      const scrpQty = item.scrapQuantity || 0;
-      const partCost = parseFloat(item.part?.cost || 0);
+      const scrapQty = item.scrapQuantity || 0; // Schedule ka scrap
+      const pCost = parseFloat(item.part?.cost || 0);
 
       if (compQty > 0) {
         totalCompleted += compQty;
-        if (!dailyMap.has(dateKey))
-          dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+        if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, { date: dateKey, completed: 0 });
         dailyMap.get(dateKey).completed += compQty;
       }
 
-      if (scrpQty > 0) {
-        totalScrapCost += scrpQty * partCost;
-      }
+      // Schedule table wali scrap cost bhi add karein (Dashboard logic match)
+      totalScrapCost += (scrapQty * pCost);
     });
 
+    // 3. Scrap Entries calculation (Supplier Return logic)
     scrapFromEntries.forEach((entry) => {
       const entryQty = Number(entry.returnQuantity) || 0;
       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
@@ -6886,11 +6946,8 @@ const productionEfficieny = async (req, res) => {
 
       totalScrapCost += entryTotalCost;
 
-      if (
-        entry.supplierId ||
-        entry.type === "supplier" ||
-        entry.returnSupplierId
-      ) {
+      // Supplier Return check
+      if (entry.supplierId && entry.supplierId !== "") {
         totalSupplierReturn += entryTotalCost;
       }
     });
@@ -6898,7 +6955,7 @@ const productionEfficieny = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: Array.from(dailyMap.values()).sort(
-        (a, b) => new Date(a.date) - new Date(b.date),
+        (a, b) => new Date(a.date) - new Date(b.date)
       ),
       totals: {
         totalCompleted,
@@ -6910,6 +6967,86 @@ const productionEfficieny = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const { month, year } = req.query;
+
+//     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
+//     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+//     const [scheduleData, scrapFromEntries] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: {
+//           isDeleted: false,
+//           order_date: { gte: startDate, lte: endDate },
+//         },
+//         include: { part: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: {
+//           isDeleted: false,
+//           createdAt: { gte: startDate, lte: endDate },
+//         },
+//         include: { PartNumber: true },
+//       }),
+//     ]);
+
+//     let totalCompleted = 0;
+//     let totalScrapCost = 0;
+//     let totalSupplierReturn = 0;
+//     const dailyMap = new Map();
+
+//     scheduleData.forEach((item) => {
+//       const d = new Date(item.order_date || item.createdAt);
+//       const dateKey = d.toISOString().split("T")[0];
+
+//       const compQty = item.completedQuantity || 0;
+//       const scrpQty = item.scrapQuantity || 0;
+//       const partCost = parseFloat(item.part?.cost || 0);
+
+//       if (compQty > 0) {
+//         totalCompleted += compQty;
+//         if (!dailyMap.has(dateKey))
+//           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+//         dailyMap.get(dateKey).completed += compQty;
+//       }
+
+//       if (scrpQty > 0) {
+//         totalScrapCost += scrpQty * partCost;
+//       }
+//     });
+
+//     scrapFromEntries.forEach((entry) => {
+//       const entryQty = Number(entry.returnQuantity) || 0;
+//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
+//       const entryTotalCost = entryQty * entryPartCost;
+
+//       totalScrapCost += entryTotalCost;
+
+//       if (
+//         entry.supplierId ||
+//         entry.type === "supplier" ||
+//         entry.returnSupplierId
+//       ) {
+//         totalSupplierReturn += entryTotalCost;
+//       }
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: Array.from(dailyMap.values()).sort(
+//         (a, b) => new Date(a.date) - new Date(b.date),
+//       ),
+//       totals: {
+//         totalCompleted,
+//         totalScrapCost: Number(totalScrapCost.toFixed(2)),
+//         totalSupplierReturn: Number(totalSupplierReturn.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// };
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;
@@ -7749,51 +7886,154 @@ const getLabourForcast = async (req, res) => {
 //   }
 // };
 
+// const businessAnalysisApi = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+
+//     if (!startDate || !endDate) {
+//       return res
+//         .status(400)
+//         .json({ message: "startDate and endDate are required." });
+//     }
+
+//     // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
+//     const [sy, sm, sd] = startDate.split("-").map(Number);
+//     const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
+
+//     const [ey, em, ed] = endDate.split("-").map(Number);
+//     const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
+
+//     const timeDifference = end.getTime() - start.getTime();
+//     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
+
+//     // Fetch Schedules based on the corrected date range
+//     const schedules = await prisma.stockOrderSchedule.findMany({
+//       where: {
+//         isDeleted: false,
+//         order_date: { gte: start, lte: end },
+//       },
+//       include: {
+//         part: true,
+//         process: true,
+//         StockOrder: true,
+//         CustomOrder: true,
+//       },
+//     });
+
+//     const fixedCostsData = await prisma.fixedCost.findMany({
+//       where: { isDeleted: false },
+//       select: { expenseCost: true },
+//     });
+
+//     const sumFixedCosts = fixedCostsData.reduce(
+//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
+//       0,
+//     );
+
+//     // Prorate fixed cost based on days selected
+//     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
+
+//     let totalRevenue = 0;
+//     let bomCost = 0;
+//     let laborCost = 0;
+//     let scrapCost = 0;
+//     let supplierReturn = 0;
+//     let inventoryCost = 0;
+
+//     schedules.forEach((order) => {
+//       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
+//       const qtyRemaining = parseFloat(order.remainingQty || 0);
+//       const scrapQty = parseFloat(order.scrapQuantity || 0);
+
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const salePrice = parseFloat(
+//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
+//       );
+
+//       // --- Time & Labor Calculation (Synced with Costing API) ---
+//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
+//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
+//       const unitLabor = cycleTimeHours * ratePerHour;
+
+//       // Calculations
+//       const revenuePerUnit = partCost + salePrice;
+//       totalRevenue += revenuePerUnit * qtyFulfilled;
+
+//       bomCost += partCost * qtyFulfilled;
+//       laborCost += unitLabor * qtyFulfilled;
+
+//       scrapCost += scrapQty * partCost;
+//       supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
+
+//       // Inventory = Unfinished Qty * (Material + Labor effort put so far)
+//       inventoryCost += qtyRemaining * (partCost + unitLabor);
+//     });
+
+//     const totalCOGS = bomCost + laborCost;
+//     const operatingExpenses = totalCOGS + proratedFixedCost + scrapCost;
+//     const profit = totalRevenue - operatingExpenses;
+
+//     res.status(200).json({
+//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+//       bomCost: parseFloat(bomCost.toFixed(2)),
+//       laborCost: parseFloat(laborCost.toFixed(2)),
+//       totalFixedCost: parseFloat(proratedFixedCost.toFixed(2)),
+//       operatingExpenses: parseFloat(operatingExpenses.toFixed(2)),
+//       Profit: parseFloat(profit.toFixed(2)),
+//       InventoryCost: parseFloat(inventoryCost.toFixed(2)),
+//       scrapCost: parseFloat(scrapCost.toFixed(2)),
+//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
+//       cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
+//       daysInPeriod,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Error fetching business analysis data",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const businessAnalysisApi = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
     if (!startDate || !endDate) {
-      return res
-        .status(400)
-        .json({ message: "startDate and endDate are required." });
+      return res.status(400).json({ message: "startDate and endDate are required." });
     }
 
-    // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
+    // --- DATE FIX: Local Timezone Sync ---
     const [sy, sm, sd] = startDate.split("-").map(Number);
-    const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
+    const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); 
 
     const [ey, em, ed] = endDate.split("-").map(Number);
-    const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
+    const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); 
 
     const timeDifference = end.getTime() - start.getTime();
     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
 
-    // Fetch Schedules based on the corrected date range
-    const schedules = await prisma.stockOrderSchedule.findMany({
-      where: {
-        isDeleted: false,
-        order_date: { gte: start, lte: end },
-      },
-      include: {
-        part: true,
-        process: true,
-        StockOrder: true,
-        CustomOrder: true,
-      },
-    });
+    // Fetch All Necessary Data in Parallel
+    const [schedules, manualScrapEntries, productionResponses, fixedCostsData] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: { isDeleted: false, order_date: { gte: start, lte: end } },
+        include: { part: true, process: true, StockOrder: true, CustomOrder: true },
+      }),
+      prisma.scapEntries.findMany({
+        where: { isDeleted: false, createdAt: { gte: start, lte: end } },
+        include: { PartNumber: true },
+      }),
+      prisma.productionResponse.findMany({
+        where: { isDeleted: false, submittedDateTime: { gte: start, lte: end } },
+        include: { PartNumber: true },
+      }),
+      prisma.fixedCost.findMany({
+        where: { isDeleted: false },
+        select: { expenseCost: true },
+      }),
+    ]);
 
-    const fixedCostsData = await prisma.fixedCost.findMany({
-      where: { isDeleted: false },
-      select: { expenseCost: true },
-    });
-
-    const sumFixedCosts = fixedCostsData.reduce(
-      (sum, item) => sum + parseFloat(item.expenseCost || 0),
-      0,
-    );
-
-    // Prorate fixed cost based on days selected
+    const sumFixedCosts = fixedCostsData.reduce((sum, item) => sum + parseFloat(item.expenseCost || 0), 0);
     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
 
     let totalRevenue = 0;
@@ -7803,17 +8043,22 @@ const businessAnalysisApi = async (req, res) => {
     let supplierReturn = 0;
     let inventoryCost = 0;
 
+    // 1. Production Response Scrap (Shop Floor Scrap)
+    productionResponses.forEach((record) => {
+      const sQty = record.scrapQuantity || 0;
+      const sCost = parseFloat(record.PartNumber?.cost || 0);
+      scrapCost += (sQty * sCost);
+    });
+
+    // 2. Schedules Calculation (Revenue, COGS, Labor, Inventory)
     schedules.forEach((order) => {
       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
       const qtyRemaining = parseFloat(order.remainingQty || 0);
-      const scrapQty = parseFloat(order.scrapQuantity || 0);
+      const scheduleScrapQty = parseFloat(order.scrapQuantity || 0);
 
       const partCost = parseFloat(order.part?.cost || 0);
-      const salePrice = parseFloat(
-        order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
-      );
+      const salePrice = parseFloat(order.StockOrder?.cost || order.CustomOrder?.totalCost || 0);
 
-      // --- Time & Labor Calculation (Synced with Costing API) ---
       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
       const unitLabor = cycleTimeHours * ratePerHour;
@@ -7821,15 +8066,28 @@ const businessAnalysisApi = async (req, res) => {
       // Calculations
       const revenuePerUnit = partCost + salePrice;
       totalRevenue += revenuePerUnit * qtyFulfilled;
-
       bomCost += partCost * qtyFulfilled;
       laborCost += unitLabor * qtyFulfilled;
 
-      scrapCost += scrapQty * partCost;
-      supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
+      // Schedule table scrap
+      scrapCost += scheduleScrapQty * partCost;
 
-      // Inventory = Unfinished Qty * (Material + Labor effort put so far)
+      // Inventory
       inventoryCost += qtyRemaining * (partCost + unitLabor);
+    });
+
+    // 3. Manual Scrap Entries (Returns/Debits)
+    manualScrapEntries.forEach((entry) => {
+      const qty = Number(entry.returnQuantity) || 0;
+      const partCost = parseFloat(entry.PartNumber?.cost || 0);
+      const cost = qty * partCost;
+
+      scrapCost += cost;
+
+      // Supplier Return Logic (Dashboard comparison sync)
+      if (entry.supplierId || entry.type === "supplier" || entry.returnSupplierId) {
+        supplierReturn += cost;
+      }
     });
 
     const totalCOGS = bomCost + laborCost;
@@ -7847,7 +8105,7 @@ const businessAnalysisApi = async (req, res) => {
       InventoryCost: parseFloat(inventoryCost.toFixed(2)),
       scrapCost: parseFloat(scrapCost.toFixed(2)),
       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-      cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
+      cashFlow: parseFloat(profit.toFixed(2)),
       daysInPeriod,
     });
   } catch (error) {
@@ -7857,6 +8115,8 @@ const businessAnalysisApi = async (req, res) => {
     });
   }
 };
+
+
 // const businessAnalysisApi = async (req, res) => {
 //   try {
 //     const { startDate, endDate } = req.query;
