@@ -65,6 +65,7 @@ const {
   getProductParts,
   getSelectParts,
   getSelectProducts,
+  allEmployeeTimeLine,
 } = require("../controllers/adminController");
 const {
   stationSendNotification,
@@ -313,4 +314,5 @@ router.post("/scan-complete/:id", validateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", validateToken, scanScrapAction);
 router.get("/select-parts", validateToken, getSelectParts);
 router.get("/select-products", validateToken, getSelectProducts);
+router.get("/all-employee-timeline", adminValidateToken, allEmployeeTimeLine);
 module.exports = router;
