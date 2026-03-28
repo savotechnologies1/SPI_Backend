@@ -314,5 +314,5 @@ router.post("/scan-complete/:id", validateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", validateToken, scanScrapAction);
 router.get("/select-parts", validateToken, getSelectParts);
 router.get("/select-products", validateToken, getSelectProducts);
-router.get("/all-employee-timeline", adminValidateToken, allEmployeeTimeLine);
+router.get("/all-employee-timeline", validateToken, allEmployeeTimeLine);
 module.exports = router;
