@@ -4020,6 +4020,189 @@ const customOrderSchedule = async (req, res) => {
 //     return res.status(500).json({ success: false, error: error.message });
 //   }
 // };
+
+
+
+// const scheduleStockOrdersList = async (req, res) => {
+//   try {
+//     const { search, order_type } = req.query;
+//     const paginationData = await paginationQuery(req.query);
+//     const whereClause = { isDeleted: false };
+
+//     if (order_type && order_type !== "all") {
+//       whereClause.order_type = order_type;
+//     }
+//     if (search) {
+//       const searchTerm = search.trim();
+//       whereClause.OR = [
+//         { part: { partNumber: { contains: searchTerm } } },
+//         {
+//           customPart: {
+//             partNumber: { contains: searchTerm },
+//           },
+//         },
+//         { status: { contains: searchTerm } },
+//         {
+//           part: {
+//             process: {
+//               processName: { contains: searchTerm },
+//             },
+//           },
+//         },
+//         {
+//           customPart: {
+//             process: {
+//               processName: { contains: searchTerm },
+//             },
+//           },
+//         },
+//       ];
+//     }
+
+//     // const [filteredSchedules, totalCount] = await Promise.all([
+//     //   prisma.stockOrderSchedule.findMany({
+//     //     where: whereClause,
+//     //     skip: paginationData.skip,
+//     //     take: paginationData.pageSize,
+//     //     orderBy: { createdAt: "desc" },
+//     //     include: {
+//     //       part: { include: { process: true } },
+//     //       customPart: { include: { process: true } },
+//     //       completedByEmployee: {
+//     //         select: { firstName: true, lastName: true, id: true },
+//     //       },
+//     //     },
+//     //   }),
+//     //   prisma.stockOrderSchedule.count({ where: whereClause }),
+//     // ]);
+// const [filteredSchedules, totalCount] = await Promise.all([
+//   prisma.stockOrderSchedule.findMany({
+//     where: whereClause,
+//     skip: paginationData.skip,
+//     take: paginationData.pageSize,
+//     orderBy: { createdAt: "desc" },
+//     include: {
+//       part: { include: { process: true } },
+//       customPart: { include: { process: true } },
+//       process: true, // <--- YE ZAROORI HAI (taaki schedule ka apna process aaye)
+//       completedByEmployee: {
+//         select: { firstName: true, lastName: true, id: true },
+//       },
+//     },
+//   }), prisma.stockOrderSchedule.count({ where: whereClause }),// ... count code
+// ]);
+//     const performerIds = [
+//       ...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean)),
+//     ];
+//     const [admins, employees] = await Promise.all([
+//       prisma.admin.findMany({
+//         where: { id: { in: performerIds } },
+//         select: { id: true, name: true },
+//       }),
+//       prisma.employee.findMany({
+//         where: { id: { in: performerIds } },
+//         select: { id: true, firstName: true, lastName: true },
+//       }),
+//     ]);
+
+//     const nameMap = new Map();
+//     admins.forEach((a) => nameMap.set(a.id, `Admin (${a.name})`));
+//     employees.forEach((e) =>
+//       nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()),
+//     );
+
+//     const stockOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type === "StockOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+//     const customOrderIds = [
+//       ...new Set(
+//         filteredSchedules
+//           .filter((s) => s.order_type === "CustomOrder")
+//           .map((s) => s.order_id),
+//       ),
+//     ];
+
+//     const [stockOrders, customOrders] = await Promise.all([
+//       stockOrderIds.length > 0
+//         ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
+//         : [],
+//       customOrderIds.length > 0
+//         ? prisma.customOrder.findMany({
+//             where: { id: { in: customOrderIds } },
+//             include: { product: { select: { partNumber: true } } },
+//           })
+//         : [],
+//     ]);
+
+//     const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
+//     const customMap = new Map(customOrders.map((o) => [o.id, o]));
+
+//     const finalData = filteredSchedules.map((schedule) => {
+//       const type = schedule.order_type?.replace(/\s/g, "");
+//       const orderDetails =
+//         type === "StockOrder"
+//           ? stockMap.get(schedule.order_id)
+//           : customMap.get(schedule.order_id);
+//       const displayCompletedBy =
+//         nameMap.get(schedule.completed_by) || schedule.completed_by || "Admin";
+//       const stationWorkerName = schedule.completedByEmployee
+//         ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
+//         : "Admin";
+//   const displayProcessName = 
+//     schedule.process?.processName ||             // <--- 1st Priority (Scheduled Process)
+//     schedule.customPart?.process?.processName ||  // 2nd Priority
+//     schedule.part?.process?.processName ||        // 3rd Priority (Default Part Process)
+//     "No Process";
+
+//   const displayMachineName = 
+//     schedule.process?.machineName || 
+//     schedule.customPart?.process?.machineName || 
+//     schedule.part?.process?.machineName || 
+//     "N/A";
+//       const mainProduct = type === "StockOrder" 
+//     ? orderDetails?.productNumber   // Stock Order case
+//     : orderDetails?.product?.partNumber || "Manual Product"; // Custom Order case
+//       return {
+//         ...schedule,
+//         mainProductName: mainProduct, 
+//         completed_by: displayCompletedBy,
+//         completedEmployeeName: stationWorkerName,
+//         order: orderDetails,
+//         partDetails: {
+//           partNumber:
+//             schedule.customPart?.partNumber ||
+//             schedule.part?.partNumber ||
+//             "N/A",
+//           description:
+//             schedule.part?.partDescription ||
+//             (schedule.customPart ? "Manual Entry" : "N/A"),
+//           source: schedule.customPart ? "Manual" : "Library",
+//           processName: displayProcessName, // <--- Ab ye sahi process return karega
+//       machineName: displayMachineName
+//         },
+//       };
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Orders retrieved successfully",
+//       data: finalData,
+//       pagination: await pagination({
+//         page: paginationData.page,
+//         pageSize: paginationData.pageSize,
+//         total: totalCount,
+//       }),
+//     });
+//   } catch (error) {
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
+
+
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
@@ -4029,30 +4212,17 @@ const scheduleStockOrdersList = async (req, res) => {
     if (order_type && order_type !== "all") {
       whereClause.order_type = order_type;
     }
+
+    // 1. Search Logic Update
     if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
         { part: { partNumber: { contains: searchTerm } } },
-        {
-          customPart: {
-            partNumber: { contains: searchTerm },
-          },
-        },
+        { customPart: { partNumber: { contains: searchTerm } } },
         { status: { contains: searchTerm } },
-        {
-          part: {
-            process: {
-              processName: { contains: searchTerm },
-            },
-          },
-        },
-        {
-          customPart: {
-            process: {
-              processName: { contains: searchTerm },
-            },
-          },
-        },
+        { process: { processName: { contains: searchTerm } } },
+        { StockOrder: { productNumber: { contains: searchTerm } } },
+        { CustomOrder: { product: { partNumber: { contains: searchTerm } } } },
       ];
     }
 
@@ -4065,94 +4235,79 @@ const scheduleStockOrdersList = async (req, res) => {
         include: {
           part: { include: { process: true } },
           customPart: { include: { process: true } },
-          completedByEmployee: {
-            select: { firstName: true, lastName: true, id: true },
-          },
+          process: true,
+          completedByEmployee: { select: { id: true, firstName: true, lastName: true } },
         },
       }),
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
 
-    const performerIds = [
-      ...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean)),
-    ];
+    // Performers names map logic...
+    const performerIds = [...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean))];
     const [admins, employees] = await Promise.all([
-      prisma.admin.findMany({
-        where: { id: { in: performerIds } },
-        select: { id: true, name: true },
-      }),
-      prisma.employee.findMany({
-        where: { id: { in: performerIds } },
-        select: { id: true, firstName: true, lastName: true },
-      }),
+      prisma.admin.findMany({ where: { id: { in: performerIds } }, select: { id: true, name: true } }),
+      prisma.employee.findMany({ select: { id: true, firstName: true, lastName: true } }),
     ]);
-
     const nameMap = new Map();
     admins.forEach((a) => nameMap.set(a.id, `Admin (${a.name})`));
-    employees.forEach((e) =>
-      nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()),
-    );
+    employees.forEach((e) => nameMap.set(e.id, `${e.firstName} ${e.lastName || ""}`.trim()));
 
-    const stockOrderIds = [
-      ...new Set(
-        filteredSchedules
-          .filter((s) => s.order_type === "StockOrder")
-          .map((s) => s.order_id),
-      ),
-    ];
-    const customOrderIds = [
-      ...new Set(
-        filteredSchedules
-          .filter((s) => s.order_type === "CustomOrder")
-          .map((s) => s.order_id),
-      ),
-    ];
+    // 2. Fetch Orders with proper Relation for Main Product Name
+    const stockOrderIds = [...new Set(filteredSchedules.filter(s => s.order_type === "StockOrder").map(s => s.order_id))];
+    const customOrderIds = [...new Set(filteredSchedules.filter(s => s.order_type === "CustomOrder").map(s => s.order_id))];
 
     const [stockOrders, customOrders] = await Promise.all([
-      stockOrderIds.length > 0
-        ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } })
-        : [],
-      customOrderIds.length > 0
-        ? prisma.customOrder.findMany({
-            where: { id: { in: customOrderIds } },
-            include: { product: { select: { partNumber: true } } },
-          })
-        : [],
+      stockOrderIds.length > 0 ? prisma.stockOrder.findMany({ where: { id: { in: stockOrderIds } } }) : [],
+      customOrderIds.length > 0 ? prisma.customOrder.findMany({
+        where: { id: { in: customOrderIds } },
+        include: { product: true } // Yaha se Custom Order ka main product object fetch hoga
+      }) : [],
     ]);
 
-    const stockMap = new Map(stockOrders.map((o) => [o.id, o]));
-    const customMap = new Map(customOrders.map((o) => [o.id, o]));
+    const stockMap = new Map(stockOrders.map(o => [o.id, o]));
+    const customMap = new Map(customOrders.map(o => [o.id, o]));
 
+    // 3. Mapping Final Data with root level mainProduct object
     const finalData = filteredSchedules.map((schedule) => {
       const type = schedule.order_type?.replace(/\s/g, "");
-      const orderDetails =
-        type === "StockOrder"
-          ? stockMap.get(schedule.order_id)
-          : customMap.get(schedule.order_id);
-      const displayCompletedBy =
-        nameMap.get(schedule.completed_by) || schedule.completed_by || "N/A";
-      const stationWorkerName = schedule.completedByEmployee
-        ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim()
-        : "N/A";
+      const orderDetails = type === "StockOrder" ? stockMap.get(schedule.order_id) : customMap.get(schedule.order_id);
+      
+      // LOGIC: Create a common mainProduct object for both types
+      let mainProduct = null;
+
+      if (type === "StockOrder") {
+        // Construct object from StockOrder fields
+        mainProduct = {
+          id: orderDetails?.partId || null,
+          partNumber: orderDetails?.productNumber || "Stock Item",
+          description: orderDetails?.productDescription || ""
+        };
+      } else {
+        // Construct object from CustomOrder fields or joined product table
+        mainProduct = orderDetails?.product ? {
+          id: orderDetails.product.part_id,
+          partNumber: orderDetails.product.partNumber,
+          description: orderDetails.product.partDescription || ""
+        } : {
+          id: orderDetails?.productId || null,
+          partNumber: orderDetails?.productNumber || "Manual Product",
+          description: orderDetails?.productDescription || "N/A"
+        };
+      }
 
       return {
         ...schedule,
-        completed_by: displayCompletedBy,
-        completedEmployeeName: stationWorkerName,
+        mainProduct, // <--- YE RAHA UNIFIED OBJECT (Root level par)
+        completed_by: nameMap.get(schedule.completed_by) || schedule.completed_by || "N/A",
+        completedEmployeeName: schedule.completedByEmployee 
+          ? `${schedule.completedByEmployee.firstName} ${schedule.completedByEmployee.lastName || ""}`.trim() : "N/A",
         order: orderDetails,
         partDetails: {
-          partNumber:
-            schedule.customPart?.partNumber ||
-            schedule.part?.partNumber ||
-            "N/A",
-          description:
-            schedule.part?.partDescription ||
-            (schedule.customPart ? "Manual Entry" : "N/A"),
+          partNumber: schedule.customPart?.partNumber || schedule.part?.partNumber || "N/A",
+          description: schedule.part?.partDescription || (schedule.customPart ? "Manual Entry" : "N/A"),
           source: schedule.customPart ? "Manual" : "Library",
-          processName:
-            schedule.customPart?.process?.processName ||
-            schedule.part?.process?.processName ||
-            "No Process",
+          processName: schedule.process?.processName || schedule.part?.process?.processName || "No Process",
+          machineName: schedule.process?.machineName || schedule.part?.process?.machineName || "N/A"
         },
       };
     });
@@ -4168,6 +4323,7 @@ const scheduleStockOrdersList = async (req, res) => {
       }),
     });
   } catch (error) {
+    console.error("API Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

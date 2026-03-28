@@ -660,107 +660,231 @@ const findNextJobForProcess = async (processId) => {
 
 
 
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     const result = await prisma.$transaction(
+//       async (tx) => {
+//         // 1. Schedule ढूंढें
+//         const schedule = await tx.stockOrderSchedule.findFirst({
+//           where: {
+//             order_id: orderId,
+//             part_id: partId,
+//             order_type,
+//             isDeleted: false,
+//           },
+//         });
+//         if (!schedule) throw new Error("Schedule not found");
+
+//         const now = new Date();
+
+//         // 2. पिछला सेशन अपडेट करें
+//         const lastSession = await tx.productionResponse.update({
+//           where: { id: productionResponseId },
+//           data: {
+//             cycleTimeEnd: now,
+//             completedQuantity: 1,
+//             submittedDateTime: now,
+//             stationUserId: employeeId,
+//           },
+//         });
+
+//         // FIX: Check order_type to avoid Foreign Key Error
+//         const isCustomOrder = order_type === "CustomOrder";
+
+//         // 3. अगला सेशन बनाएं (यहाँ बदलाव किया गया है)
+//         const nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: lastSession.processId,
+//             stationUserId: employeeId,
+//             partId: partId,
+//             // अगर CustomOrder है तो customOrderId में डालें, वरना orderId में
+//             orderId: isCustomOrder ? null : orderId, 
+//             customOrderId: isCustomOrder ? orderId : null,
+//             order_type: order_type,
+//             cycleTimeStart: now,
+//             completedQuantity: 0,
+//             scrap: false,
+//           },
+//         });
+
+//         // 4. Inventory अपडेट लॉजिक
+//         if (partId) {
+//           const itemInDb = await tx.partNumber.findUnique({
+//             where: { part_id: partId },
+//             select: { type: true },
+//           });
+
+//           if (itemInDb) {
+//             const itemType = itemInDb.type.toLowerCase();
+//             if (itemType.includes("part")) {
+//               await tx.partNumber.update({
+//                 where: { part_id: partId },
+//                 data: { availStock: { decrement: 1 } },
+//               });
+//             } else if (itemType.includes("product")) {
+//               await tx.partNumber.update({
+//                 where: { part_id: partId },
+//                 data: { availStock: { increment: 1 } },
+//               });
+//             }
+//           }
+//         }
+
+//         // 5. Schedule की प्रोग्रेस अपडेट करें
+//         const newQty = (schedule.completedQuantity || 0) + 1;
+//         const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+
+//         await tx.stockOrderSchedule.update({
+//           where: { id: schedule.id },
+//           data: {
+//             completedQuantity: newQty,
+//             remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+//             status: isFinished ? "completed" : "progress",
+//             completed_date: isFinished ? now : null,
+//             completed_EmpId: employeeId,
+//           },
+//         });
+
+//         return {
+//           status: isFinished ? "completed" : "progress",
+//           newProductionId: nextSession.id,
+//           message: "Order completed and stock updated",
+//         };
+//       },
+//       { timeout: 15000 }
+//     );
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Transaction Error:", error);
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
 const completeScheduleOrder = async (req, res) => {
   try {
-    const { id: productionResponseId } = req.params;
-    const { orderId, partId, employeeId, order_type } = req.body;
+    // Note: Request body use karein kyunki screenshot mein payload POST hai
+    const { id: productionResponseId } = req.params; // agar URL param hai
+    const { orderId, partId, employeeId, order_type, productId } = req.body;
+    const now = new Date();
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        // 1. Schedule ढूंढें
-        const schedule = await tx.stockOrderSchedule.findFirst({
-          where: {
-            order_id: orderId,
-            part_id: partId,
-            order_type,
-            isDeleted: false,
-          },
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Schedule dhundhein (Same as Scrap Logic)
+      const currentSchedule = await tx.stockOrderSchedule.findFirst({
+        where: {
+          order_id: orderId,
+          OR: [
+            { part_id: partId }, 
+            { customPartId: partId }
+          ],
+          order_type,
+          isDeleted: false,
+        },
+      });
+
+      if (!currentSchedule) throw new Error("Stock order schedule not found.");
+
+      const activeProcessId = currentSchedule.processId;
+      const { completedQuantity = 0, quantity } = currentSchedule;
+
+      if (completedQuantity >= quantity) {
+        throw new Error("Order is already fully completed.");
+      }
+
+      // 2. Current Production Response ko update karein
+      await tx.productionResponse.update({
+        where: { id: productionResponseId },
+        data: {
+          completedQuantity: { increment: 1 },
+          cycleTimeEnd: now,
+          submittedDateTime: now,
+          stationUserId: employeeId,
+        },
+      });
+
+      // 3. Stock Order Schedule update karein
+      const newCompletedQty = completedQuantity + 1;
+      const isFinished = newCompletedQty >= quantity;
+      const updatedStatus = isFinished ? "completed" : "progress";
+
+      await tx.stockOrderSchedule.update({
+        where: { id: currentSchedule.id },
+        data: {
+          completedQuantity: newCompletedQty,
+          completed_date: isFinished ? now : undefined,
+          status: updatedStatus,
+        },
+      });
+
+      // 4. Stock Adjustment (Agar productId provide kiya gaya hai)
+      if (isFinished && productId) {
+        await tx.partNumber.update({
+          where: { part_id: productId },
+          data: { availStock: { increment: 1 } },
         });
-        if (!schedule) throw new Error("Schedule not found");
+      }
 
-        const now = new Date();
+      // 5. Next Session creation logic (Same as Scrap logic)
+      let nextSession = null;
 
-        // 2. पिछला सेशन अपडेट करें
-        const lastSession = await tx.productionResponse.update({
-          where: { id: productionResponseId },
+      if (!isFinished) {
+        // Agar abhi aur quantity baaki hai toh usi part ka naya session
+        nextSession = await tx.productionResponse.create({
           data: {
-            cycleTimeEnd: now,
-            completedQuantity: 1,
-            submittedDateTime: now,
+            processId: activeProcessId,
             stationUserId: employeeId,
-          },
-        });
-
-        // FIX: Check order_type to avoid Foreign Key Error
-        const isCustomOrder = order_type === "CustomOrder";
-
-        // 3. अगला सेशन बनाएं (यहाँ बदलाव किया गया है)
-        const nextSession = await tx.productionResponse.create({
-          data: {
-            processId: lastSession.processId,
-            stationUserId: employeeId,
-            partId: partId,
-            // अगर CustomOrder है तो customOrderId में डालें, वरना orderId में
-            orderId: isCustomOrder ? null : orderId, 
-            customOrderId: isCustomOrder ? orderId : null,
+            partId: currentSchedule.part_id || null, // library part check
+            orderId: order_type === "StockOrder" ? orderId : null,
+            customOrderId: order_type === "CustomOrder" ? orderId : null,
             order_type: order_type,
-            cycleTimeStart: now,
+            cycleTimeStart: new Date(),
             completedQuantity: 0,
             scrap: false,
           },
         });
-
-        // 4. Inventory अपडेट लॉजिक
-        if (partId) {
-          const itemInDb = await tx.partNumber.findUnique({
-            where: { part_id: partId },
-            select: { type: true },
-          });
-
-          if (itemInDb) {
-            const itemType = itemInDb.type.toLowerCase();
-            if (itemType.includes("part")) {
-              await tx.partNumber.update({
-                where: { part_id: partId },
-                data: { availStock: { decrement: 1 } },
-              });
-            } else if (itemType.includes("product")) {
-              await tx.partNumber.update({
-                where: { part_id: partId },
-                data: { availStock: { increment: 1 } },
-              });
-            }
-          }
-        }
-
-        // 5. Schedule की प्रोग्रेस अपडेट करें
-        const newQty = (schedule.completedQuantity || 0) + 1;
-        const isFinished = newQty >= (schedule.scheduleQuantity || 0);
-
-        await tx.stockOrderSchedule.update({
-          where: { id: schedule.id },
-          data: {
-            completedQuantity: newQty,
-            remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
-            status: isFinished ? "completed" : "progress",
-            completed_date: isFinished ? now : null,
-            completed_EmpId: employeeId,
+      } else {
+        // Agar khatam ho gaya toh queue mein agla job dhundhein
+        const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
+          where: {
+            processId: activeProcessId,
+            status: { in: ["new", "progress"] },
+            isDeleted: false,
+            id: { not: currentSchedule.id },
           },
+          orderBy: { createdAt: "asc" },
         });
 
-        return {
-          status: isFinished ? "completed" : "progress",
-          newProductionId: nextSession.id,
-          message: "Order completed and stock updated",
-        };
-      },
-      { timeout: 15000 }
-    );
+        if (nextJobInQueue) {
+          nextSession = await tx.productionResponse.create({
+            data: {
+              processId: activeProcessId,
+              stationUserId: employeeId,
+              partId: nextJobInQueue.part_id || null,
+              orderId: nextJobInQueue.order_type === "StockOrder" ? nextJobInQueue.order_id : null,
+              customOrderId: nextJobInQueue.order_type === "CustomOrder" ? nextJobInQueue.order_id : null,
+              order_type: nextJobInQueue.order_type,
+              cycleTimeStart: new Date(),
+              completedQuantity: 0,
+              scrap: false,
+            },
+          });
+        }
+      }
+
+      return {
+        message: isFinished ? "Order completed." : "Part completed, next session started.",
+        status: updatedStatus,
+        newProductionId: nextSession?.id || null
+      };
+    });
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error("Transaction Error:", error);
-    res.status(500).json({ message: error.message });
+    console.error("Complete Logic Error:", error);
+    return res.status(500).json({ message: error.message });
   }
 };
 // const scrapScheduleOrder = async (req, res) => {
@@ -1926,7 +2050,7 @@ const completeScheduleOrderViaGet = async (req, res) => {
         },
       },
     });
-
+console.log('orderScheduleorderSchedule',orderSchedule)
     if (!orderSchedule) {
       return res
         .status(404)
@@ -2439,6 +2563,7 @@ const qualityPerformance = async (req, res) => {
           process: { select: { processName: true, machineName: true } },
           supplier: { select: { companyName: true, firstName: true, lastName: true } },
           customers: { select: { firstName: true, lastName: true } },
+          
         },
       }),
     ]);
