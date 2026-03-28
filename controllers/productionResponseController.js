@@ -564,6 +564,102 @@ const findNextJobForProcess = async (processId) => {
   }
 };
 
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
+
+//     const result = await prisma.$transaction(
+//       async (tx) => {
+//         const schedule = await tx.stockOrderSchedule.findFirst({
+//           where: {
+//             order_id: orderId,
+//             part_id: partId,
+//             order_type,
+//             isDeleted: false,
+//           },
+//         });
+//         if (!schedule) throw new Error("Schedule not found");
+
+//         const now = new Date();
+//         const lastSession = await tx.productionResponse.update({
+//           where: { id: productionResponseId },
+//           data: {
+//             cycleTimeEnd: now,
+//             completedQuantity: 1,
+//             submittedDateTime: now,
+//             stationUserId: employeeId,
+//           },
+//         });
+//         const nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: lastSession.processId,
+//             stationUserId: employeeId,
+//             partId: partId,
+//             orderId: orderId,
+//             order_type: order_type,
+//             cycleTimeStart: now,
+//             completedQuantity: 0,
+//             scrap: false,
+//           },
+//         });
+
+//         if (partId) {
+//           const itemInDb = await tx.partNumber.findUnique({
+//             where: { part_id: partId },
+//             select: { type: true },
+//           });
+
+//           if (itemInDb) {
+//             const itemType = itemInDb.type.toLowerCase();
+
+//             if (itemType.includes("part")) {
+//               await tx.partNumber.update({
+//                 where: { part_id: partId },
+//                 data: { availStock: { decrement: 1 } },
+//               });
+//             } else if (itemType.includes("product")) {
+//               await tx.partNumber.update({
+//                 where: { part_id: partId },
+//                 data: { availStock: { increment: 1 } },
+//               });
+//             }
+//           }
+//         }
+//         const newQty = (schedule.completedQuantity || 0) + 1;
+//         const isFinished = newQty >= (schedule.scheduleQuantity || 0);
+
+//         await tx.stockOrderSchedule.update({
+//           where: { id: schedule.id },
+//           data: {
+//             completedQuantity: newQty,
+//             remainingQty: Math.max(0, (schedule.remainingQty || 0) - 1),
+//             status: isFinished ? "completed" : "progress",
+//             completed_date: isFinished ? now : null,
+//             completed_EmpId: employeeId,
+//           },
+//         });
+
+//         return {
+//           status: isFinished ? "completed" : "progress",
+//           newProductionId: nextSession.id,
+//           message: "Order completed and stock updated",
+//         };
+//       },
+//       {
+//         timeout: 15000,
+//       },
+//     );
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.log('errorerror',error)
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+
+
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id: productionResponseId } = req.params;
@@ -571,6 +667,7 @@ const completeScheduleOrder = async (req, res) => {
 
     const result = await prisma.$transaction(
       async (tx) => {
+        // 1. Schedule ढूंढें
         const schedule = await tx.stockOrderSchedule.findFirst({
           where: {
             order_id: orderId,
@@ -582,6 +679,8 @@ const completeScheduleOrder = async (req, res) => {
         if (!schedule) throw new Error("Schedule not found");
 
         const now = new Date();
+
+        // 2. पिछला सेशन अपडेट करें
         const lastSession = await tx.productionResponse.update({
           where: { id: productionResponseId },
           data: {
@@ -591,12 +690,19 @@ const completeScheduleOrder = async (req, res) => {
             stationUserId: employeeId,
           },
         });
+
+        // FIX: Check order_type to avoid Foreign Key Error
+        const isCustomOrder = order_type === "CustomOrder";
+
+        // 3. अगला सेशन बनाएं (यहाँ बदलाव किया गया है)
         const nextSession = await tx.productionResponse.create({
           data: {
             processId: lastSession.processId,
             stationUserId: employeeId,
             partId: partId,
-            orderId: orderId,
+            // अगर CustomOrder है तो customOrderId में डालें, वरना orderId में
+            orderId: isCustomOrder ? null : orderId, 
+            customOrderId: isCustomOrder ? orderId : null,
             order_type: order_type,
             cycleTimeStart: now,
             completedQuantity: 0,
@@ -604,6 +710,7 @@ const completeScheduleOrder = async (req, res) => {
           },
         });
 
+        // 4. Inventory अपडेट लॉजिक
         if (partId) {
           const itemInDb = await tx.partNumber.findUnique({
             where: { part_id: partId },
@@ -612,7 +719,6 @@ const completeScheduleOrder = async (req, res) => {
 
           if (itemInDb) {
             const itemType = itemInDb.type.toLowerCase();
-
             if (itemType.includes("part")) {
               await tx.partNumber.update({
                 where: { part_id: partId },
@@ -626,6 +732,8 @@ const completeScheduleOrder = async (req, res) => {
             }
           }
         }
+
+        // 5. Schedule की प्रोग्रेस अपडेट करें
         const newQty = (schedule.completedQuantity || 0) + 1;
         const isFinished = newQty >= (schedule.scheduleQuantity || 0);
 
@@ -646,13 +754,12 @@ const completeScheduleOrder = async (req, res) => {
           message: "Order completed and stock updated",
         };
       },
-      {
-        timeout: 15000,
-      },
+      { timeout: 15000 }
     );
 
     return res.status(200).json(result);
   } catch (error) {
+    console.error("Transaction Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -1143,6 +1250,220 @@ const completeScheduleOrder = async (req, res) => {
 //   }
 // };
 
+// const scrapScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type } = req.body;
+//     const now = new Date();
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       const currentSchedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           part_id: partId,
+//           order_type,
+//           isDeleted: false,
+//         },
+//       });
+//       if (!currentSchedule) throw new Error("Job Schedule not found.");
+
+//       // 1. Purane session ko khatam karo (Timer Stop)
+//       await tx.productionResponse.update({
+//         where: { id: productionResponseId },
+//         data: {
+//           scrap: true,
+//           scrapQuantity: { increment: 1 },
+//           cycleTimeEnd: now,
+//           submittedDateTime: now,
+//           stationUserId: employeeId,
+//         },
+//       });
+
+//       const newRemaining = Math.max(0, (currentSchedule.remainingQty || 0) - 1);
+//       const isCurrentPartDone = newRemaining <= 0;
+//       await tx.stockOrderSchedule.update({
+//         where: { id: currentSchedule.id },
+//         data: {
+//           scrapQuantity: { increment: 1 },
+//           remainingQty: newRemaining,
+//           status: isCurrentPartDone ? "completed" : "progress",
+//           completed_date: isCurrentPartDone ? now : null,
+//         },
+//       });
+
+//       let nextSession = null;
+
+//       if (!isCurrentPartDone) {
+//         nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: currentSchedule.processId,
+//             stationUserId: employeeId,
+//             partId: partId,
+//             orderId: orderId,
+//             order_type: order_type,
+//             cycleTimeStart: new Date(), 
+//             completedQuantity: 0,
+//             scrap: false,
+//           },
+//         });
+//       } else {
+//         const nextSchedule = await tx.stockOrderSchedule.findFirst({
+//           where: {
+//             order_id: orderId,
+//             status: { in: ["pending", "progress", "new"] },
+//             isDeleted: false,
+//             id: { not: currentSchedule.id },
+//           },
+//           orderBy: { id: "asc" },
+//         });
+
+//         if (nextSchedule) {
+//           nextSession = await tx.productionResponse.create({
+//             data: {
+//               processId: nextSchedule.processId,
+//               stationUserId: employeeId,
+//               partId: nextSchedule.part_id,
+//               orderId: orderId,
+//               order_type: order_type,
+//               cycleTimeStart: new Date(), 
+//               completedQuantity: 0,
+//               scrap: false,
+//             },
+//           });
+//         }
+//       }
+
+//       return {
+//         message: "Scrapped successfully",
+//         newProductionId: nextSession?.id || null,
+//         isOrderFinished: isCurrentPartDone && !nextSession,
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+// const scrapScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     // req.body se processId nikaalne ki bajaye hum DB record use karenge niche
+//     const { orderId, partId, employeeId, order_type } = req.body;
+//     const now = new Date();
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Current Schedule find karein (Taaki humein sahi processId mil sake)
+//       const currentSchedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           OR: [
+//             { part_id: partId },
+//             { customPartId: partId }
+//           ],
+//           order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!currentSchedule) throw new Error("Job Schedule not found.");
+
+//       // DB se sahi processId pakdein
+//       const activeProcessId = currentSchedule.processId;
+
+//       // 2. Purane session ko update karein
+//       await tx.productionResponse.update({
+//         where: { id: productionResponseId },
+//         data: {
+//           scrap: true,
+//           scrapQuantity: { increment: 1 },
+//           cycleTimeEnd: now,
+//           submittedDateTime: now,
+//           stationUserId: employeeId,
+//         },
+//       });
+
+//       // 3. Schedule update karein
+//       const newRemaining = Math.max(0, (currentSchedule.remainingQty || 0) - 1);
+//       const isCurrentPartFinished = newRemaining <= 0;
+
+//       const updatedSchedule = await tx.stockOrderSchedule.update({
+//         where: { id: currentSchedule.id },
+//         data: {
+//           scrapQuantity: { increment: 1 },
+//           remainingQty: newRemaining,
+//           status: isCurrentPartFinished ? "completed" : "progress",
+//           completed_date: isCurrentPartFinished ? now : null,
+//         },
+//       });
+
+//       let nextSession = null;
+
+//       // 4. Agla Session create karein
+//       if (!isCurrentPartFinished) {
+//         // CASE A: Same part ke liye naya timer shuru karo
+//         nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: activeProcessId, // Fixed: activeProcessId use kiya
+//             stationUserId: employeeId,
+//             partId: partId,
+//             orderId: orderId,
+//             order_type: order_type,
+//             cycleTimeStart: new Date(),
+//             completedQuantity: 0,
+//             scrap: false,
+//             remainingQty: newRemaining,
+//             scheduleQuantity: updatedSchedule.scheduleQuantity
+//           },
+//         });
+//       } else {
+//         // CASE B: Agla Job queue se uthao
+//         const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
+//           where: {
+//             processId: activeProcessId, // Usi machine/station ka agla kaam
+//             status: { in: ["new", "progress"] },
+//             isDeleted: false,
+//             id: { not: currentSchedule.id },
+//           },
+//           orderBy: { createdAt: "asc" },
+//         });
+
+//         if (nextJobInQueue) {
+//           nextSession = await tx.productionResponse.create({
+//             data: {
+//               processId: nextJobInQueue.processId, // Agle job ka sahi processId
+//               stationUserId: employeeId,
+//               partId: nextJobInQueue.part_id || nextJobInQueue.customPartId,
+//               orderId: nextJobInQueue.order_id,
+//               order_type: nextJobInQueue.order_type,
+//               cycleTimeStart: new Date(),
+//               completedQuantity: 0,
+//               scrap: false,
+//               remainingQty: nextJobInQueue.remainingQty,
+//               scheduleQuantity: nextJobInQueue.scheduleQuantity
+//             },
+//           });
+//         }
+//       }
+
+//       return {
+//         message: "Scrap entry recorded and new session started",
+//         newProductionId: nextSession?.id || null,
+//         isOrderFinished: isCurrentPartFinished && !nextSession,
+//         nextJobStarted: !!nextSession
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Scrap Error:", error);
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+
+
 const scrapScheduleOrder = async (req, res) => {
   try {
     const { id: productionResponseId } = req.params;
@@ -1153,14 +1474,19 @@ const scrapScheduleOrder = async (req, res) => {
       const currentSchedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
-          part_id: partId,
+          OR: [
+            { part_id: partId }, 
+            { customPartId: partId }
+          ],
           order_type,
           isDeleted: false,
         },
       });
-      if (!currentSchedule) throw new Error("Job Schedule not found.");
 
-      // 1. Purane session ko khatam karo (Timer Stop)
+      if (!currentSchedule) throw new Error("Job Schedule not found.");
+      
+      const activeProcessId = currentSchedule.processId;
+
       await tx.productionResponse.update({
         where: { id: productionResponseId },
         data: {
@@ -1173,56 +1499,57 @@ const scrapScheduleOrder = async (req, res) => {
       });
 
       const newRemaining = Math.max(0, (currentSchedule.remainingQty || 0) - 1);
-      const isCurrentPartDone = newRemaining <= 0;
+      const isCurrentPartFinished = newRemaining <= 0;
 
-      // 2. Schedule update
       await tx.stockOrderSchedule.update({
         where: { id: currentSchedule.id },
         data: {
           scrapQuantity: { increment: 1 },
           remainingQty: newRemaining,
-          status: isCurrentPartDone ? "completed" : "progress",
-          completed_date: isCurrentPartDone ? now : null,
+          status: isCurrentPartFinished ? "completed" : "progress",
+          completed_date: isCurrentPartFinished ? now : null,
         },
       });
 
       let nextSession = null;
 
-      if (!isCurrentPartDone) {
-        // CASE A: Same part bacha hai -> NAYA timer session start
+      if (!isCurrentPartFinished) {
         nextSession = await tx.productionResponse.create({
           data: {
-            processId: currentSchedule.processId,
+            processId: activeProcessId,
             stationUserId: employeeId,
-            partId: partId,
-            orderId: orderId,
+            // FIX: partId sirf tab bharein jab woh Library (part_id) part ho
+            partId: currentSchedule.part_id ? currentSchedule.part_id : null,
+            orderId: order_type === "StockOrder" ? orderId : null,
+            customOrderId: order_type === "CustomOrder" ? orderId : null,
             order_type: order_type,
-            cycleTimeStart: new Date(), // FRESH START
+            cycleTimeStart: new Date(),
             completedQuantity: 0,
             scrap: false,
           },
         });
       } else {
-        // CASE B: Agla part dhundo
-        const nextSchedule = await tx.stockOrderSchedule.findFirst({
+        const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
           where: {
-            order_id: orderId,
-            status: { in: ["pending", "progress", "new"] },
+            processId: activeProcessId,
+            status: { in: ["new", "progress"] },
             isDeleted: false,
             id: { not: currentSchedule.id },
           },
-          orderBy: { id: "asc" },
+          orderBy: { createdAt: "asc" },
         });
 
-        if (nextSchedule) {
+        if (nextJobInQueue) {
           nextSession = await tx.productionResponse.create({
             data: {
-              processId: nextSchedule.processId,
+              processId: activeProcessId,
               stationUserId: employeeId,
-              partId: nextSchedule.part_id,
-              orderId: orderId,
-              order_type: order_type,
-              cycleTimeStart: new Date(), // NEXT PART FRESH START
+              // Check for next job part type
+              partId: nextJobInQueue.part_id ? nextJobInQueue.part_id : null,
+              orderId: nextJobInQueue.order_type === "StockOrder" ? nextJobInQueue.order_id : null,
+              customOrderId: nextJobInQueue.order_type === "CustomOrder" ? nextJobInQueue.order_id : null,
+              order_type: nextJobInQueue.order_type,
+              cycleTimeStart: new Date(),
               completedQuantity: 0,
               scrap: false,
             },
@@ -1231,14 +1558,15 @@ const scrapScheduleOrder = async (req, res) => {
       }
 
       return {
-        message: "Scrapped successfully",
-        newProductionId: nextSession?.id || null, // Naya ID return karein
-        isOrderFinished: isCurrentPartDone && !nextSession,
+        message: "Scrap processed",
+        newProductionId: nextSession?.id || null,
+        isOrderFinished: isCurrentPartFinished && !nextSession
       };
     });
 
     return res.status(200).json(result);
   } catch (error) {
+    console.error("Scrap Logic Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -2074,338 +2402,9 @@ const changeStationNotification = async (req, res) => {
   }
 };
 
-// const qualityPerformance = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-//     const start = startDate
-//       ? new Date(new Date(startDate).setHours(0, 0, 0, 0))
-//       : new Date(new Date().setHours(0, 0, 0, 0));
-//     const end = endDate
-//       ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
-//       : new Date(new Date().setHours(23, 59, 59, 999));
-//     const whereCondition = {
-//       isDeleted: false,
-//       updatedAt: { gte: start, lte: end },
-//     };
-
-//     const [rawData, scrapEntriesRecords] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: whereCondition,
-//         include: {
-//           process: true,
-//           part: {
-//             select: {
-//               part_id: true,
-//               partNumber: true,
-//               partDescription: true,
-//             },
-//           },
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: whereCondition,
-//         include: {
-//           PartNumber: {
-//             select: {
-//               part_id: true,
-//               partNumber: true,
-//               partDescription: true,
-//               process: { select: { processName: true, machineName: true } },
-//             },
-//           },
-//           process: { select: { processName: true, machineName: true } },
-//           supplier: { select: { firstName: true, lastName: true } },
-//           customers: { select: { firstName: true, lastName: true } },
-//         },
-//       }),
-//     ]);
-
-//     const mergedMap = new Map();
-//     const supplierScrapDetails = [];
-//     const customerScrapDetails = [];
-
-//     const updateMap = (id, partInfo, scrapQty, scheduleQty, date, process) => {
-//       if (!id) return;
-//       if (!mergedMap.has(id)) {
-//         mergedMap.set(id, {
-//           partId: id,
-//           partNumber: partInfo?.partNumber || "Unknown",
-//           partDescription: partInfo?.partDescription || "",
-//           processName:
-//             process?.processName || partInfo?.process?.processName || "N/A",
-//           machineName:
-//             process?.machineName || partInfo?.process?.machineName || "N/A",
-//           scrapQuantity: Number(scrapQty) || 0,
-//           scheduleQuantity: Number(scheduleQty) || 0,
-//           latestDate: date,
-//         });
-//       } else {
-//         const existing = mergedMap.get(id);
-//         existing.scrapQuantity += Number(scrapQty) || 0;
-//         existing.scheduleQuantity += Number(scheduleQty) || 0;
-//         if (date > existing.latestDate) existing.latestDate = date;
-//       }
-//     };
-
-//     rawData.forEach((item) => {
-//       if (item.part) {
-//         updateMap(
-//           item.part.part_id,
-//           item.part,
-//           item.scrapQuantity,
-//           item.scheduleQuantity,
-//           item.updatedAt,
-//           item.process,
-//         );
-//       }
-//     });
-
-//     scrapEntriesRecords.forEach((scrap) => {
-//       const partInfo = scrap.PartNumber;
-//       const key = scrap.partId || partInfo?.part_id;
-//       const sQty =
-//         (Number(scrap.scrapQuantity) || 0) +
-//         (Number(scrap.returnQuantity) || 0);
-
-//       if (key) {
-//         updateMap(key, partInfo, sQty, 0, scrap.updatedAt, scrap.process);
-
-//         const commonDetail = {
-//           partNumber: partInfo?.partNumber,
-//           quantity: sQty,
-//           defectDesc: scrap.defectDesc,
-//           date: scrap.updatedAt,
-//           type: scrap.type,
-//         };
-
-//         if (scrap.supplierId || scrap.returnSupplierId) {
-//           supplierScrapDetails.push({
-//             ...commonDetail,
-//             supplierName:
-//               `${scrap.supplier?.firstName || ""} ${scrap.supplier?.lastName || ""}`.trim() ||
-//               "N/A",
-//           });
-//         }
-
-//         if (scrap.customersId) {
-//           customerScrapDetails.push({
-//             ...commonDetail,
-//             customerName:
-//               `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() ||
-//               "N/A",
-//           });
-//         }
-//       }
-//     });
-
-//     const data = Array.from(mergedMap.values()).filter(
-//       (item) => item.scrapQuantity > 0,
-//     );
-//     data.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
-
-//     const totalScrapQty = data.reduce(
-//       (acc, item) => acc + item.scrapQuantity,
-//       0,
-//     );
-
-//     return res.status(200).json({
-//       success: true,
-//       totalScrapQty,
-//       totalEntries: data.length,
-//       data: data,
-//       supplierScrapDetails,
-//       customerScrapDetails,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ success: false, error: error.message });
-//   }
-// };
-
-// const qualityPerformance = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     // --- DATE FIX: Local Timezone Sync (Split Logic) ---
-//     let start, end;
-
-//     if (startDate) {
-//       const [sy, sm, sd] = startDate.split("-").map(Number);
-//       start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
-
-//       const [ey, em, ed] = (endDate || startDate).split("-").map(Number);
-//       end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
-//     } else {
-//       // Agar date nahi di, toh aaj ki local date range
-//       const today = new Date();
-//       start = new Date(
-//         today.getFullYear(),
-//         today.getMonth(),
-//         today.getDate(),
-//         0,
-//         0,
-//         0,
-//         0,
-//       );
-//       end = new Date(
-//         today.getFullYear(),
-//         today.getMonth(),
-//         today.getDate(),
-//         23,
-//         59,
-//         59,
-//         999,
-//       );
-//     }
-
-//     const whereCondition = {
-//       isDeleted: false,
-//       updatedAt: { gte: start, lte: end },
-//     };
-
-//     const [rawData, scrapEntriesRecords] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: whereCondition,
-//         include: {
-//           process: true,
-//           part: {
-//             select: {
-//               part_id: true,
-//               partNumber: true,
-//               partDescription: true,
-//             },
-//           },
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: {
-//           isDeleted: false,
-//           updatedAt: { gte: start, lte: end }, // createdAt ki jagah updatedAt filter taaki performance synced rahe
-//         },
-//         include: {
-//           PartNumber: {
-//             select: {
-//               part_id: true,
-//               partNumber: true,
-//               partDescription: true,
-//               process: { select: { processName: true, machineName: true } },
-//             },
-//           },
-//           process: { select: { processName: true, machineName: true } },
-//           supplier: { select: { firstName: true, lastName: true } },
-//           customers: { select: { firstName: true, lastName: true } },
-//         },
-//       }),
-//     ]);
-
-//     const mergedMap = new Map();
-//     const supplierScrapDetails = [];
-//     const customerScrapDetails = [];
-
-//     const updateMap = (id, partInfo, scrapQty, scheduleQty, date, process) => {
-//       if (!id) return;
-//       if (!mergedMap.has(id)) {
-//         mergedMap.set(id, {
-//           partId: id,
-//           partNumber: partInfo?.partNumber || "Unknown",
-//           partDescription: partInfo?.partDescription || "",
-//           processName:
-//             process?.processName || partInfo?.process?.processName || "N/A",
-//           machineName:
-//             process?.machineName || partInfo?.process?.machineName || "N/A",
-//           scrapQuantity: Number(scrapQty) || 0,
-//           scheduleQuantity: Number(scheduleQty) || 0,
-//           latestDate: date,
-//         });
-//       } else {
-//         const existing = mergedMap.get(id);
-//         existing.scrapQuantity += Number(scrapQty) || 0;
-//         existing.scheduleQuantity += Number(scheduleQty) || 0;
-//         if (date > existing.latestDate) existing.latestDate = date;
-//       }
-//     };
-
-//     // Processing Schedule Data
-//     rawData.forEach((item) => {
-//       if (item.part) {
-//         updateMap(
-//           item.part.part_id,
-//           item.part,
-//           item.scrapQuantity,
-//           item.scheduleQuantity,
-//           item.updatedAt,
-//           item.process,
-//         );
-//       }
-//     });
-
-//     // Processing Manual Scrap Records
-//     scrapEntriesRecords.forEach((scrap) => {
-//       const partInfo = scrap.PartNumber;
-//       const key = scrap.partId || partInfo?.part_id;
-//       const sQty =
-//         (Number(scrap.scrapQuantity) || 0) +
-//         (Number(scrap.returnQuantity) || 0);
-
-//       if (key) {
-//         updateMap(key, partInfo, sQty, 0, scrap.updatedAt, scrap.process);
-
-//         const commonDetail = {
-//           partNumber: partInfo?.partNumber,
-//           quantity: sQty,
-//           defectDesc: scrap.defectDesc,
-//           date: scrap.updatedAt,
-//           type: scrap.type,
-//         };
-
-//         if (scrap.supplierId || scrap.returnSupplierId) {
-//           supplierScrapDetails.push({
-//             ...commonDetail,
-//             supplierName:
-//               `${scrap.supplier?.firstName || ""} ${scrap.supplier?.lastName || ""}`.trim() ||
-//               "N/A",
-//           });
-//         }
-
-//         if (scrap.customersId) {
-//           customerScrapDetails.push({
-//             ...commonDetail,
-//             customerName:
-//               `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() ||
-//               "N/A",
-//           });
-//         }
-//       }
-//     });
-
-//     const data = Array.from(mergedMap.values()).filter(
-//       (item) => item.scrapQuantity > 0,
-//     );
-//     data.sort((a, b) => b.scrapQuantity - a.scrapQuantity);
-
-//     const totalScrapQty = data.reduce(
-//       (acc, item) => acc + item.scrapQuantity,
-//       0,
-//     );
-
-//     return res.status(200).json({
-//       success: true,
-//       totalScrapQty,
-//       totalEntries: data.length,
-//       data: data,
-//       supplierScrapDetails,
-//       customerScrapDetails,
-//       // Debug info (optional)
-//       range: { start, end },
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 const qualityPerformance = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-
-    // --- DATE FIX: Local Timezone Sync ---
     let start, end;
     if (startDate) {
       const [sy, sm, sd] = startDate.split("-").map(Number);
@@ -2447,8 +2446,6 @@ const qualityPerformance = async (req, res) => {
     const mergedMap = new Map();
     const supplierScrapDetails = [];
     const customerScrapDetails = [];
-    
-    // Sabhi scrap ko jodne ke liye global counter
     let grandTotalScrapCount = 0;
 
     const updateMap = (id, partInfo, scrapQty, scheduleQty, date, process) => {
@@ -2472,14 +2469,11 @@ const qualityPerformance = async (req, res) => {
       }
     };
 
-    // --- STEP 1: Process Production Data ---
     rawData.forEach((item) => {
       const sQty = Number(item.scrapQuantity) || 0;
       if (sQty > 0) {
-        // Grand Total mein add karein
         grandTotalScrapCount += sQty;
         
-        // Main Table data mein update karein
         updateMap(
           item.part?.part_id,
           item.part,
@@ -2490,14 +2484,10 @@ const qualityPerformance = async (req, res) => {
         );
       }
     });
-
-    // --- STEP 2: Process Manual Scrap Entries ---
     scrapEntriesRecords.forEach((scrap) => {
       const partInfo = scrap.PartNumber;
       const sQty = (Number(scrap.scrapQuantity) || 0) + (Number(scrap.returnQuantity) || 0);
       if (sQty <= 0) return;
-
-      // Hamesha Grand Total mein add karein, chahe wo supplier ho ya customer
       grandTotalScrapCount += sQty;
 
       const commonDetail = {
@@ -2524,7 +2514,6 @@ const qualityPerformance = async (req, res) => {
           customerName: `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() || "N/A",
         });
       } else {
-        // Sirf General scrap hi main table list mein jayega
         const key = scrap.partId || partInfo?.part_id;
         if (key) {
           updateMap(key, partInfo, sQty, 0, scrap.updatedAt, scrap.process);
@@ -2537,7 +2526,7 @@ const qualityPerformance = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      totalScrapQty: grandTotalScrapCount, // <--- Ab ye asli TOTAL hai (Production + Supplier + Customer)
+      totalScrapQty: grandTotalScrapCount, 
       totalEntries: data.length,
       data: data,
       supplierScrapDetails,
@@ -2619,13 +2608,98 @@ const parseCycleTime = (cycleTime) => {
   return isNaN(val) ? 0 : val;
 };
 
+// const costingApi = async (req, res) => {
+//   try {
+//     const { startDate, endDate, year } = req.query;
+//     const whereClause = { isDeleted: false };
+//     let dateFilter = {};
+//     if (startDate || endDate) {
+//       const start = new Date(startDate);
+//       const end = new Date(endDate);
+//       end.setHours(23, 59, 59, 999);
+//       dateFilter = { gte: start, lte: end };
+//     } else if (year) {
+//       const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+//       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+//       dateFilter = { gte: startOfYear, lte: endOfYear };
+//     }
+//     const scheduleWhere = { ...whereClause, order_date: dateFilter };
+//     const scrapEntriesWhere = { ...whereClause, createdAt: dateFilter };
+//     const prodResponseWhere = { ...whereClause, submittedDateTime: dateFilter };
+
+//     const [schedules, manualScrapEntries, productionResponses] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: scheduleWhere,
+//         include: { part: true, process: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: scrapEntriesWhere,
+//         include: { PartNumber: true },
+//       }),
+//       prisma.productionResponse.findMany({
+//         where: prodResponseWhere,
+//         include: { PartNumber: true },
+//       }),
+//     ]);
+
+//     let totalCOGS = 0;
+//     let totalScrapCost = 0;
+//     let supplierReturn = 0;
+//     const monthlyCOGS = {};
+//     productionResponses.forEach((record) => {
+//       const sQty = record.scrapQuantity || 0;
+//       const sCost = parseFloat(record.PartNumber?.cost || 0);
+//       totalScrapCost += (sQty * sCost);
+//     });
+//     schedules.forEach((order) => {
+//       const date = new Date(order.order_date);
+//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+//       const qtyFulfilled = order.completedQuantity || 0;
+//       const partCost = parseFloat(order.part?.cost || 0);
+//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
+//       const ratePerHour = order.process?.ratePerHour || 0;
+//       const unitLabor = cycleTimeHours * ratePerHour;
+//       const orderCOGS = (partCost + unitLabor) * qtyFulfilled;
+
+//       if (qtyFulfilled > 0) {
+//         totalCOGS += orderCOGS;
+//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
+//       }
+//       totalScrapCost += (order.scrapQuantity || 0) * partCost;
+//     });
+//     manualScrapEntries.forEach((entry) => {
+//       const qty = Number(entry.returnQuantity) || 0;
+//       const partCost = parseFloat(entry.PartNumber?.cost || 0);
+//       const cost = qty * partCost;
+      
+//       totalScrapCost += cost;
+
+//       if (
+//         entry.supplierId ||
+//         entry.type === "supplier" ||
+//         entry.returnSupplierId
+//       ) {
+//         supplierReturn += cost;
+//       }
+//     });
+
+//     res.json({
+//       success: true,
+//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
+//       scrapCost: parseFloat(totalScrapCost.toFixed(2)),
+//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
+//       monthlyCOGS,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
 const costingApi = async (req, res) => {
   try {
     const { startDate, endDate, year } = req.query;
     const whereClause = { isDeleted: false };
-    
-    // Date Filtering Logic
     let dateFilter = {};
+
     if (startDate || endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -2637,23 +2711,17 @@ const costingApi = async (req, res) => {
       dateFilter = { gte: startOfYear, lte: endOfYear };
     }
 
-    // Applying filters to specific tables
     const scheduleWhere = { ...whereClause, order_date: dateFilter };
     const scrapEntriesWhere = { ...whereClause, createdAt: dateFilter };
-    const prodResponseWhere = { ...whereClause, submittedDateTime: dateFilter };
 
-    const [schedules, manualScrapEntries, productionResponses] = await Promise.all([
+    // DASHBOARD MATCH: productionResponse ki zarurat scrap cost ke liye nahi hai (Double counting avoid karne ke liye)
+    const [schedules, manualScrapEntries] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: scheduleWhere,
         include: { part: true, process: true },
       }),
       prisma.scapEntries.findMany({
         where: scrapEntriesWhere,
-        include: { PartNumber: true },
-      }),
-      // Dashboard data se match karne ke liye ye table fetch karna zaroori hai
-      prisma.productionResponse.findMany({
-        where: prodResponseWhere,
         include: { PartNumber: true },
       }),
     ]);
@@ -2663,21 +2731,15 @@ const costingApi = async (req, res) => {
     let supplierReturn = 0;
     const monthlyCOGS = {};
 
-    // 1. Production Response Scrap (Shop floor scrap)
-    productionResponses.forEach((record) => {
-      const sQty = record.scrapQuantity || 0;
-      const sCost = parseFloat(record.PartNumber?.cost || 0);
-      totalScrapCost += (sQty * sCost);
-    });
-
-    // 2. Stock Order Schedule calculation
+    // 1. Schedules Loop: COGS aur Scrap Cost (Dashboard logic)
     schedules.forEach((order) => {
       const date = new Date(order.order_date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       
       const qtyFulfilled = order.completedQuantity || 0;
+      const sQtyInSchedule = order.scrapQuantity || 0;
       const partCost = parseFloat(order.part?.cost || 0);
-      
+
       // COGS Calculation
       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
       const ratePerHour = order.process?.ratePerHour || 0;
@@ -2689,11 +2751,11 @@ const costingApi = async (req, res) => {
         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
       }
 
-      // Schedule table ka scrap add karein
-      totalScrapCost += (order.scrapQuantity || 0) * partCost;
+      // Scrap Cost (Schedule table se - NO DOUBLE COUNTING)
+      totalScrapCost += (sQtyInSchedule * partCost);
     });
 
-    // 3. Manual Scrap Entries calculation (Returns/Supplier scrap)
+    // 2. Scrap Entries Loop: General Scrap aur Supplier Return
     manualScrapEntries.forEach((entry) => {
       const qty = Number(entry.returnQuantity) || 0;
       const partCost = parseFloat(entry.PartNumber?.cost || 0);
@@ -2701,6 +2763,7 @@ const costingApi = async (req, res) => {
       
       totalScrapCost += cost;
 
+      // Supplier Return check
       if (
         entry.supplierId ||
         entry.type === "supplier" ||
@@ -2718,489 +2781,10 @@ const costingApi = async (req, res) => {
       monthlyCOGS,
     });
   } catch (error) {
+    console.error("Costing API Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
-// const costingApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-//     const whereClause = { isDeleted: false };
-//     if (startDate || endDate) {
-//       const start = new Date(startDate);
-//       const end = new Date(endDate);
-//       end.setHours(23, 59, 59, 999);
-//       whereClause.order_date = { gte: start, lte: end };
-//     } else if (year) {
-//       const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
-//       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
-//       whereClause.order_date = { gte: startOfYear, lte: endOfYear };
-//     }
-
-//     const [schedules, manualScrapEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: whereClause,
-//         include: {
-//           part: true,
-//           process: true,
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, createdAt: whereClause.order_date },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let supplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     schedules.forEach((order) => {
-//       const date = new Date(order.order_date);
-//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-//       const qtyFulfilled = order.completedQuantity || 0;
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = order.process?.ratePerHour || 0;
-//       const unitLabor = cycleTimeHours * ratePerHour;
-//       const orderCOGS = (partCost + unitLabor) * qtyFulfilled;
-//       if (qtyFulfilled > 0) {
-//         totalCOGS += orderCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
-//       }
-//       totalScrapCost += (order.scrapQuantity || 0) * partCost;
-//     });
-//     manualScrapEntries.forEach((entry) => {
-//       const qty = Number(entry.returnQuantity) || 0;
-//       const partCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const cost = qty * partCost;
-//       totalScrapCost += cost;
-//       if (
-//         entry.supplierId ||
-//         entry.type === "supplier" ||
-//         entry.returnSupplierId
-//       ) {
-//         supplierReturn += cost;
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       monthlyCOGS,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// const costingApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-//     const whereClause = { isDeleted: false };
-
-//     // Date Range Logic Fix
-//     if (startDate) {
-//       const [y, m, d] = startDate.split("-").map(Number);
-//       const start = new Date(y, m - 1, d, 0, 0, 0, 0); // Local 00:00:00
-
-//       const [ey, em, ed] = (endDate || startDate).split("-").map(Number);
-//       const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
-
-//       whereClause.order_date = { gte: start, lte: end };
-//     } else if (year) {
-//       whereClause.order_date = {
-//         gte: new Date(`${year}-01-01T00:00:00.000Z`),
-//         lte: new Date(`${year}-12-31T23:59:59.999Z`),
-//       };
-//     }
-//     const [schedules, manualScrapEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: whereClause,
-//         include: { part: true, process: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, updatedAt: whereClause.order_date }, // updatedAt use kiya taaki filter kaam kare
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let supplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     schedules.forEach((order) => {
-//       const date = new Date(order.order_date);
-//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
-//       const qtyFulfilled = Number(order.completedQuantity) || 0;
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-
-//       // Formula: (Material Cost + Labor Cost) * Qty
-//       const unitLabor = cycleTimeHours * ratePerHour;
-//       const orderCOGS = (partCost + unitLabor) * qtyFulfilled;
-
-//       if (qtyFulfilled > 0) {
-//         totalCOGS += orderCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
-//       }
-//       totalScrapCost += (Number(order.scrapQuantity) || 0) * partCost;
-//     });
-
-//     manualScrapEntries.forEach((entry) => {
-//       const qty =
-//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
-//       const partCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const cost = qty * partCost;
-//       totalScrapCost += cost;
-
-//       if (
-//         entry.supplierId ||
-//         entry.type === "supplier" ||
-//         entry.returnSupplierId
-//       ) {
-//         supplierReturn += cost;
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       monthlyCOGS,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// const costingApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-
-//     // 1. Date Range Logic (Cycle Time API ki tarah simplified aur robust)
-//     let start, end;
-
-//     if (startDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0); // Start of the day
-
-//       const endRef = endDate ? new Date(endDate) : new Date(startDate);
-//       end = new Date(endRef);
-//       end.setHours(23, 59, 59, 999); // End of the day
-//     } else if (year) {
-//       start = new Date(`${year}-01-01T00:00:00.000Z`);
-//       end = new Date(`${year}-12-31T23:59:59.999Z`);
-//     } else {
-//       // Default range agar kuch na mile (Optional)
-//       start = new Date("2024-01-01T00:00:00.000Z");
-//       end = new Date("2025-12-31T23:59:59.999Z");
-//     }
-
-//     // Common Where Clause for Dates
-//     const dateFilter = { gte: start, lte: end };
-
-//     // 2. Parallel Database Queries
-//     const [schedules, manualScrapEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: {
-//           isDeleted: false,
-//           order_date: dateFilter,
-//         },
-//         include: { part: true, process: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: {
-//           isDeleted: false,
-//           updatedAt: dateFilter, // Ya createdAt, jo aapke business logic ke liye sahi ho
-//         },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let supplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     // 3. Process Schedules (COGS & Scrap)
-//     schedules.forEach((order) => {
-//       const date = new Date(order.order_date);
-//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
-//       const qtyFulfilled = Number(order.completedQuantity) || 0;
-//       const scrapQty = Number(order.scrapQuantity) || 0;
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-
-//       // Formula: (Material Cost + Labor Cost) * Qty
-//       const unitLabor = cycleTimeHours * ratePerHour;
-//       const orderCOGS = (partCost + unitLabor) * qtyFulfilled;
-
-//       if (qtyFulfilled > 0) {
-//         totalCOGS += orderCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
-//       }
-
-//       // Order table se scrap cost
-//       totalScrapCost += scrapQty * partCost;
-//     });
-
-//     // 4. Process Manual Scrap Entries
-//     manualScrapEntries.forEach((entry) => {
-//       const qty =
-//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
-//       const partCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const cost = qty * partCost;
-
-//       totalScrapCost += cost;
-
-//       // Supplier Return check
-//       if (
-//         entry.supplierId ||
-//         entry.type === "supplier" ||
-//         entry.returnSupplierId
-//       ) {
-//         supplierReturn += cost;
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       dateRange: { start, end }, // Debugging ke liye help karega
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       monthlyCOGS,
-//     });
-//   } catch (error) {
-//     console.error("Costing API Error:", error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// const costingApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-
-//     // 1. Date Range Logic (Flexible for Dashboard)
-//     let start, end;
-//     if (startDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       const endRef = endDate ? new Date(endDate) : new Date(startDate);
-//       end = new Date(endRef);
-//       end.setHours(23, 59, 59, 999);
-//     } else if (year) {
-//       start = new Date(`${year}-01-01T00:00:00.000Z`);
-//       end = new Date(`${year}-12-31T23:59:59.999Z`);
-//     } else {
-//       const currentYear = new Date().getFullYear();
-//       start = new Date(`${currentYear}-01-01T00:00:00.000Z`);
-//       end = new Date(`${currentYear}-12-31T23:59:59.999Z`);
-//     }
-
-//     const dateFilter = { gte: start, lte: end };
-
-//     // 2. Database Queries (Same tables as productionEfficiency)
-//     const [scheduleData, scrapFromEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: {
-//           isDeleted: false,
-//           order_date: dateFilter,
-//         },
-//         include: { part: true, process: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: {
-//           isDeleted: false,
-//           createdAt: dateFilter, // Matches productionEfficiency
-//         },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let totalSupplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     // 3. Process Schedule Data (COGS + Scrap)
-//     scheduleData.forEach((item) => {
-//       const d = new Date(item.order_date || item.createdAt);
-//       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-//       const compQty = Number(item.completedQuantity) || 0;
-//       const scrpQty = Number(item.scrapQuantity) || 0;
-//       const partCost = parseFloat(item.part?.cost || 0);
-
-//       // COGS Logic (Material + Labor)
-//       const cycleTimeHours = (parseFloat(item.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(item.process?.ratePerHour || 0);
-//       const unitLabor = cycleTimeHours * ratePerHour;
-//       const itemCOGS = (partCost + unitLabor) * compQty;
-
-//       if (compQty > 0) {
-//         totalCOGS += itemCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + itemCOGS;
-//       }
-
-//       // Scrap Cost Logic (Matches productionEfficiency)
-//       if (scrpQty > 0) {
-//         totalScrapCost += scrpQty * partCost;
-//       }
-//     });
-
-//     // 4. Process Manual Scrap Entries (Matches productionEfficiency)
-//     scrapFromEntries.forEach((entry) => {
-//       // productionEfficiency uses 'returnQuantity'
-//       const entryQty = Number(entry.returnQuantity) || 0;
-//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const entryTotalCost = entryQty * entryPartCost;
-
-//       if (entryQty > 0) {
-//         totalScrapCost += entryTotalCost;
-
-//         // Supplier Return check (Matches productionEfficiency)
-//         if (
-//           entry.supplierId ||
-//           entry.type === "supplier" ||
-//           entry.returnSupplierId
-//         ) {
-//           totalSupplierReturn += entryTotalCost;
-//         }
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)), // Now matches exactly
-//       supplierReturn: parseFloat(totalSupplierReturn.toFixed(2)), // Now matches exactly
-//       monthlyCOGS,
-//     });
-//   } catch (error) {
-//     console.error("Costing API Error:", error);
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
-// const costingApi = async (req, res) => {
-//   try {
-//     // 1. Date Range Logic (Efficiency API ke logic se 100% match)
-//     const { month, year, startDate, endDate } = req.query;
-//     let start, end;
-
-//     if (month && year) {
-//       // Bilkul productionEfficiency wala constructor (Local Time)
-//       start = new Date(year, month - 1, 1, 0, 0, 0);
-//       end = new Date(year, month, 0, 23, 59, 59, 999);
-//     } else if (startDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       const endRef = endDate ? new Date(endDate) : new Date(startDate);
-//       end = new Date(endRef);
-//       end.setHours(23, 59, 59, 999);
-//     } else if (year) {
-//       start = new Date(year, 0, 1, 0, 0, 0);
-//       end = new Date(year, 11, 31, 23, 59, 59, 999);
-//     } else {
-//       // Default: Current Month (Local Time)
-//       const now = new Date();
-//       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-//       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-//     }
-
-//     const dateFilter = { gte: start, lte: end };
-
-//     // 2. Data Fetching (ProductionEfficiency ki tarah same tables aur filters)
-//     const [scheduleData, scrapFromEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: {
-//           isDeleted: false,
-//           order_date: dateFilter,
-//         },
-//         include: { part: true, process: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: {
-//           isDeleted: false,
-//           createdAt: dateFilter, // FIX: updatedAt ki jagah createdAt (Efficiency API match)
-//         },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let totalSupplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     // 3. Process Schedule Data (COGS + Schedule Scrap)
-//     scheduleData.forEach((item) => {
-//       const d = new Date(item.order_date || item.createdAt);
-//       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-//       const compQty = Number(item.completedQuantity) || 0;
-//       const scrpQty = Number(item.scrapQuantity) || 0;
-//       const partCost = parseFloat(item.part?.cost || 0);
-
-//       // COGS Calculation
-//       const cycleTimeHours = (parseFloat(item.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(item.process?.ratePerHour || 0);
-//       const itemCOGS = (partCost + cycleTimeHours * ratePerHour) * compQty;
-
-//       if (compQty > 0) {
-//         totalCOGS += itemCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + itemCOGS;
-//       }
-
-//       // Schedule Scrap Logic (Matches Efficiency)
-//       if (scrpQty > 0) {
-//         totalScrapCost += scrpQty * partCost;
-//       }
-//     });
-
-//     // 4. Process Manual Scrap Entries (Matches Efficiency Logic)
-//     scrapFromEntries.forEach((entry) => {
-//       // productionEfficiency sirf returnQuantity use karti hai
-//       const entryQty = Number(entry.returnQuantity) || 0;
-//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const entryTotalCost = entryQty * entryPartCost;
-
-//       if (entryQty > 0) {
-//         totalScrapCost += entryTotalCost;
-
-//         // Supplier Return check (Matches Efficiency)
-//         if (
-//           entry.supplierId ||
-//           entry.type === "supplier" ||
-//           entry.returnSupplierId
-//         ) {
-//           totalSupplierReturn += entryTotalCost;
-//         }
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)), // Ab 8 aayega
-//       supplierReturn: parseFloat(totalSupplierReturn.toFixed(2)), // Ab 2 aayega
-//       monthlyCOGS,
-//     });
-//   } catch (error) {
-//     console.error("Costing API Error:", error);
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
 const fixedCost = async (req, res) => {
   try {
     const year = parseInt(req.query.year);
@@ -3411,336 +2995,18 @@ const getInventory = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-// const customerRelation = async (req, res) => {
-//   try {
-//     let { startDate, endDate } = req.query;
-//     const now = new Date();
-//     const todayStr = now.toISOString().split("T")[0];
-//     if (!startDate) startDate = todayStr;
-//     if (!endDate) endDate = todayStr;
-//     const start = new Date(startDate);
-//     start.setHours(0, 0, 0, 0);
-//     const end = new Date(endDate);
-//     end.setHours(23, 59, 59, 999);
-//     const allSchedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         updatedAt: { gte: start, lte: end },
-//         isDeleted: false,
-//       },
-//       include: {
-//         StockOrder: { include: { customer: true } },
-//         CustomOrder: { include: { customer: true, product: true } },
-//       },
-//     });
 
-//     const stockOrderIds = [
-//       ...new Set(
-//         allSchedules
-//           .filter((s) => s.order_type.toLowerCase().includes("stock"))
-//           .map((s) => s.order_id),
-//       ),
-//     ];
-//     const customOrderIds = [
-//       ...new Set(
-//         allSchedules
-//           .filter((s) => !s.order_type.toLowerCase().includes("stock"))
-//           .map((s) => s.order_id),
-//       ),
-//     ];
-
-//     const [extraStockOrders, extraCustomOrders] = await Promise.all([
-//       prisma.stockOrder.findMany({
-//         where: { id: { in: stockOrderIds } },
-//         include: { customer: true },
-//       }),
-//       prisma.customOrder.findMany({
-//         where: { id: { in: customOrderIds } },
-//         include: { customer: true, product: true },
-//       }),
-//     ]);
-
-//     const stockLookup = Object.fromEntries(
-//       extraStockOrders.map((o) => [o.id, o]),
-//     );
-//     const customLookup = Object.fromEntries(
-//       extraCustomOrders.map((o) => [o.id, o]),
-//     );
-
-//     const openOrders = [];
-//     const fulfilledOrders = [];
-//     const performance = [];
-
-//     allSchedules.forEach((sch) => {
-//       const schStatus = (sch.status || "").toLowerCase().trim();
-//       const isStock = sch.order_type?.toLowerCase().includes("stock");
-//       const orderRef = isStock
-//         ? sch.StockOrder || stockLookup[sch.order_id]
-//         : sch.CustomOrder || customLookup[sch.order_id];
-
-//       if (!orderRef) return;
-//       const firstName =
-//         orderRef.customer?.firstName ||
-//         orderRef.customerName?.split(" ")[0] ||
-//         "N/A";
-//       const lastName =
-//         orderRef.customer?.lastName ||
-//         orderRef.customerName?.split(" ").slice(1).join(" ") ||
-//         "";
-
-//       const commonData = {
-//         Date: sch.updatedAt.toISOString().split("T")[0],
-//         "Order Number": orderRef.orderNumber || "N/A",
-//         "Order Type": isStock ? "Stock" : "Custom",
-//         "First Name": firstName,
-//         "Last Name": lastName,
-//         Product: isStock
-//           ? orderRef.productDescription ||
-//             orderRef.productNumber ||
-//             "Stock Item"
-//           : orderRef.partNumber ||
-//             orderRef.product?.partDescription ||
-//             "Custom Item",
-//         "Order Quantity": orderRef.productQuantity || 0,
-//         "Scheduled Quantity": sch.scheduleQuantity || 0,
-//         "Completed Quantity": sch.completedQuantity || 0,
-//       };
-
-//       if (schStatus === "completed" || schStatus === "complete") {
-//         fulfilledOrders.push({ ...commonData, Status: "Completed" });
-//       } else {
-//         openOrders.push({ ...commonData, Status: sch.status || "In Progress" });
-//       }
-//       let efficiencyPercentage = "0.00%";
-//       if (orderRef.productQuantity > 0) {
-//         const rawEfficiency =
-//           (sch.completedQuantity / orderRef.productQuantity) * 100;
-//         efficiencyPercentage = Math.min(100, rawEfficiency).toFixed(2) + "%";
-//       }
-
-//       performance.push({
-//         Date: commonData.Date,
-//         "Order Number": orderRef.orderNumber,
-//         Customer: `${firstName} ${lastName}`,
-//         Type: isStock ? "Stock" : "Custom",
-//         Scheduled: sch.scheduleQuantity || 0,
-//         "Total Completed": sch.completedQuantity || 0,
-//         "Total Scrap": sch.scrapQuantity || 0,
-//         Efficiency: efficiencyPercentage,
-//       });
-//     });
-
-//     const scrapData = await prisma.scapEntries.findMany({
-//       where: { scrapStatus: true, createdAt: { gte: start, lte: end } },
-//       include: { PartNumber: { include: { supplier: true } }, supplier: true },
-//     });
-
-//     const formattedScrap = scrapData.map((entry) => ({
-//       "Part Number": entry.PartNumber?.partNumber || "N/A",
-//       "Return Quantity": entry.returnQuantity || 0,
-//       "Supplier Company Name":
-//         entry.supplier?.companyName ||
-//         entry.PartNumber?.supplier?.companyName ||
-//         "N/A",
-//     }));
-
-//     return res.status(200).json({
-//       message: "Success",
-//       data: {
-//         openOrders,
-//         fulfilledOrders,
-//         performance,
-//         scapEntries: formattedScrap,
-//       },
-//     });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-
-// const getScheduleProcessInformation = async (req, res) => {
-//   try {
-//     const { id: processId } = req.params;
-//     const { stationUserId } = req.query;
-
-//     if (!processId || !stationUserId) {
-//       return res
-//         .status(400)
-//         .json({ message: "processId and stationUserId are required." });
-//     }
-//     const candidates = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         processId: processId,
-//         isDeleted: false,
-//         status: { in: ["new", "progress"] },
-//       },
-//       include: {
-//         part: true,
-//         customPart: true,
-//         process: true,
-//         StockOrder: { select: { orderNumber: true } },
-//         CustomOrder: { select: { orderNumber: true } },
-//       },
-//     });
-
-//     if (candidates.length === 0) {
-//       return res
-//         .status(404)
-//         .json({ message: "No jobs assigned to this station." });
-//     }
-//     const partIds = candidates.map((c) => c.part_id).filter(Boolean);
-//     const relations = await prisma.productTree.findMany({
-//       where: {
-//         product_id: { in: partIds },
-//         isDeleted: false,
-//       },
-//     });
-//     const validatedCandidates = [];
-
-//     for (const job of candidates) {
-//       const currentPartId = job.part_id;
-//       const childRelations = relations.filter(
-//         (r) => r.product_id === currentPartId,
-//       );
-
-//       if (childRelations.length > 0) {
-//         const childPartIds = childRelations.map((r) => r.part_id);
-//         const unfinishedChildren = await prisma.stockOrderSchedule.findMany({
-//           where: {
-//             order_id: job.order_id,
-//             part_id: { in: childPartIds },
-//             remainingQty: { gt: 0 },
-//             isDeleted: false,
-//           },
-//         });
-//         if (unfinishedChildren.length === 0) {
-//           validatedCandidates.push({ ...job, isLocked: false });
-//         } else {
-//           continue;
-//         }
-//       } else {
-//         validatedCandidates.push({ ...job, isLocked: false });
-//       }
-//     }
-
-//     const sortedCandidates = validatedCandidates.sort((a, b) => {
-//       if (a.status !== b.status) return a.status === "progress" ? -1 : 1;
-//       const isAParentOfB = relations.some(
-//         (r) => r.product_id === a.part_id && r.part_id === b.part_id,
-//       );
-//       if (isAParentOfB) return 1;
-
-//       const isBParentOfA = relations.some(
-//         (r) => r.product_id === b.part_id && r.part_id === a.part_id,
-//       );
-//       if (isBParentOfA) return -1;
-
-//       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-//     });
-
-//     const nextJob = sortedCandidates[0];
-//     const currentPartId = nextJob.part_id || nextJob.customPartId;
-//     const incomingJobs = sortedCandidates.slice(1).map((job) => ({
-//       scheduleId: job.id,
-//       orderNumber:
-//         job.StockOrder?.orderNumber || job.CustomOrder?.orderNumber || "N/A",
-//       partNumber: job.part?.partNumber || job.customPart?.partNumber || "N/A",
-//       quantity: job.scheduleQuantity || job.quantity,
-//       remainingQty: job.remainingQty,
-//       status: job.status,
-//       type: job.order_type,
-//       scheudleDate: job.order_date,
-//     }));
-
-//     const currentSession = await prisma.productionResponse.findFirst({
-//       where: {
-//         processId: processId,
-//         stationUserId: stationUserId,
-//         partId: currentPartId,
-//         orderId: nextJob.order_id,
-//         completedQuantity: 0,
-//         scrap: false,
-//         cycleTimeEnd: null,
-//         isDeleted: false,
-//       },
-//       orderBy: { createdAt: "desc" },
-//       include: { employeeInfo: true },
-//     });
-
-//     const lastProduction =
-//       currentSession ||
-//       (await prisma.productionResponse.findFirst({
-//         where: { processId, stationUserId, isDeleted: false },
-//         orderBy: { createdAt: "desc" },
-//         include: { employeeInfo: true },
-//       }));
-
-//     const [orderData, workInstructions, stats] = await Promise.all([
-//       nextJob.order_type === "StockOrder"
-//         ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
-//         : prisma.customOrder.findUnique({ where: { id: nextJob.order_id } }),
-//       prisma.workInstruction.findFirst({
-//         where: {
-//           productId: currentPartId || undefined,
-//           processId: processId,
-//           isDeleted: false,
-//         },
-//         include: {
-//           steps: {
-//             where: { isDeleted: false },
-//             orderBy: { stepNumber: "asc" },
-//             include: { images: true, videos: true },
-//           },
-//         },
-//       }),
-//       prisma.stockOrderSchedule.aggregate({
-//         where: { order_id: nextJob.order_id, processId, isDeleted: false },
-//         _sum: { completedQuantity: true, scrapQuantity: true },
-//       }),
-//     ]);
-
-//     return res.status(200).json({
-//       message: "Job Found",
-//       data: {
-//         ...nextJob,
-//         processName: nextJob.process?.processName || "N/A",
-//         partNumber:
-//           nextJob.part?.partNumber || nextJob.customPart?.partNumber || "N/A",
-//         order: orderData,
-//         workInstructionSteps: workInstructions?.steps || [],
-//         instructionTitle:
-//           workInstructions?.instructionTitle || "No Instructions Found",
-//         productionId: lastProduction?.id || null,
-//         employeeInfo: lastProduction?.employeeInfo || null,
-//         employeeCompletedQty: stats._sum.completedQuantity || 0,
-//         employeeScrapQty: stats._sum.scrapQuantity || 0,
-//         incomingJobs: incomingJobs,
-//         cycleTime: lastProduction?.cycleTimeStart || null,
-//       },
-//     });
-//   } catch (error) {
-//     return res
-//       .status(500)
-//       .json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
 const customerRelation = async (req, res) => {
   try {
     let { startDate, endDate } = req.query;
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
-
-    // Date logic
     if (!startDate) startDate = todayStr;
     if (!endDate) endDate = todayStr;
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
-
-    // 1. Fetch All Schedules within date range
     const allSchedules = await prisma.stockOrderSchedule.findMany({
       where: {
         updatedAt: { gte: start, lte: end },
@@ -3751,8 +3017,6 @@ const customerRelation = async (req, res) => {
         CustomOrder: { include: { customer: true, product: true } },
       },
     });
-
-    // Extracting IDs for extra lookup to ensure no data is missed
     const stockOrderIds = [
       ...new Set(
         allSchedules
@@ -3778,15 +3042,11 @@ const customerRelation = async (req, res) => {
         include: { customer: true, product: true },
       }),
     ]);
-
     const stockLookup = Object.fromEntries(extraStockOrders.map((o) => [o.id, o]));
     const customLookup = Object.fromEntries(extraCustomOrders.map((o) => [o.id, o]));
-
     const openOrders = [];
     const fulfilledOrders = [];
     const performance = [];
-
-    // 2. Process Schedules for Orders and Performance
     allSchedules.forEach((sch) => {
       const schStatus = (sch.status || "").toLowerCase().trim();
       const isStock = sch.order_type?.toLowerCase().includes("stock");
@@ -3854,7 +3114,6 @@ const customerRelation = async (req, res) => {
       },
     });
 
-    // B. From ProductionResponse table (where scrapQuantity > 0)
     const scrapDataFromProduction = await prisma.productionResponse.findMany({
       where: {
         createdAt: { gte: start, lte: end },
@@ -3887,10 +3146,8 @@ const customerRelation = async (req, res) => {
       "Source": "Production Line"
     }));
 
-    // Combine both arrays
     const combinedScrap = [...formattedScrapEntries, ...formattedProductionScrap];
 
-    // 5. Final Response
     return res.status(200).json({
       message: "Success",
       data: {
@@ -3904,7 +3161,8 @@ const customerRelation = async (req, res) => {
     console.error("Error in customerRelation:", error);
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
-};const getScheduleProcessInformation = async (req, res) => {
+};
+const getScheduleProcessInformation = async (req, res) => {
   try {
     const { id: processId } = req.params;
     const { stationUserId } = req.query;
@@ -3927,7 +3185,7 @@ const customerRelation = async (req, res) => {
         CustomOrder: { select: { orderNumber: true } },
       },
     });
-
+console.log('candidatescandidates',candidates)
     if (candidates.length === 0) {
       return res.status(404).json({ message: "No jobs assigned to this station." });
     }
@@ -3951,7 +3209,6 @@ const customerRelation = async (req, res) => {
       scheudleDate: job.order_date,
     }));
 
-    // Production Session Check
     const currentSession = await prisma.productionResponse.findFirst({
       where: {
         processId: processId,
@@ -3971,13 +3228,11 @@ const customerRelation = async (req, res) => {
       include: { employeeInfo: true },
     });
 
-    // FETCHING INSTRUCTIONS WITH NESTED STEPS
     const [orderData, workInstructions, workInstructionsApply, stats] = await Promise.all([
       nextJob.order_type === "StockOrder"
         ? prisma.stockOrder.findUnique({ where: { id: nextJob.order_id } })
         : prisma.customOrder.findUnique({ where: { id: nextJob.order_id } }),
       
-      // 1. Check Direct Work Instructions
       prisma.workInstruction.findFirst({
         where: { productId: currentPartId || undefined, processId: processId, isDeleted: false },
         include: {
@@ -3989,7 +3244,6 @@ const customerRelation = async (req, res) => {
         },
       }),
 
-      // 2. Check Work Instruction Apply (Including parent steps fallback)
       prisma.workInstructionApply.findFirst({
         where: { productId: currentPartId || undefined, processId: processId, isDeleted: false },
         include: {
@@ -3998,7 +3252,6 @@ const customerRelation = async (req, res) => {
             orderBy: { stepNumber: "asc" },
             include: { images: true, videos: true },
           },
-          // Agar Apply table mein steps nahi milte, toh parent WorkInstruction se steps uthayenge
           workInstruction: {
             include: {
               steps: {
@@ -4017,7 +3270,6 @@ const customerRelation = async (req, res) => {
       }),
     ]);
 
-    // LOGIC TO DETERMINE WHICH STEPS TO SHOW
     let finalSteps = [];
     let finalTitle = "No Instructions Found";
     let source = "None";
@@ -4030,7 +3282,6 @@ const customerRelation = async (req, res) => {
       source = "WorkInstructionApply";
       finalTitle = workInstructionsApply.instructionTitle || workInstructionsApply.workInstruction?.instructionTitle;
       
-      // Check if Apply has its own steps, if not, take from parent
       if (workInstructionsApply.steps && workInstructionsApply.steps.length > 0) {
         finalSteps = workInstructionsApply.steps;
       } else if (workInstructionsApply.workInstruction?.steps) {
