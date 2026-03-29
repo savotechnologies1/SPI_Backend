@@ -816,6 +816,7 @@ const completeScheduleOrder = async (req, res) => {
           completedQuantity: newCompletedQty,
           completed_date: isFinished ? now : undefined,
           status: updatedStatus,
+           completed_EmpId: employeeId,
         },
       });
 
