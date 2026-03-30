@@ -4162,31 +4162,42 @@ const scheduleStockOrdersList = async (req, res) => {
 if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
-        { part: { partNumber: { contains: searchTerm, mode: 'insensitive' } } },
-        { customPart: { partNumber: { contains: searchTerm, mode: 'insensitive' } } },
-        { status: { contains: searchTerm, mode: 'insensitive' } },
+        { part: { partNumber: { contains: searchTerm, } } },
+        { customPart: { partNumber: { contains: searchTerm,} } },
+        { status: { contains: searchTerm, } },
         
-        { 
-          process: { 
-            processName: { contains: searchTerm, mode: 'insensitive' } 
-          } 
-        },
+        // Process Name Search (Direct aur Nested)
+        { process: { processName: { contains: searchTerm,  } } },
         { 
           part: { 
-            process: { 
-              processName: { contains: searchTerm, mode: 'insensitive' } 
-            } 
+            process: { processName: { contains: searchTerm } } 
           } 
         },
         {
           customPart: {
-            process: {
-              processName: { contains: searchTerm, mode: 'insensitive' }
-            }
+            process: { processName: { contains: searchTerm,  } }
           }
         }
       ];
     }
+
+    // 1. Fetch Scheduled Child Parts
+    const [filteredSchedules, totalCount] = await Promise.all([
+      prisma.stockOrderSchedule.findMany({
+        where: whereClause,
+        skip: paginationData.skip,
+        take: paginationData.pageSize,
+        orderBy: { createdAt: "desc" },
+        include: {
+          part: { include: { process: true } },
+          customPart: { include: { process: true } },
+          process: true,
+          completedByEmployee: { select: { firstName: true, lastName: true, id: true } },
+        },
+      }),
+      prisma.stockOrderSchedule.count({ where: whereClause }),
+    ]);
+
 
     // const [filteredSchedules, totalCount] = await Promise.all([
     //   prisma.stockOrderSchedule.findMany({
@@ -4204,21 +4215,21 @@ if (search) {
     //   prisma.stockOrderSchedule.count({ where: whereClause }),
     // ]);
 
-     const [filteredSchedules, totalCount] = await Promise.all([
-      prisma.stockOrderSchedule.findMany({
-        where: whereClause,
-        skip: paginationData.skip,
-        take: paginationData.pageSize,
-        orderBy: { createdAt: "desc" },
-        include: {
-          part: { include: { process: true } },
-          customPart: { include: { process: true } },
-          process: true,
-          completedByEmployee: { select: { firstName: true, lastName: true, id: true } },
-        },
-      }),
-      prisma.stockOrderSchedule.count({ where: whereClause }),
-    ]);
+    //  const [filteredSchedules, totalCount] = await Promise.all([
+    //   prisma.stockOrderSchedule.findMany({
+    //     where: whereClause,
+    //     skip: paginationData.skip,
+    //     take: paginationData.pageSize,
+    //     orderBy: { createdAt: "desc" },
+    //     include: {
+    //       part: { include: { process: true } },
+    //       customPart: { include: { process: true } },
+    //       process: true,
+    //       completedByEmployee: { select: { firstName: true, lastName: true, id: true } },
+    //     },
+    //   }),
+    //   prisma.stockOrderSchedule.count({ where: whereClause }),
+    // ]);
 
     // 2. Fetch Helpers (Names)
     // const performerIds = [...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean))];
@@ -4308,6 +4319,7 @@ const deleteProductTreeById = async (req, res) => {
       message: "deleteProductTreeById deleted successfully !",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({
       message: "Something went wrong . please try again later .",
     });
