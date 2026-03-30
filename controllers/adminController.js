@@ -4151,16 +4151,43 @@ const scheduleStockOrdersList = async (req, res) => {
       whereClause.order_type = order_type;
     }
 
-    if (search) {
+    // if (search) {
+    //   const searchTerm = search.trim();
+    //   whereClause.OR = [
+    //     { part: { partNumber: { contains: searchTerm } } },
+    //     { customPart: { partNumber: { contains: searchTerm } } },
+    //     { status: { contains: searchTerm } },
+    //   ];
+    // }
+if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
-        { part: { partNumber: { contains: searchTerm } } },
-        { customPart: { partNumber: { contains: searchTerm } } },
-        { status: { contains: searchTerm } },
+        { part: { partNumber: { contains: searchTerm, mode: 'insensitive' } } },
+        { customPart: { partNumber: { contains: searchTerm, mode: 'insensitive' } } },
+        { status: { contains: searchTerm, mode: 'insensitive' } },
+        
+        { 
+          process: { 
+            processName: { contains: searchTerm, mode: 'insensitive' } 
+          } 
+        },
+        { 
+          part: { 
+            process: { 
+              processName: { contains: searchTerm, mode: 'insensitive' } 
+            } 
+          } 
+        },
+        {
+          customPart: {
+            process: {
+              processName: { contains: searchTerm, mode: 'insensitive' }
+            }
+          }
+        }
       ];
     }
 
-    // 1. Fetch Scheduled Records from DB
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: whereClause,
