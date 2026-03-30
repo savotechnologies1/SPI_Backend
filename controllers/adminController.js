@@ -4162,25 +4162,13 @@ const scheduleStockOrdersList = async (req, res) => {
 if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
-        { part: { partNumber: { contains: searchTerm, } } },
-        { customPart: { partNumber: { contains: searchTerm,} } },
-        { status: { contains: searchTerm, } },
-        
-        // Process Name Search (Direct aur Nested)
-        { process: { processName: { contains: searchTerm,  } } },
-        { 
-          part: { 
-            process: { processName: { contains: searchTerm } } 
-          } 
-        },
-        {
-          customPart: {
-            process: { processName: { contains: searchTerm,  } }
-          }
-        }
+        { part: { partNumber: { contains: searchTerm } } },
+        { customPart: { partNumber: { contains: searchTerm } } },
+        { status: { contains: searchTerm } },
+      
+        { process: { processName: { contains: searchTerm } } } 
       ];
     }
-
     // 1. Fetch Scheduled Child Parts
     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
