@@ -4188,7 +4188,23 @@ if (search) {
       ];
     }
 
-    const [filteredSchedules, totalCount] = await Promise.all([
+    // const [filteredSchedules, totalCount] = await Promise.all([
+    //   prisma.stockOrderSchedule.findMany({
+    //     where: whereClause,
+    //     skip: paginationData.skip,
+    //     take: paginationData.pageSize,
+    //     orderBy: { createdAt: "desc" },
+    //     include: {
+    //       part: { include: { process: true } },
+    //       customPart: { include: { process: true } },
+    //       process: true,
+    //       completedByEmployee: { select: { firstName: true, lastName: true, id: true } },
+    //     },
+    //   }),
+    //   prisma.stockOrderSchedule.count({ where: whereClause }),
+    // ]);
+
+     const [filteredSchedules, totalCount] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: whereClause,
         skip: paginationData.skip,
