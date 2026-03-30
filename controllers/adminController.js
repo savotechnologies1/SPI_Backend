@@ -4178,7 +4178,13 @@ const scheduleStockOrdersList = async (req, res) => {
     ]);
 
     // 2. Fetch Helpers (Names)
-    const performerIds = [...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean))];
+    // const performerIds = [...new Set(filteredSchedules.map((s) => s.completed_by).filter(Boolean))];
+    
+    // Step 2: Fetch Helpers (Names)
+const performerIds = [...new Set([
+  ...filteredSchedules.map((s) => s.completed_by),
+  ...filteredSchedules.map((s) => s.completed_EmpId) // <--- Ye line add karein
+].filter(Boolean))];
     const [admins, employees] = await Promise.all([
       prisma.admin.findMany({ where: { id: { in: performerIds } }, select: { id: true, name: true } }),
       prisma.employee.findMany({ where: { id: { in: performerIds } }, select: { id: true, firstName: true, lastName: true } }),

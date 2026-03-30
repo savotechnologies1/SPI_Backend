@@ -890,18 +890,119 @@ const findNextJobForProcess = async (processId) => {
 // };
 
 
+// const completeScheduleOrder = async (req, res) => {
+//   try {
+//     const { id: productionResponseId } = req.params;
+//     const { orderId, partId, employeeId, order_type, productId } = req.body;
+//     const now = new Date();
+
+//     const result = await prisma.$transaction(async (tx) => {
+//       // 1. Schedule dhundhein
+//       const currentSchedule = await tx.stockOrderSchedule.findFirst({
+//         where: {
+//           order_id: orderId,
+//           OR: [{ part_id: partId }, { customPartId: partId }],
+//           order_type,
+//           isDeleted: false,
+//         },
+//       });
+
+//       if (!currentSchedule) throw new Error("Stock order schedule not found.");
+
+//       // --- DHYAN DEIN: Schema mein 'remainingQty' hai ---
+//       const { completedQuantity = 0, quantity = 0, remainingQty = 0 } = currentSchedule;
+
+//       if (completedQuantity >= quantity) {
+//         throw new Error("Order is already fully completed.");
+//       }
+
+//       // 2. Current Production Response update karein
+//       await tx.productionResponse.update({
+//         where: { id: productionResponseId },
+//         data: {
+//           completedQuantity: { increment: 1 },
+//           // Agar ProductionResponse mein bhi remainingQty update karni hai:
+//           remainingQty: remainingQty > 0 ? remainingQty - 1 : 0, 
+//           cycleTimeEnd: now,
+//           submittedDateTime: now,
+//           stationUserId: employeeId,
+//         },
+//       });
+
+//       // 3. Stock Order Schedule update logic
+//       const newCompletedQty = completedQuantity + 1;
+//       const newRemainingQty = remainingQty > 0 ? remainingQty - 1 : 0; // Calculation
+//       const isFinished = newCompletedQty >= quantity;
+//       const updatedStatus = isFinished ? "completed" : "progress";
+
+//       await tx.stockOrderSchedule.update({
+//         where: { id: currentSchedule.id },
+//         data: {
+//           completedQuantity: newCompletedQty,
+//           remainingQty: newRemainingQty, // <--- Correct field name 'remainingQty'
+//           completed_date: isFinished ? now : undefined,
+//           status: updatedStatus,
+//           completed_EmpId: employeeId,
+//         },
+//       });
+
+//       // 4. Stock Adjustment (Baaki logic same rahega)
+//       if (isFinished && productId) {
+//         await tx.partNumber.update({
+//           where: { part_id: productId },
+//           data: { availStock: { increment: 1 } },
+//         });
+//       }
+
+//       // 5. Next Session creation logic (Same as before)
+//       let nextSession = null;
+//       if (!isFinished) {
+//         nextSession = await tx.productionResponse.create({
+//           data: {
+//             processId: currentSchedule.processId,
+//             stationUserId: employeeId,
+//             partId: currentSchedule.part_id || null,
+//             orderId: order_type === "StockOrder" ? orderId : null,
+//             customOrderId: order_type === "CustomOrder" ? orderId : null,
+//             order_type: order_type,
+//             cycleTimeStart: new Date(),
+//             completedQuantity: 0,
+//             remainingQty: newRemainingQty, // Shuruat mein remainingQty set karein
+//             scrap: false,
+//           },
+//         });
+//       }
+
+//       return {
+//         message: isFinished ? "Order completed." : "Part completed, next session started.",
+//         status: updatedStatus,
+//         newProductionId: nextSession?.id || null,
+//         remaining: newRemainingQty
+//       };
+//     });
+
+//     return res.status(200).json(result);
+//   } catch (error) {
+//     console.error("Complete Logic Error:", error);
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
+
 const completeScheduleOrder = async (req, res) => {
   try {
     const { id: productionResponseId } = req.params;
-    const { orderId, partId, employeeId, order_type, productId } = req.body;
-    const now = new Date();
+    const { orderId, partId,completedBy, employeeId, order_type, productId } = req.body;
+    const now = new Date(); // Is 'now' ko completion aur next start dono ke liye use karenge
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Schedule dhundhein
       const currentSchedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
-          OR: [{ part_id: partId }, { customPartId: partId }],
+          OR: [
+            { part_id: partId }, 
+            { customPartId: partId }
+          ],
           order_type,
           isDeleted: false,
         },
@@ -909,29 +1010,30 @@ const completeScheduleOrder = async (req, res) => {
 
       if (!currentSchedule) throw new Error("Stock order schedule not found.");
 
-      // --- DHYAN DEIN: Schema mein 'remainingQty' hai ---
+      const activeProcessId = currentSchedule.processId;
       const { completedQuantity = 0, quantity = 0, remainingQty = 0 } = currentSchedule;
 
       if (completedQuantity >= quantity) {
         throw new Error("Order is already fully completed.");
       }
 
-      // 2. Current Production Response update karein
+      // 2. Current Production Response update karein (Completion logic)
       await tx.productionResponse.update({
         where: { id: productionResponseId },
         data: {
           completedQuantity: { increment: 1 },
-          // Agar ProductionResponse mein bhi remainingQty update karni hai:
           remainingQty: remainingQty > 0 ? remainingQty - 1 : 0, 
-          cycleTimeEnd: now,
+          cycleTimeEnd: now, // completion time
           submittedDateTime: now,
           stationUserId: employeeId,
+          // FIX: Ensure partId is saved in current response too
+          partId: currentSchedule.part_id ? currentSchedule.part_id : null,
         },
       });
 
       // 3. Stock Order Schedule update logic
       const newCompletedQty = completedQuantity + 1;
-      const newRemainingQty = remainingQty > 0 ? remainingQty - 1 : 0; // Calculation
+      const newRemainingQty = Math.max(0, remainingQty - 1);
       const isFinished = newCompletedQty >= quantity;
       const updatedStatus = isFinished ? "completed" : "progress";
 
@@ -939,14 +1041,15 @@ const completeScheduleOrder = async (req, res) => {
         where: { id: currentSchedule.id },
         data: {
           completedQuantity: newCompletedQty,
-          remainingQty: newRemainingQty, // <--- Correct field name 'remainingQty'
-          completed_date: isFinished ? now : undefined,
+          remainingQty: newRemainingQty,
+          completed_date: isFinished ? now : null,
           status: updatedStatus,
+         completed_by: completedBy,
           completed_EmpId: employeeId,
         },
       });
 
-      // 4. Stock Adjustment (Baaki logic same rahega)
+      // 4. Stock Adjustment (Library Part update)
       if (isFinished && productId) {
         await tx.partNumber.update({
           where: { part_id: productId },
@@ -954,23 +1057,54 @@ const completeScheduleOrder = async (req, res) => {
         });
       }
 
-      // 5. Next Session creation logic (Same as before)
+      // 5. Next Session Creation (Time reset fix)
       let nextSession = null;
+
       if (!isFinished) {
+        // CASE A: Same part ki agni unit ka timer start karein
         nextSession = await tx.productionResponse.create({
           data: {
-            processId: currentSchedule.processId,
+            processId: activeProcessId,
             stationUserId: employeeId,
-            partId: currentSchedule.part_id || null,
+            // Logic for partId storage
+            partId: currentSchedule.part_id ? currentSchedule.part_id : null,
             orderId: order_type === "StockOrder" ? orderId : null,
             customOrderId: order_type === "CustomOrder" ? orderId : null,
             order_type: order_type,
-            cycleTimeStart: new Date(),
+            cycleTimeStart: now, // TIME RESET FIX: पिछला खत्म हुआ वहीं से नया शुरू
             completedQuantity: 0,
-            remainingQty: newRemainingQty, // Shuruat mein remainingQty set karein
+            remainingQty: newRemainingQty,
             scrap: false,
           },
         });
+      } else {
+        // CASE B: Agla job queue se uthayein
+        const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
+          where: {
+            processId: activeProcessId,
+            status: { in: ["new", "progress"] },
+            isDeleted: false,
+            id: { not: currentSchedule.id },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        if (nextJobInQueue) {
+          nextSession = await tx.productionResponse.create({
+            data: {
+              processId: activeProcessId,
+              stationUserId: employeeId,
+              partId: nextJobInQueue.part_id ? nextJobInQueue.part_id : null,
+              orderId: nextJobInQueue.order_type === "StockOrder" ? nextJobInQueue.order_id : null,
+              customOrderId: nextJobInQueue.order_type === "CustomOrder" ? nextJobInQueue.order_id : null,
+              order_type: nextJobInQueue.order_type,
+              cycleTimeStart: now, // TIME RESET FIX
+              completedQuantity: 0,
+              remainingQty: nextJobInQueue.remainingQty || 0,
+              scrap: false,
+            },
+          });
+        }
       }
 
       return {
@@ -987,8 +1121,6 @@ const completeScheduleOrder = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
-
 
 
 // const scrapScheduleOrder = async (req, res) => {
@@ -3534,6 +3666,7 @@ const getScheduleProcessInformation = async (req, res) => {
         processId: processId,
         isDeleted: false,
         status: { in: ["new", "progress"] },
+         remainingQty: { gt: 0 }
       },
       include: {
         part: true,
