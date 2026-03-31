@@ -390,6 +390,7 @@ const importProductTree = async (req, res) => {
 
     for (const [pNumber, group] of Object.entries(groupedProducts)) {
       try {
+        console.log('groupgroup',group)
         const d = group.details;
         const csvCompName = d.companyName?.trim();
 

@@ -992,10 +992,10 @@ const completeScheduleOrder = async (req, res) => {
   try {
     const { id: productionResponseId } = req.params;
     const { orderId, partId,completedBy, employeeId, order_type, productId } = req.body;
-    const now = new Date(); // Is 'now' ko completion aur next start dono ke liye use karenge
+    const now = new Date(); 
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Schedule dhundhein
+
       const currentSchedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
@@ -1023,15 +1023,13 @@ const completeScheduleOrder = async (req, res) => {
         data: {
           completedQuantity: { increment: 1 },
           remainingQty: remainingQty > 0 ? remainingQty - 1 : 0, 
-          cycleTimeEnd: now, // completion time
+          cycleTimeEnd: now,
           submittedDateTime: now,
           stationUserId: employeeId,
-          // FIX: Ensure partId is saved in current response too
           partId: currentSchedule.part_id ? currentSchedule.part_id : null,
         },
       });
 
-      // 3. Stock Order Schedule update logic
       const newCompletedQty = completedQuantity + 1;
       const newRemainingQty = Math.max(0, remainingQty - 1);
       const isFinished = newCompletedQty >= quantity;
@@ -1044,12 +1042,11 @@ const completeScheduleOrder = async (req, res) => {
           remainingQty: newRemainingQty,
           completed_date: isFinished ? now : null,
           status: updatedStatus,
-         completed_by: completedBy,
+          completed_by: completedBy,
           completed_EmpId: employeeId,
         },
       });
 
-      // 4. Stock Adjustment (Library Part update)
       if (isFinished && productId) {
         await tx.partNumber.update({
           where: { part_id: productId },
@@ -1057,28 +1054,24 @@ const completeScheduleOrder = async (req, res) => {
         });
       }
 
-      // 5. Next Session Creation (Time reset fix)
       let nextSession = null;
 
       if (!isFinished) {
-        // CASE A: Same part ki agni unit ka timer start karein
         nextSession = await tx.productionResponse.create({
           data: {
             processId: activeProcessId,
             stationUserId: employeeId,
-            // Logic for partId storage
             partId: currentSchedule.part_id ? currentSchedule.part_id : null,
             orderId: order_type === "StockOrder" ? orderId : null,
             customOrderId: order_type === "CustomOrder" ? orderId : null,
             order_type: order_type,
-            cycleTimeStart: now, // TIME RESET FIX: पिछला खत्म हुआ वहीं से नया शुरू
+            cycleTimeStart: now, 
             completedQuantity: 0,
             remainingQty: newRemainingQty,
             scrap: false,
           },
         });
       } else {
-        // CASE B: Agla job queue se uthayein
         const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
           where: {
             processId: activeProcessId,
@@ -1098,7 +1091,7 @@ const completeScheduleOrder = async (req, res) => {
               orderId: nextJobInQueue.order_type === "StockOrder" ? nextJobInQueue.order_id : null,
               customOrderId: nextJobInQueue.order_type === "CustomOrder" ? nextJobInQueue.order_id : null,
               order_type: nextJobInQueue.order_type,
-              cycleTimeStart: now, // TIME RESET FIX
+              cycleTimeStart: now, 
               completedQuantity: 0,
               remainingQty: nextJobInQueue.remainingQty || 0,
               scrap: false,
@@ -1934,11 +1927,10 @@ const completeScheduleOrder = async (req, res) => {
 const scrapScheduleOrder = async (req, res) => {
   try {
     const { id: productionResponseId } = req.params;
-    const { orderId, partId, employeeId, order_type } = req.body; // req.body se partId aa raha hai
+    const { orderId, partId, completedBy,employeeId, order_type } = req.body; 
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Current Schedule find karein
       const currentSchedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
@@ -1952,10 +1944,7 @@ const scrapScheduleOrder = async (req, res) => {
       });
 
       if (!currentSchedule) throw new Error("Job Schedule not found.");
-      
       const activeProcessId = currentSchedule.processId;
-
-      // 2. Purane Production Response ko update karein (Scrap mark karein)
       await tx.productionResponse.update({
         where: { id: productionResponseId },
         data: {
@@ -1964,12 +1953,10 @@ const scrapScheduleOrder = async (req, res) => {
           cycleTimeEnd: now,
           submittedDateTime: now,
           stationUserId: employeeId,
-          // Agar update karte waqt bhi partId missing hai to yahan set kar sakte hain
           partId: currentSchedule.part_id || null 
         },
       });
 
-      // 3. Schedule updates
       const newRemaining = Math.max(0, (currentSchedule.remainingQty || 0) - 1);
       const isCurrentPartFinished = newRemaining <= 0;
 
@@ -1980,20 +1967,17 @@ const scrapScheduleOrder = async (req, res) => {
           remainingQty: newRemaining,
           status: isCurrentPartFinished ? "completed" : "progress",
           completed_date: isCurrentPartFinished ? now : null,
+             completed_EmpId: employeeId,
+            completed_by: completedBy,
         },
       });
 
       let nextSession = null;
-
-      // 4. Naya Session Create karein
       if (!isCurrentPartFinished) {
-        // CASE A: Wahi same part dobara banana hai (Remaining Qty bachi hai)
         nextSession = await tx.productionResponse.create({
           data: {
             processId: activeProcessId,
             stationUserId: employeeId,
-            // FIX: Agar Library part hai to part_id use karein, warna null
-            // Kyunki ProductionResponse.partId ka relation PartNumber table se hai
             partId: currentSchedule.part_id ? currentSchedule.part_id : null, 
             orderId: order_type === "StockOrder" ? orderId : null,
             customOrderId: order_type === "CustomOrder" ? orderId : null,
@@ -2004,7 +1988,6 @@ const scrapScheduleOrder = async (req, res) => {
           },
         });
       } else {
-        // CASE B: Agla job queue se uthayein
         const nextJobInQueue = await tx.stockOrderSchedule.findFirst({
           where: {
             processId: activeProcessId,
@@ -2020,7 +2003,6 @@ const scrapScheduleOrder = async (req, res) => {
             data: {
               processId: activeProcessId,
               stationUserId: employeeId,
-              // Next job ka part ID set karein
               partId: nextJobInQueue.part_id ? nextJobInQueue.part_id : null,
               orderId: nextJobInQueue.order_type === "StockOrder" ? nextJobInQueue.order_id : null,
               customOrderId: nextJobInQueue.order_type === "CustomOrder" ? nextJobInQueue.order_id : null,
@@ -2843,7 +2825,7 @@ const getStationNotifications = async (req, res) => {
 
     const countWhereCondition = {
       isDeleted: false,
-      ...(userRole !== "superAdmin" && { createdBy: userId }),
+      // ...(userRole !== "superAdmin" && { createdBy: userId }),
     };
 
     const [unreadCount, archivedCount] = await Promise.all([
