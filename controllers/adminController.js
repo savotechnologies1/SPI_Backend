@@ -5621,8 +5621,6 @@ const liveProductionGoalBoard = async (req, res) => {
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
-
-    // 1. DATE HANDLING: Us din create huye orders dekhne ke liye
     let start, end;
     if (startDate && endDate) {
       start = moment.tz(startDate, tz).startOf("day").toDate();
@@ -5632,14 +5630,13 @@ const currentStatusOverview = async (req, res) => {
       end = moment.tz(tz).endOf("day").toDate();
     }
 
-    // Filter createdAt par lagega taaki "Scheduled on this date" mile
     const dateFilter = { gte: start, lte: end };
 
     const [stockOrders, scrapEntriesRecords] = await Promise.all([
       prisma.stockOrderSchedule.findMany({
         where: { 
           isDeleted: false, 
-          createdAt: dateFilter // <--- Yeh check karega us din kitne plan huye
+          createdAt: dateFilter
         },
         include: {
           part: { select: { partDescription: true, partNumber: true } },
@@ -5651,7 +5648,7 @@ const currentStatusOverview = async (req, res) => {
       prisma.scapEntries.findMany({
         where: { 
           isDeleted: false, 
-          createdAt: dateFilter // <--- Usi din ki manual scrap entries
+          createdAt: dateFilter 
         },
         include: {
           PartNumber: { select: { partDescription: true, partNumber: true, process: true } },
@@ -5666,7 +5663,6 @@ const currentStatusOverview = async (req, res) => {
     
     const detailsMap = {};
 
-    // 2. STOCK ORDERS: Kitne schedule huye aur unka status kya hai
     stockOrders.forEach((order) => {
       const scheduled = Number(order.scheduleQuantity) || 0;
       const actual = Number(order.completedQuantity) || 0;
@@ -5700,7 +5696,6 @@ const currentStatusOverview = async (req, res) => {
       detailsMap[key].scrap += scrap;
     });
 
-    // 3. MANUAL SCRAP: Jo usi din extra entries hui
     scrapEntriesRecords.forEach((entry) => {
       const sQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
       if (sQty <= 0) return;
@@ -5729,11 +5724,8 @@ const currentStatusOverview = async (req, res) => {
       detailsMap[key].scrap += sQty;
     });
 
-    // 4. METRICS CALCULATION
     const details = Object.values(detailsMap).map((item) => {
-      // Productivity: Kitna target achieve hua (Actual vs Scheduled)
       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-      // Efficiency: Total output (Actual + Scrap) vs Schedule
       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
 
       return {
@@ -5744,15 +5736,14 @@ const currentStatusOverview = async (req, res) => {
       };
     });
 
-    // Summary logic (Dashboard boxes)
     const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : 0;
     const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : 0;
 
     res.json({
       summary: {
-        totalScheduled,      // 202 (Scheduled on this date)
-        totalActual,         // 132 (Completed out of those)
-        totalScrap,          // 15 (Scrapped out of those + manual)
+        totalScheduled,     
+        totalActual,         
+        totalScrap,         
         progressPercent: `${overallProgress}%`,
         scrapRatePercent: `${overallScrapRate}%`
       },
@@ -7593,7 +7584,6 @@ const getDiveApi = async (req, res) => {
       filterCondition.part_id = partId;
     }
 
-    // 1. Fetch from StockOrderSchedule (Main Data)
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
@@ -7607,8 +7597,6 @@ const getDiveApi = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // 2. Fetch all relevant ProductionResponses for these schedules to calculate Cycle Time
-    // Hum un saari production entries ko uthayenge jo in order_ids se judi hain
     const orderIds = schedules.map(s => s.order_id);
     const productions = await prisma.productionResponse.findMany({
       where: {
@@ -7624,7 +7612,6 @@ const getDiveApi = async (req, res) => {
     const topPerformanceMap = {};
 
     const orderData = schedules.map((record) => {
-      // Logic for Part Number
       let displayPartNumber = 
         record.customPart?.partNumber || 
         record.PartNumber?.partNumber || 
@@ -7636,8 +7623,6 @@ const getDiveApi = async (req, res) => {
       const actual = Number(record.completedQuantity || 0);
       const scrap = Number(record.scrapQuantity || 0);
 
-      // --- CYCLE TIME CALCULATION (Matching manually) ---
-      // Hum production list mein se wo entries nikalenge jo is schedule ke OrderID, PartID aur ProcessID se match karein
       const matchedProductions = productions.filter(p => 
         (p.orderId === record.order_id || p.customOrderId === record.order_id) && 
         p.processId === record.processId &&
@@ -7652,16 +7637,12 @@ const getDiveApi = async (req, res) => {
           const sTime = new Date(prod.cycleTimeStart).getTime();
           const eTime = new Date(prod.cycleTimeEnd).getTime();
           const diffMinutes = (eTime - sTime) / (1000 * 60);
-          
-          // Per piece cycle time
           totalCycleTimeMinutes += (diffMinutes / prod.completedQuantity);
           ctCount++;
         }
       });
 
       const avgCTForThisSchedule = ctCount > 0 ? (totalCycleTimeMinutes / ctCount) : 0;
-
-      // Grouping logic for Summary
       const empId = record.completedByEmployee?.id || "admin";
       const empName = record.completedByEmployee 
         ? `${record.completedByEmployee.firstName || ''} ${record.completedByEmployee.lastName || ''}`.trim() 
@@ -7686,8 +7667,6 @@ const getDiveApi = async (req, res) => {
         employeeMap[empKey].totalCT += avgCTForThisSchedule;
         employeeMap[empKey].totalCtCount += 1;
       }
-
-      // Top Performer Map
       if (!topPerformanceMap[empId]) {
         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
       }
@@ -7713,8 +7692,6 @@ const getDiveApi = async (req, res) => {
         createdAt: record.createdAt,
       };
     });
-
-    // Formatting Summary
     const productivitySummary = Object.values(employeeMap).map(emp => ({
       processName: emp.processName,
       machineName: emp.machineName,

@@ -2053,7 +2053,6 @@ const scrapScheduleOrder = async (req, res) => {
       if (!currentSchedule) throw new Error("Job Schedule not found.");
       const activeProcessId = currentSchedule.processId;
 
-      // 1. Production Response ko update karein (Scrap mark karein)
       await tx.productionResponse.update({
         where: { id: productionResponseId },
         data: {
@@ -2066,18 +2065,14 @@ const scrapScheduleOrder = async (req, res) => {
         },
       });
 
-      // 2. Schedule update karein (Sirf scrapQuantity badhayein, remainingQty ko CHHEDNA NAHI HAI)
       await tx.stockOrderSchedule.update({
         where: { id: currentSchedule.id },
         data: {
           scrapQuantity: { increment: 1 },
-          // remainingQty: newRemaining, // Is line ko hata diya gaya hai
-          status: "progress", // Scrap hone par order khatam nahi hota, isliye 'progress' hi rahega
+          status: "progress", 
         },
       });
 
-      // Kyunki humne scrap kiya hai, toh wahi part dobara banana padega.
-      // Isliye hum hamesha ek naya session (nextSession) create karenge usi part ke liye.
       
       const nextSession = await tx.productionResponse.create({
         data: {
@@ -2096,7 +2091,7 @@ const scrapScheduleOrder = async (req, res) => {
       return {
         message: "Scrap processed. New session started for the same part.",
         newProductionId: nextSession.id,
-        isOrderFinished: false // Scrap karne se order kabhi finish nahi hoga
+        isOrderFinished: false 
       };
     });
 
@@ -3371,7 +3366,6 @@ const qualityPerformance = async (req, res) => {
     const { startDate, endDate } = req.query;
     let start, end;
 
-    // 1. DATE HANDLING
     if (startDate) {
       start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
@@ -3413,7 +3407,6 @@ const qualityPerformance = async (req, res) => {
     let totalSupplierScrap = 0;
     let totalCustomerScrap = 0;
 
-    // Helper: Logic to get Part Number and Fallback Description
     const getPartInfo = (item) => {
       const pNo = item.customPart?.partNumber || item.PartNumber?.partNumber || item.part?.partNumber || "N/A";
       let pDesc = item.PartNumber?.partDescription || item.part?.partDescription;
@@ -3446,7 +3439,6 @@ const qualityPerformance = async (req, res) => {
       }
     };
 
-    // 1. StockOrderSchedule Processing (Internal/Manual Scrap)
     rawData.forEach((item) => {
       const sQty = Number(item.scrapQuantity) || 0;
       if (sQty > 0) {
@@ -3457,7 +3449,6 @@ const qualityPerformance = async (req, res) => {
       }
     });
 
-    // 2. Scrap Entries Processing
     scrapEntriesRecords.forEach((scrap) => {
       const sQty = (Number(scrap.scrapQuantity) || 0) + (Number(scrap.returnQuantity) || 0);
       if (sQty <= 0) return;
@@ -3484,7 +3475,6 @@ const qualityPerformance = async (req, res) => {
           customerName: `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() || "N/A",
         });
       } else {
-        // Yeh manual entry count hogi table ke liye
         updateMap(scrap.partId, { pNo: scrapNo, pDesc: scrapDesc }, sQty, 0, scrap.createdAt, scrap.process);
         totalManualScrap += sQty;
       }
@@ -5400,7 +5390,6 @@ const scanCompleteAction = async (req, res) => {
     const now = new Date();
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Schedule ढूँढें (Part या Custom Part दोनों के लिए)
       const schedule = await tx.stockOrderSchedule.findFirst({
         where: {
           order_id: orderId,
@@ -5414,7 +5403,6 @@ const scanCompleteAction = async (req, res) => {
 
       const { completedQuantity = 0, quantity = 0, remainingQty = 0, processId } = schedule;
 
-      // 2. Current Production Response update करें
       let wasUpdated = false;
       if (productionResponseId && productionResponseId !== "null") {
         await tx.productionResponse.update({
@@ -5430,7 +5418,6 @@ const scanCompleteAction = async (req, res) => {
         wasUpdated = true;
       }
 
-      // अगर ID नहीं थी, तो एक नया रिकॉर्ड बनायें (Fallback)
       if (!wasUpdated) {
         await tx.productionResponse.create({
           data: {
@@ -5448,7 +5435,6 @@ const scanCompleteAction = async (req, res) => {
         });
       }
 
-      // 3. Stock Adjustment Logic
       if (partId) {
         const itemInDb = await tx.partNumber.findUnique({
           where: { part_id: partId },
@@ -5471,7 +5457,6 @@ const scanCompleteAction = async (req, res) => {
         }
       }
 
-      // 4. Schedule Update
       const newCompletedQty = completedQuantity + 1;
       const newRemaining = Math.max(0, remainingQty - 1);
       const isFinished = newCompletedQty >= quantity;
@@ -5488,10 +5473,8 @@ const scanCompleteAction = async (req, res) => {
         },
       });
 
-      // 5. Next Session / Queue Logic (वही जो Schedule API में है)
       let nextSession = null;
       if (!isFinished) {
-        // उसी पार्ट की अगली यूनिट
         nextSession = await tx.productionResponse.create({
           data: {
             processId,
@@ -5506,7 +5489,6 @@ const scanCompleteAction = async (req, res) => {
           },
         });
       } else {
-        // Queue से अगला Job उठाएं
         const nextJob = await tx.stockOrderSchedule.findFirst({
           where: {
             processId,
