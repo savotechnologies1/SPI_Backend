@@ -8928,30 +8928,33 @@ const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
 //       .json({ message: "Something went wrong.", error: error.message });
 //   }
 // };
-
-
 const dailySchedule = async (req, res) => {
   try {
-    const { date, process, deliveryDate } = req.query; // 1. deliveryDate param add kiya
+    const { date, process, deliveryDate } = req.query; 
 
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
 
-    // CreatedAt Date Range
+    // 1. CreatedAt (Schedule Date) Range
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // 2. Delivery Date Range (agar query mein hai)
-    let deliveryFilter = {};
+    // 2. Delivery Date Range (Jo frontend se aayi hai, use Order/Ship date ke liye range banayenge)
+    let orFilter = [];
     if (deliveryDate) {
-      const startOfDel = new Date(deliveryDate);
-      startOfDel.setHours(0, 0, 0, 0);
-      const endOfDel = new Date(deliveryDate);
-      endOfDel.setHours(23, 59, 59, 999);
-      deliveryFilter = { gte: startOfDel, lte: endOfDel };
+      const startRange = new Date(deliveryDate);
+      startRange.setHours(0, 0, 0, 0);
+      const endRange = new Date(deliveryDate);
+      endRange.setHours(23, 59, 59, 999);
+
+      // OR Condition: Ya to orderDate range mein ho, ya shipDate range mein ho
+      orFilter = [
+        { orderDate: { gte: startRange, lte: endRange } },
+        { shipDate: { gte: startRange, lte: endRange } }
+      ];
     }
 
     const whereClause = {
@@ -8960,7 +8963,7 @@ const dailySchedule = async (req, res) => {
     };
 
     if (process) {
-      whereClause.part = { processId: process };
+      whereClause.processId = process;
     }
 
     const filteredSchedules = await prisma.stockOrderSchedule.findMany({
@@ -8970,9 +8973,7 @@ const dailySchedule = async (req, res) => {
         part: {
           select: {
             partNumber: true,
-            process: {
-              select: { processName: true, machineName: true },
-            },
+            process: { select: { processName: true, machineName: true } },
           },
         },
         completedByEmployee: { select: { firstName: true, lastName: true } },
@@ -8992,13 +8993,14 @@ const dailySchedule = async (req, res) => {
         customOrderIds.push(schedule.order_id);
     });
 
-    // 3. Orders fetch karte waqt deliveryDate filter apply karein
+    // 3. Orders fetch karte waqt OR condition apply karein (orderDate ya shipDate)
     const [stockOrders, customOrders] = await Promise.all([
       stockOrderIds.length
         ? prisma.stockOrder.findMany({
             where: { 
               id: { in: stockOrderIds },
-              ...(deliveryDate && { deliveryDate: deliveryFilter }) // Filter applied here
+              isDeleted: false,
+              ...(deliveryDate && { OR: orFilter }) // Yahan check ho raha hai
             },
             include: { part: { select: { partNumber: true } } },
           })
@@ -9007,7 +9009,8 @@ const dailySchedule = async (req, res) => {
         ? prisma.customOrder.findMany({
             where: { 
               id: { in: customOrderIds },
-              ...(deliveryDate && { deliveryDate: deliveryFilter }) // Filter applied here
+              isDeleted: false,
+              ...(deliveryDate && { OR: orFilter }) // Yahan check ho raha hai
             },
             include: { product: { select: { partNumber: true } } },
           })
@@ -9017,7 +9020,7 @@ const dailySchedule = async (req, res) => {
     const stockOrderMap = new Map(stockOrders.map((o) => [o.id, o]));
     const customOrderMap = new Map(customOrders.map((o) => [o.id, o]));
 
-    // 4. Map schedules and Filter out if deliveryDate was provided but no order matched
+    // 4. Map schedules and Filter
     let schedulesWithOrders = filteredSchedules.map((schedule) => {
       let orderData = null;
       if (schedule.order_type === "StockOrder")
@@ -9028,7 +9031,7 @@ const dailySchedule = async (req, res) => {
       return { ...schedule, order: orderData };
     });
 
-    // Agar deliveryDate ka filter tha, toh sirf wahi data dikhayein jisme order match hua
+    // Agar deliveryDate ka filter tha, toh sirf wahi schedules dikhayein jinka Order match hua
     if (deliveryDate) {
       schedulesWithOrders = schedulesWithOrders.filter(s => s.order !== null);
     }
