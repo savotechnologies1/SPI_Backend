@@ -8930,42 +8930,50 @@ const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
 // };
 const dailySchedule = async (req, res) => {
   try {
-    // Frontend se 'date' param aa raha hai (e.g., 2026-04-22)
-    const { date, process } = req.query; 
+    const { date, process } = req.query;
 
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
 
+    // 1. Date Range Banayein (ISO format strings)
     const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    
     const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
-    // Ye range teeno fields (delivery_date, shipDate, orderDate) ke liye use hogi
-    const dateRange = { gte: startOfDay, lte: endOfDay };
+    // Prisma ko String chahiye, isliye .toISOString() use kar rahe hain
+    const startStr = startOfDay.toISOString();
+    const endStr = endOfDay.toISOString();
+
+    const rangeFilter = {
+      gte: startStr,
+      lte: endStr
+    };
 
     const whereClause = {
       isDeleted: false,
-      // Process filter agar selected ho
+      // Process filter logic
       ...(process && process !== "" && process !== "All" && { processId: process }),
       
-      // MAIN FILTER: Schedule ki delivery_date OR Order ki shipDate OR Order ki orderDate
+      // Sabhi date fields ko range ke saath check karein
       OR: [
-        { delivery_date: dateRange }, // Schedule table ki field
+        { delivery_date: rangeFilter }, // Schedule Table
+        { order_date: rangeFilter },    // Schedule Table
         {
           StockOrder: {
             OR: [
-              { shipDate: dateRange },  // Order table ki field
-              { orderDate: dateRange }  // Order table ki field
+              { shipDate: rangeFilter },  // Order Table
+              { orderDate: rangeFilter }  // Order Table
             ]
           }
         },
         {
           CustomOrder: {
             OR: [
-              { shipDate: dateRange },  // Order table ki field
-              { orderDate: dateRange }  // Order table ki field
+              { shipDate: rangeFilter },  // Order Table
+              { orderDate: rangeFilter }  // Order Table
             ]
           }
         }
@@ -8983,16 +8991,15 @@ const dailySchedule = async (req, res) => {
           },
         },
         StockOrder: {
-           include: { part: { select: { partNumber: true } } }
+          include: { part: { select: { partNumber: true } } }
         },
         CustomOrder: {
-           include: { product: { select: { partNumber: true } } }
+          include: { product: { select: { partNumber: true } } }
         },
         completedByEmployee: { select: { firstName: true, lastName: true } },
       },
     });
 
-    // Formatting data to match your previous structure
     const dataWithOrders = filteredSchedules.map(schedule => ({
       ...schedule,
       order: schedule.order_type === "StockOrder" ? schedule.StockOrder : schedule.CustomOrder
