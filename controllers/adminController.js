@@ -7140,13 +7140,10 @@ const getDiveApi = async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
     end.setHours(23, 59, 59, 999);
 
-    // 1. Dynamic Filter Condition
     let filterCondition = {
       isDeleted: false,
       createdAt: { gte: start, lte: end },
     };
-
-    // Agar "All" ya "All machine" nahi hai, tabhi processId filter lagao
     if (processId && processId !== "All" && processId !== "All machine") {
       filterCondition.processId = processId;
     }
@@ -7159,7 +7156,6 @@ const getDiveApi = async (req, res) => {
       filterCondition.part_id = partId;
     }
 
-    // 2. Fetch Data with all necessary relations
     const schedules = await prisma.stockOrderSchedule.findMany({
       where: filterCondition,
       include: {
@@ -7177,7 +7173,6 @@ const getDiveApi = async (req, res) => {
     const topPerformanceMap = {};
 
     const orderData = schedules.map((record) => {
-      // 3. Robust Part Number Logic
       let displayPartNumber = 
         record.customPart?.partNumber || 
         record.PartNumber?.partNumber || 
@@ -7185,19 +7180,15 @@ const getDiveApi = async (req, res) => {
         record.StockOrder?.productNumber || 
         "N/A";
 
-      // Schema ke according schedule quantity check karein
       const scheduled = Number(record.scheduleQuantity || record.quantity || 0); 
       const actual = Number(record.completedQuantity || 0);
       const scrap = Number(record.scrapQuantity || 0);
 
-      // Employee Information
       const empId = record.completedByEmployee?.id || "admin";
       const empName = record.completedByEmployee 
         ? `${record.completedByEmployee.firstName || ''} ${record.completedByEmployee.lastName || ''}`.trim() 
         : "Admin";
       
-      // Grouping Key: Employee + Process (Machine)
-      // Isse productivity summary mein har machine alag dikhegi
       const processKey = record.process?.id || 'no_proc';
       const empKey = `${empId}_${processKey}`;
 
