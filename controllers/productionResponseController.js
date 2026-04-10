@@ -4209,7 +4209,6 @@ const costingApi = async (req, res) => {
       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
       dateFilter = { gte: startOfYear, lte: endOfYear };
     } else {
-      // Default filter agar kuch na bheja jaye (e.g., current month)
       const now = new Date();
       dateFilter = {
         gte: new Date(now.getFullYear(), now.getMonth(), 1),
@@ -4217,7 +4216,6 @@ const costingApi = async (req, res) => {
       };
     }
 
-    // Fetching data from ProductionResponse and ScapEntries
     const [productions, manualScrapEntries] = await Promise.all([
       prisma.productionResponse.findMany({
         where: { 
@@ -4225,8 +4223,8 @@ const costingApi = async (req, res) => {
           createdAt: dateFilter 
         },
         include: { 
-          PartNumber: true, // Material cost aur Cycle time ke liye
-          process: true     // Labor rate ke liye
+          PartNumber: true, 
+          process: true     
         },
       }),
       prisma.scapEntries.findMany({
