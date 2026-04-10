@@ -5755,6 +5755,153 @@ const liveProductionGoalBoard = async (req, res) => {
 //   }
 // };
 
+// const currentStatusOverview = async (req, res) => {
+//   try {
+//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
+//     let start, end;
+
+//     if (startDate && endDate) {
+//       start = moment.tz(startDate, tz).startOf("day").toDate();
+//       end = moment.tz(endDate, tz).endOf("day").toDate();
+//     } else {
+//       start = moment.tz(tz).startOf("day").toDate();
+//       end = moment.tz(tz).endOf("day").toDate();
+//     }
+
+//     const dateFilter = { gte: start, lte: end };
+
+//     const [productions, scrapEntriesRecords] = await Promise.all([
+//       // 1. StockOrderSchedule ki jagah ProductionResponse se data le rahe hain
+//       prisma.productionResponse.findMany({
+//         where: { 
+//           isDeleted: false, 
+//           createdAt: dateFilter
+//         },
+//         include: {
+//           // Schema ke mutabiq PartNumber aur process relations use kar rahe hain
+//           PartNumber: { select: { partDescription: true, partNumber: true } },
+//           process: {
+//             select: { id: true, processName: true, machineName: true, cycleTime: true },
+//           },
+//         },
+//       }),
+//       // 2. Scrap entries manual entries ke liye
+//       prisma.scapEntries.findMany({
+//         where: { 
+//           isDeleted: false, 
+//           createdAt: dateFilter 
+//         },
+//         include: {
+//           PartNumber: { select: { partDescription: true, partNumber: true, process: true } },
+//           process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
+//         },
+//       }),
+//     ]);
+
+//     let totalActual = 0;
+//     let totalScheduled = 0;
+//     let totalScrap = 0;
+    
+//     const detailsMap = {};
+
+//     // PRODUCTION DATA PROCESSING
+//     productions.forEach((record) => {
+//       // ProductionResponse table ke columns use kar rahe hain
+//       const scheduled = Number(record.scheduleQuantity) || 0;
+//       const actual = Number(record.completedQuantity) || 0;
+//       const scrap = Number(record.scrapQuantity) || 0;
+
+//       totalScheduled += scheduled;
+//       totalActual += actual;
+//       totalScrap += scrap;
+
+//       const pName = record.process?.processName || "Production";
+//       const mName = record.process?.machineName || "N/A";
+//       const partNo = record.PartNumber?.partNumber || "N/A";
+//       const key = `${pName}-${mName}-${partNo}`;
+
+//       if (!detailsMap[key]) {
+//         detailsMap[key] = {
+//           processName: pName,
+//           machineName: mName,
+//           partNumber: partNo,
+//           partDescription: record.PartNumber?.partDescription || partNo,
+//           scheduled: 0,
+//           actual: 0,
+//           scrap: 0,
+//           cycleTime: record.process?.cycleTime ? parseFloat(record.process.cycleTime) : 0,
+//           type: "Production",
+//         };
+//       }
+
+//       detailsMap[key].scheduled += scheduled;
+//       detailsMap[key].actual += actual;
+//       detailsMap[key].scrap += scrap;
+//     });
+
+//     // SCAP ENTRIES PROCESSING
+//     scrapEntriesRecords.forEach((entry) => {
+//       const sQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
+//       if (sQty <= 0) return;
+
+//       totalScrap += sQty;
+
+//       const procInfo = entry.process || entry.PartNumber?.process;
+//       const pName = procInfo?.processName || "Manual Scrap";
+//       const mName = procInfo?.machineName || "N/A";
+//       const partNo = entry.PartNumber?.partNumber || "N/A";
+//       const key = `${pName}-${mName}-${partNo}`;
+
+//       if (!detailsMap[key]) {
+//         detailsMap[key] = {
+//           processName: pName,
+//           machineName: mName,
+//           partNumber: partNo,
+//           partDescription: entry.PartNumber?.partDescription || partNo,
+//           scheduled: 0,
+//           actual: 0,
+//           scrap: 0,
+//           cycleTime: procInfo?.cycleTime ? parseFloat(procInfo.cycleTime) : 0,
+//           type: "Manual Entry",
+//         };
+//       }
+//       detailsMap[key].scrap += sQty;
+//     });
+
+//     // Final calculations for each detail row
+//     const details = Object.values(detailsMap).map((item) => {
+//       // Productivity: Actual vs Scheduled
+//       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
+//       // Efficiency: (Actual + Scrap) vs Scheduled (Yani kitna kaam process hua)
+//       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
+
+//       return {
+//         ...item,
+//         productivity: Math.min(prodRaw, 100).toFixed(2) + "%",
+//         efficiency: Math.min(effRaw, 100).toFixed(2) + "%",
+//         targetPerHour: item.cycleTime > 0 ? Math.round(60 / item.cycleTime) : 0
+//       };
+//     });
+
+//     const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : 0;
+//     const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : 0;
+
+//     res.json({
+//       summary: {
+//         totalScheduled,     
+//         totalActual,         
+//         totalScrap,         
+//         progressPercent: `${overallProgress}%`,
+//         scrapRatePercent: `${overallScrapRate}%`
+//       },
+//       details: details.sort((a, b) => b.scheduled - a.scheduled)
+//     });
+
+//   } catch (error) {
+//     console.error("Overview API Error:", error);
+//     res.status(500).json({ error: "Internal Error", details: error.message });
+//   }
+// };
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
@@ -5764,60 +5911,46 @@ const currentStatusOverview = async (req, res) => {
       start = moment.tz(startDate, tz).startOf("day").toDate();
       end = moment.tz(endDate, tz).endOf("day").toDate();
     } else {
+      // Default: Aaj ka din (1 March se 10 April wala logic aap query params se bhej sakte hain)
       start = moment.tz(tz).startOf("day").toDate();
       end = moment.tz(tz).endOf("day").toDate();
     }
 
     const dateFilter = { gte: start, lte: end };
 
-    const [productions, scrapEntriesRecords] = await Promise.all([
-      // 1. StockOrderSchedule ki jagah ProductionResponse se data le rahe hain
-      prisma.productionResponse.findMany({
-        where: { 
-          isDeleted: false, 
-          createdAt: dateFilter
-        },
+    const [schedules, productions] = await Promise.all([
+      // 1. Scheduled Quantity yahan se aayegi
+      prisma.stockOrderSchedule.findMany({
+        where: { isDeleted: false, createdAt: dateFilter },
         include: {
-          // Schema ke mutabiq PartNumber aur process relations use kar rahe hain
           PartNumber: { select: { partDescription: true, partNumber: true } },
-          process: {
-            select: { id: true, processName: true, machineName: true, cycleTime: true },
-          },
+          process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
         },
       }),
-      // 2. Scrap entries manual entries ke liye
-      prisma.scapEntries.findMany({
-        where: { 
-          isDeleted: false, 
-          createdAt: dateFilter 
-        },
+      // 2. Completed aur Scrap Quantity yahan se aayegi
+      prisma.productionResponse.findMany({
+        where: { isDeleted: false, createdAt: dateFilter },
         include: {
-          PartNumber: { select: { partDescription: true, partNumber: true, process: true } },
+          PartNumber: { select: { partDescription: true, partNumber: true } },
           process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
         },
       }),
     ]);
 
-    let totalActual = 0;
     let totalScheduled = 0;
+    let totalActual = 0;
     let totalScrap = 0;
     
     const detailsMap = {};
 
-    // PRODUCTION DATA PROCESSING
-    productions.forEach((record) => {
-      // ProductionResponse table ke columns use kar rahe hain
-      const scheduled = Number(record.scheduleQuantity) || 0;
-      const actual = Number(record.completedQuantity) || 0;
-      const scrap = Number(record.scrapQuantity) || 0;
+    // 1. Pehle Schedules process karein (Baseline taiyar karne ke liye)
+    schedules.forEach((sch) => {
+      const scheduledQty = Number(sch.scheduleQuantity || sch.quantity) || 0;
+      totalScheduled += scheduledQty;
 
-      totalScheduled += scheduled;
-      totalActual += actual;
-      totalScrap += scrap;
-
-      const pName = record.process?.processName || "Production";
-      const mName = record.process?.machineName || "N/A";
-      const partNo = record.PartNumber?.partNumber || "N/A";
+      const pName = sch.process?.processName || "N/A";
+      const mName = sch.process?.machineName || "N/A";
+      const partNo = sch.PartNumber?.partNumber || "N/A";
       const key = `${pName}-${mName}-${partNo}`;
 
       if (!detailsMap[key]) {
@@ -5825,66 +5958,64 @@ const currentStatusOverview = async (req, res) => {
           processName: pName,
           machineName: mName,
           partNumber: partNo,
-          partDescription: record.PartNumber?.partDescription || partNo,
+          partDescription: sch.PartNumber?.partDescription || partNo,
           scheduled: 0,
           actual: 0,
           scrap: 0,
-          cycleTime: record.process?.cycleTime ? parseFloat(record.process.cycleTime) : 0,
-          type: "Production",
+          cycleTime: sch.process?.cycleTime ? parseFloat(sch.process.cycleTime) : 0,
         };
       }
-
-      detailsMap[key].scheduled += scheduled;
-      detailsMap[key].actual += actual;
-      detailsMap[key].scrap += scrap;
+      detailsMap[key].scheduled += scheduledQty;
     });
 
-    // SCAP ENTRIES PROCESSING
-    scrapEntriesRecords.forEach((entry) => {
-      const sQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
-      if (sQty <= 0) return;
+    // 2. Ab Production data process karein (Actual performance ke liye)
+    productions.forEach((prod) => {
+      const actualQty = Number(prod.completedQuantity) || 0;
+      const scrapQty = Number(prod.scrapQuantity) || 0;
 
-      totalScrap += sQty;
+      totalActual += actualQty;
+      totalScrap += scrapQty;
 
-      const procInfo = entry.process || entry.PartNumber?.process;
-      const pName = procInfo?.processName || "Manual Scrap";
-      const mName = procInfo?.machineName || "N/A";
-      const partNo = entry.PartNumber?.partNumber || "N/A";
+      const pName = prod.process?.processName || "N/A";
+      const mName = prod.process?.machineName || "N/A";
+      const partNo = prod.PartNumber?.partNumber || "N/A";
       const key = `${pName}-${mName}-${partNo}`;
 
+      // Agar koi aisi production hai jiska schedule nahi mila, toh naya entry banayenge
       if (!detailsMap[key]) {
         detailsMap[key] = {
           processName: pName,
           machineName: mName,
           partNumber: partNo,
-          partDescription: entry.PartNumber?.partDescription || partNo,
+          partDescription: prod.PartNumber?.partDescription || partNo,
           scheduled: 0,
           actual: 0,
           scrap: 0,
-          cycleTime: procInfo?.cycleTime ? parseFloat(procInfo.cycleTime) : 0,
-          type: "Manual Entry",
+          cycleTime: prod.process?.cycleTime ? parseFloat(prod.process.cycleTime) : 0,
         };
       }
-      detailsMap[key].scrap += sQty;
+
+      detailsMap[key].actual += actualQty;
+      detailsMap[key].scrap += scrapQty;
     });
 
-    // Final calculations for each detail row
+    // Calculations for Response
     const details = Object.values(detailsMap).map((item) => {
-      // Productivity: Actual vs Scheduled
+      // Productivity = (Sahi pieces / Target)
       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-      // Efficiency: (Actual + Scrap) vs Scheduled (Yani kitna kaam process hua)
+      // Efficiency = (Total effort / Target)
       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
 
       return {
         ...item,
-        productivity: Math.min(prodRaw, 100).toFixed(2) + "%",
-        efficiency: Math.min(effRaw, 100).toFixed(2) + "%",
+        productivity: prodRaw.toFixed(1) + "%",
+        efficiency: effRaw.toFixed(1) + "%",
         targetPerHour: item.cycleTime > 0 ? Math.round(60 / item.cycleTime) : 0
       };
     });
 
-    const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : 0;
-    const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : 0;
+    const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : "0.0";
+    const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : "0.0";
 
     res.json({
       summary: {
@@ -9487,18 +9618,93 @@ const capacityStatus = async (req, res) => {
 //   }
 // };
 
+// const productionEfficieny = async (req, res) => {
+//   try {
+//     const { month, year } = req.query;
+
+//     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
+//     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+//     const [scheduleData, scrapFromEntries] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
+//         include: { part: true },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
+//         include: { PartNumber: true },
+//       }),
+//     ]);
+
+//     let totalCompleted = 0;
+//     let totalScrapCost = 0;
+//     let totalSupplierReturn = 0;
+//     const dailyMap = new Map();
+
+//     scheduleData.forEach((item) => {
+//       const d = new Date(item.createdAt);
+//       const dateKey = d.toISOString().split("T")[0];
+      
+//       const compQty = item.completedQuantity || 0;
+//       const sQtyInSchedule = item.scrapQuantity || 0;
+//       const pCost = parseFloat(item.part?.cost || 0);
+
+//       // Completed Quantity
+//       if (compQty > 0) {
+//         totalCompleted += compQty;
+//         if (!dailyMap.has(dateKey)) {
+//           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
+//         }
+//         dailyMap.get(dateKey).completed += compQty;
+//       }
+
+//       totalScrapCost += (sQtyInSchedule * pCost);
+//     });
+
+//     scrapFromEntries.forEach((entry) => {
+//       const entryQty = Number(entry.returnQuantity) || 0;
+//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
+//       const entryTotalCost = entryQty * entryPartCost;
+
+//       totalScrapCost += entryTotalCost;
+
+//       // Supplier Return check
+//       if (entry.supplierId && entry.supplierId !== "" && entry.supplierId !== null) {
+//         totalSupplierReturn += entryTotalCost;
+//       }
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: Array.from(dailyMap.values()).sort(
+//         (a, b) => new Date(a.date) - new Date(b.date)
+//       ),
+//       totals: {
+//         totalCompleted,
+//         totalScrapCost: Number(totalScrapCost.toFixed(2)),
+//         totalSupplierReturn: Number(totalSupplierReturn.toFixed(2)),
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// };
+
 const productionEfficieny = async (req, res) => {
   try {
     const { month, year } = req.query;
 
+    // Month aur Year ke mutabiq start aur end date set karna
     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const [scheduleData, scrapFromEntries] = await Promise.all([
-      prisma.stockOrderSchedule.findMany({
+    const [productionData, scrapFromEntries] = await Promise.all([
+      // 1. ProductionResponse se Completed aur Scrap data lena
+      prisma.productionResponse.findMany({
         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-        include: { part: true },
+        include: { PartNumber: true }, // Part cost nikalne ke liye
       }),
+      // 2. ScapEntries se Supplier/Manual scrap data lena
       prisma.scapEntries.findMany({
         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
         include: { PartNumber: true },
@@ -9510,15 +9716,16 @@ const productionEfficieny = async (req, res) => {
     let totalSupplierReturn = 0;
     const dailyMap = new Map();
 
-    scheduleData.forEach((item) => {
+    // PRODUCTION DATA PROCESSING
+    productionData.forEach((item) => {
       const d = new Date(item.createdAt);
       const dateKey = d.toISOString().split("T")[0];
       
-      const compQty = item.completedQuantity || 0;
-      const sQtyInSchedule = item.scrapQuantity || 0;
-      const pCost = parseFloat(item.part?.cost || 0);
+      const compQty = Number(item.completedQuantity) || 0;
+      const scrapQty = Number(item.scrapQuantity) || 0;
+      const pCost = parseFloat(item.PartNumber?.cost || 0);
 
-      // Completed Quantity
+      // 1. Total Completed Quantity calculation
       if (compQty > 0) {
         totalCompleted += compQty;
         if (!dailyMap.has(dateKey)) {
@@ -9527,18 +9734,23 @@ const productionEfficieny = async (req, res) => {
         dailyMap.get(dateKey).completed += compQty;
       }
 
-      totalScrapCost += (sQtyInSchedule * pCost);
+      // 2. Production ke dauran hua scrap cost
+      if (scrapQty > 0) {
+        totalScrapCost += (scrapQty * pCost);
+      }
     });
 
+    // SCAP ENTRIES PROCESSING (Supplier aur Manual returns)
     scrapFromEntries.forEach((entry) => {
-      const entryQty = Number(entry.returnQuantity) || 0;
+      const entryQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
       const entryTotalCost = entryQty * entryPartCost;
 
+      // Scrap cost mein manual/supplier scrap bhi add karein
       totalScrapCost += entryTotalCost;
 
-      // Supplier Return check
-      if (entry.supplierId && entry.supplierId !== "" && entry.supplierId !== null) {
+      // Supplier Return check (sirf woh jo supplier ko wapas gaya)
+      if (entry.supplierId || entry.returnSupplierId) {
         totalSupplierReturn += entryTotalCost;
       }
     });
@@ -9555,6 +9767,7 @@ const productionEfficieny = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Efficiency API Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
