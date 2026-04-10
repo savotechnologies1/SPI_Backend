@@ -3361,6 +3361,146 @@ const changeStationNotification = async (req, res) => {
 //   }
 // };
 
+// const qualityPerformance = async (req, res) => {
+//   try {
+//     const { startDate, endDate } = req.query;
+//     let start, end;
+
+//     if (startDate) {
+//       start = new Date(startDate);
+//       start.setHours(0, 0, 0, 0);
+//       end = endDate ? new Date(endDate) : new Date(startDate);
+//       end.setHours(23, 59, 59, 999);
+//     } else {
+//       start = new Date();
+//       start.setDate(start.getDate() - 30);
+//       start.setHours(0, 0, 0, 0);
+//       end = new Date();
+//       end.setHours(23, 59, 59, 999);
+//     }
+
+//     const [rawData, scrapEntriesRecords] = await Promise.all([
+//       prisma.stockOrderSchedule.findMany({
+//         where: { isDeleted: false, createdAt: { gte: start, lte: end } },
+//         include: {
+//           process: true,
+//           PartNumber: true, 
+//           part: true,       
+//           customPart: true, 
+//         },
+//       }),
+//       prisma.scapEntries.findMany({
+//         where: { isDeleted: false, createdAt: { gte: start, lte: end } },
+//         include: {
+//           PartNumber: true,
+//           process: true,
+//           supplier: true,
+//           customers: true,
+//         },
+//       }),
+//     ]);
+
+//     const mergedMap = new Map();
+//     const supplierScrapDetails = [];
+//     const customerScrapDetails = [];
+//     let totalManualScrap = 0; 
+//     let totalSupplierScrap = 0;
+//     let totalCustomerScrap = 0;
+
+//     const getPartInfo = (item) => {
+//       const pNo = item.customPart?.partNumber || item.PartNumber?.partNumber || item.part?.partNumber || "N/A";
+//       let pDesc = item.PartNumber?.partDescription || item.part?.partDescription;
+//       if (!pDesc || pDesc.trim() === "" || pDesc === "N/A") {
+//         pDesc = item.customPart?.partNumber || pNo; 
+//       }
+//       return { pNo, pDesc };
+//     };
+
+//     const updateMap = (id, info, scrapQty, scheduleQty, date, process) => {
+//       const finalId = id || "Unassigned"; 
+//       const key = `${finalId}-${process?.id || 'no-proc'}`;
+      
+//       if (!mergedMap.has(key)) {
+//         mergedMap.set(key, {
+//           partId: finalId,
+//           partNumber: info.pNo,
+//           partDescription: info.pDesc,
+//           processName: process?.processName || "N/A",
+//           machineName: process?.machineName || "N/A",
+//           scrapQuantity: Number(scrapQty) || 0,
+//           scheduleQuantity: Number(scheduleQty) || 0,
+//           latestDate: date,
+//         });
+//       } else {
+//         const existing = mergedMap.get(key);
+//         existing.scrapQuantity += Number(scrapQty) || 0;
+//         existing.scheduleQuantity += Number(scheduleQty) || 0;
+//         if (date > existing.latestDate) existing.latestDate = date;
+//       }
+//     };
+
+//     rawData.forEach((item) => {
+//       const sQty = Number(item.scrapQuantity) || 0;
+//       if (sQty > 0) {
+//         const info = getPartInfo(item);
+//         const id = item.customPartId || item.part_id || item.partNumberPart_id;
+//         updateMap(id, info, sQty, item.quantity, item.createdAt, item.process);
+//         totalManualScrap += sQty;
+//       }
+//     });
+
+//     scrapEntriesRecords.forEach((scrap) => {
+//       const sQty = (Number(scrap.scrapQuantity) || 0) + (Number(scrap.returnQuantity) || 0);
+//       if (sQty <= 0) return;
+
+//       const scrapNo = scrap.PartNumber?.partNumber || "N/A";
+//       const scrapDesc = scrap.PartNumber?.partDescription || scrapNo;
+
+//       if (scrap.supplierId || scrap.returnSupplierId) {
+//         totalSupplierScrap += sQty;
+//         supplierScrapDetails.push({
+//           partNumber: scrapNo,
+//           partDescription: scrapDesc,
+//           quantity: sQty,
+//           date: scrap.createdAt,
+//           supplierName: scrap.supplier?.companyName || "N/A",
+//         });
+//       } else if (scrap.customersId) {
+//         totalCustomerScrap += sQty;
+//         customerScrapDetails.push({
+//           partNumber: scrapNo,
+//           partDescription: scrapDesc,
+//           quantity: sQty,
+//           date: scrap.createdAt,
+//           customerName: `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() || "N/A",
+//         });
+//       } else {
+//         updateMap(scrap.partId, { pNo: scrapNo, pDesc: scrapDesc }, sQty, 0, scrap.createdAt, scrap.process);
+//         totalManualScrap += sQty;
+//       }
+//     });
+
+//     const data = Array.from(mergedMap.values()).sort((a, b) => b.scrapQuantity - a.scrapQuantity);
+
+//     // RESPONSE FIX: Yahan supplierScrapDetails aur customerScrapDetails add kiye hain
+//     return res.status(200).json({
+//       success: true,
+//       totalScrapQty: totalManualScrap + totalSupplierScrap + totalCustomerScrap,
+//       totalManualScrap,
+//       totalSupplierScrap,
+//       totalCustomerScrap,
+//       data: data, 
+//       supplierScrapDetails, // Pehle ye missing tha
+//       customerScrapDetails, // Pehle ye missing tha
+//       range: { start, end },
+//     });
+//   } catch (error) {
+//     console.error("Quality API Error:", error);
+//     return res.status(500).json({ success: false, error: error.message });
+//   }
+// };
+
+
 const qualityPerformance = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -3379,16 +3519,18 @@ const qualityPerformance = async (req, res) => {
       end.setHours(23, 59, 59, 999);
     }
 
-    const [rawData, scrapEntriesRecords] = await Promise.all([
-      prisma.stockOrderSchedule.findMany({
+    const [productions, scrapEntriesRecords] = await Promise.all([
+      // 1. StockOrderSchedule ki jagah ProductionResponse se data le rahe hain
+      prisma.productionResponse.findMany({
         where: { isDeleted: false, createdAt: { gte: start, lte: end } },
         include: {
           process: true,
           PartNumber: true, 
-          part: true,       
-          customPart: true, 
+          StockOrder: true,
+          CustomOrder: true,
         },
       }),
+      // 2. Scrap entries (Supplier/Customer scrap ke liye)
       prisma.scapEntries.findMany({
         where: { isDeleted: false, createdAt: { gte: start, lte: end } },
         include: {
@@ -3407,15 +3549,23 @@ const qualityPerformance = async (req, res) => {
     let totalSupplierScrap = 0;
     let totalCustomerScrap = 0;
 
+    // Part information nikalne ka helper function
     const getPartInfo = (item) => {
-      const pNo = item.customPart?.partNumber || item.PartNumber?.partNumber || item.part?.partNumber || "N/A";
-      let pDesc = item.PartNumber?.partDescription || item.part?.partDescription;
-      if (!pDesc || pDesc.trim() === "" || pDesc === "N/A") {
-        pDesc = item.customPart?.partNumber || pNo; 
+      const pNo = item.PartNumber?.partNumber || 
+                  item.CustomOrder?.partNumber || 
+                  item.StockOrder?.productNumber || "N/A";
+
+      let pDesc = item.PartNumber?.partDescription || 
+                  item.StockOrder?.productDescription || 
+                  "N/A";
+
+      if (pDesc === "N/A" || !pDesc) {
+        pDesc = pNo; 
       }
       return { pNo, pDesc };
     };
 
+    // Map ko update karne ka function (Aggregation ke liye)
     const updateMap = (id, info, scrapQty, scheduleQty, date, process) => {
       const finalId = id || "Unassigned"; 
       const key = `${finalId}-${process?.id || 'no-proc'}`;
@@ -3439,16 +3589,20 @@ const qualityPerformance = async (req, res) => {
       }
     };
 
-    rawData.forEach((item) => {
+    // PRODUCTION DATA PROCESSING
+    productions.forEach((item) => {
       const sQty = Number(item.scrapQuantity) || 0;
       if (sQty > 0) {
         const info = getPartInfo(item);
-        const id = item.customPartId || item.part_id || item.partNumberPart_id;
-        updateMap(id, info, sQty, item.quantity, item.createdAt, item.process);
+        const id = item.partId; // ProductionResponse mein partId field hai
+        const schedQty = Number(item.scheduleQuantity) || 0;
+        
+        updateMap(id, info, sQty, schedQty, item.createdAt, item.process);
         totalManualScrap += sQty;
       }
     });
 
+    // SCAP ENTRIES DATA PROCESSING (Supplier/Customer Returns)
     scrapEntriesRecords.forEach((scrap) => {
       const sQty = (Number(scrap.scrapQuantity) || 0) + (Number(scrap.returnQuantity) || 0);
       if (sQty <= 0) return;
@@ -3475,6 +3629,7 @@ const qualityPerformance = async (req, res) => {
           customerName: `${scrap.customers?.firstName || ""} ${scrap.customers?.lastName || ""}`.trim() || "N/A",
         });
       } else {
+        // Agar entry na supplier ki hai na customer ki, toh ise internal manual scrap mana jayega
         updateMap(scrap.partId, { pNo: scrapNo, pDesc: scrapDesc }, sQty, 0, scrap.createdAt, scrap.process);
         totalManualScrap += sQty;
       }
@@ -3482,7 +3637,6 @@ const qualityPerformance = async (req, res) => {
 
     const data = Array.from(mergedMap.values()).sort((a, b) => b.scrapQuantity - a.scrapQuantity);
 
-    // RESPONSE FIX: Yahan supplierScrapDetails aur customerScrapDetails add kiye hain
     return res.status(200).json({
       success: true,
       totalScrapQty: totalManualScrap + totalSupplierScrap + totalCustomerScrap,
@@ -3490,8 +3644,8 @@ const qualityPerformance = async (req, res) => {
       totalSupplierScrap,
       totalCustomerScrap,
       data: data, 
-      supplierScrapDetails, // Pehle ye missing tha
-      customerScrapDetails, // Pehle ye missing tha
+      supplierScrapDetails,
+      customerScrapDetails,
       range: { start, end },
     });
   } catch (error) {
@@ -3499,7 +3653,6 @@ const qualityPerformance = async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-
 // const qualityPerformance = async (req, res) => {
 //   try {
 //     const { startDate, endDate } = req.query;
