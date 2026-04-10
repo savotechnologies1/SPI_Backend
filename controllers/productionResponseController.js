@@ -4193,120 +4193,12 @@ const parseCycleTime = (cycleTime) => {
 //   }
 // };
 
-// const costingApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-//     let dateFilter = {};
-
-//     // Date filtering logic
-//     if (startDate || endDate) {
-//       const start = new Date(startDate);
-//       const end = new Date(endDate);
-//       end.setHours(23, 59, 59, 999);
-//       dateFilter = { gte: start, lte: end };
-//     } else if (year) {
-//       const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
-//       const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
-//       dateFilter = { gte: startOfYear, lte: endOfYear };
-//     } else {
-//       const now = new Date();
-//       dateFilter = {
-//         gte: new Date(now.getFullYear(), now.getMonth(), 1),
-//         lte: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-//       };
-//     }
-
-//     const [productions, manualScrapEntries] = await Promise.all([
-//       prisma.productionResponse.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter 
-//         },
-//         include: { 
-//           PartNumber: true, 
-//           process: true     
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter 
-//         },
-//         include: { 
-//           PartNumber: true 
-//         },
-//       }),
-//     ]);
-
-//     let totalCOGS = 0;
-//     let totalScrapCost = 0;
-//     let supplierReturn = 0;
-//     const monthlyCOGS = {};
-
-//     // 1. PRODUCTION RECORDS LOOP (Actual Cost calculation)
-//     productions.forEach((record) => {
-//       const date = new Date(record.createdAt);
-//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      
-//       const qtyFulfilled = Number(record.completedQuantity) || 0;
-//       const scrapQty = Number(record.scrapQuantity) || 0;
-      
-//       const partMaterialCost = parseFloat(record.PartNumber?.cost || 0);
-      
-//       // Labor Cost Calculation: (CycleTime in mins / 60) * RatePerHour
-//       const cycleTimeHours = (parseFloat(record.PartNumber?.cycleTime || 0)) / 60;
-//       const ratePerHour = record.process?.ratePerHour || 0;
-//       const unitLabor = cycleTimeHours * ratePerHour;
-
-//       // COGS = (Material + Labor) * Actual Completed Quantity
-//       const rowCOGS = (partMaterialCost + unitLabor) * qtyFulfilled;
-
-//       if (qtyFulfilled > 0) {
-//         totalCOGS += rowCOGS;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + rowCOGS;
-//       }
-
-//       // Production Scrap Cost = Scrap Qty * Material Cost
-//       if (scrapQty > 0) {
-//         totalScrapCost += (scrapQty * partMaterialCost);
-//       }
-//     });
-
-//     // 2. MANUAL SCRAP ENTRIES LOOP (Supplier Returns & Manual Adjustments)
-//     manualScrapEntries.forEach((entry) => {
-//       // scrapQuantity aur returnQuantity dono ko count kar rahe hain
-//       const qty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
-//       const partCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const cost = qty * partCost;
-      
-//       totalScrapCost += cost;
-
-//       // Supplier Return check
-//       if (entry.supplierId || entry.returnSupplierId || entry.type === "supplier") {
-//         supplierReturn += cost;
-//       }
-//     });
-
-//     res.json({
-//       success: true,
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       scrapCost: parseFloat(totalScrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       monthlyCOGS,
-//     });
-
-//   } catch (error) {
-//     console.error("Costing API Error:", error);
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-
 const costingApi = async (req, res) => {
   try {
     const { startDate, endDate, year } = req.query;
     let dateFilter = {};
 
-    // 1. Date Filtering Logic
+    // Date filtering logic
     if (startDate || endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -4326,67 +4218,79 @@ const costingApi = async (req, res) => {
 
     const [productions, manualScrapEntries] = await Promise.all([
       prisma.productionResponse.findMany({
-        where: { isDeleted: false, createdAt: dateFilter },
-        include: { PartNumber: true, process: true },
+        where: { 
+          isDeleted: false, 
+          createdAt: dateFilter 
+        },
+        include: { 
+          PartNumber: true, 
+          process: true     
+        },
       }),
       prisma.scapEntries.findMany({
-        where: { isDeleted: false, createdAt: dateFilter },
-        include: { PartNumber: true },
+        where: { 
+          isDeleted: false, 
+          createdAt: dateFilter 
+        },
+        include: { 
+          PartNumber: true 
+        },
       }),
     ]);
 
     let totalCOGS = 0;
-    let totalScrapCost = 0; // Production + Manual Scrap
-    let supplierReturn = 0; // Only Supplier related scrap cost
+    let totalScrapCost = 0;
+    let supplierReturn = 0;
     const monthlyCOGS = {};
 
-    // 2. PRODUCTION RECORDS LOOP
+    // 1. PRODUCTION RECORDS LOOP (Actual Cost calculation)
     productions.forEach((record) => {
       const date = new Date(record.createdAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       
       const qtyFulfilled = Number(record.completedQuantity) || 0;
       const scrapQty = Number(record.scrapQuantity) || 0;
+      
       const partMaterialCost = parseFloat(record.PartNumber?.cost || 0);
       
-      // Labor Cost Calculation
+      // Labor Cost Calculation: (CycleTime in mins / 60) * RatePerHour
       const cycleTimeHours = (parseFloat(record.PartNumber?.cycleTime || 0)) / 60;
       const ratePerHour = record.process?.ratePerHour || 0;
       const unitLabor = cycleTimeHours * ratePerHour;
 
-      // COGS calculation
+      // COGS = (Material + Labor) * Actual Completed Quantity
       const rowCOGS = (partMaterialCost + unitLabor) * qtyFulfilled;
+
       if (qtyFulfilled > 0) {
         totalCOGS += rowCOGS;
         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + rowCOGS;
       }
 
-      // Logic from Efficiency API: Production ke dauran hua scrap
+      // Production Scrap Cost = Scrap Qty * Material Cost
       if (scrapQty > 0) {
         totalScrapCost += (scrapQty * partMaterialCost);
       }
     });
 
-    // 3. MANUAL SCRAP ENTRIES LOOP (Efficiency API Logic)
+    // 2. MANUAL SCRAP ENTRIES LOOP (Supplier Returns & Manual Adjustments)
     manualScrapEntries.forEach((entry) => {
-      // Efficiency API ki tarah: Scrap + Return dono ki quantity
+      // scrapQuantity aur returnQuantity dono ko count kar rahe hain
       const qty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
       const partCost = parseFloat(entry.PartNumber?.cost || 0);
-      const entryTotalCost = qty * partCost;
+      const cost = qty * partCost;
       
-      // Total Scrap cost mein manual/supplier scrap bhi add karein
-      totalScrapCost += entryTotalCost;
+      totalScrapCost += cost;
 
-      // Supplier Return check (IDs or type based)
+      // Supplier Return check
       if (entry.supplierId || entry.returnSupplierId || entry.type === "supplier") {
-        supplierReturn += entryTotalCost;
+        supplierReturn += cost;
       }
     });
 
     res.json({
       success: true,
       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-      scrapCost: parseFloat(totalScrapCost.toFixed(2)), // Combined Production + Manual
+      scrapCost: parseFloat(totalScrapCost.toFixed(2)),
       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
       monthlyCOGS,
     });
