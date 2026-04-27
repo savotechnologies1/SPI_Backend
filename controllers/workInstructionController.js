@@ -31,7 +31,6 @@ const workInstructionProcess = async (req, res) => {
       .json({ message: "Something went wrong. Please try again later." });
   }
 };
-
 const productRelatedParts = async (req, res) => {
   try {
     const { productId } = req.query;
@@ -64,7 +63,6 @@ const productRelatedParts = async (req, res) => {
     });
   }
 };
-
 const createWorkInstruction = async (req, res) => {
   try {
     const { processId, productId } = req.body;
@@ -368,7 +366,6 @@ const selectInstructionPartNumber = async (req, res) => {
     res.status(500).json({ message: "Something went wrong ." });
   }
 };
-
 const selectWorkInstruction = async (req, res) => {
   try {
     const process = await prisma.workInstruction.findMany({
@@ -391,7 +388,6 @@ const selectWorkInstruction = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   } catch (error) {}
 };
-
 const updateWorkInstructionDetail = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -609,7 +605,6 @@ const updateWorkInstructionDetail = async (req, res) => {
     });
   }
 };
-
 const getOriginalInstructionId = async (type, workInstructionId, step) => {
   if (type === "original") return workInstructionId;
   if (step?.originalWorkInstructionId) return step?.originalWorkInstructionId;
@@ -620,7 +615,6 @@ const getOriginalInstructionId = async (type, workInstructionId, step) => {
   });
   return appliedData?.instructionId;
 };
-
 const getWorkInstructionDetail = async (req, res) => {
   const { id } = req.params;
   try {
@@ -769,7 +763,6 @@ const deleteWorkInstruction = async (req, res) => {
     });
   }
 };
-
 const selectInstruction = async (req, res) => {
   try {
     const process = await prisma.workInstruction.findMany({
@@ -789,7 +782,6 @@ const selectInstruction = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const applyWorkInstruction = async (req, res) => {
   try {
     const { workInstructionId, processId, productId } = req.body;
@@ -852,9 +844,7 @@ const applyWorkInstruction = async (req, res) => {
 };
 const selectByProductNumberOrDesc = async (req, res) => {
   try {
-    // Frontend se search query nikalna (e.g., ?search=123)
     const { search } = req.query;
-
     const whereCondition = {
       isDeleted: false,
       instructionRequired: true,
@@ -873,7 +863,7 @@ const selectByProductNumberOrDesc = async (req, res) => {
         partNumber: true,
         partDescription: true,
       },
-      take: 20, // Performance ke liye results limit karein
+      take: 20,
     });
 
     const formattedProcess = parts.map((part) => ({
@@ -886,7 +876,6 @@ const selectByProductNumberOrDesc = async (req, res) => {
       data: formattedProcess,
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).send({
       message: "Something went wrong. Please try again later.",
     });
@@ -911,7 +900,6 @@ const deleteWorkInstructionImg = async (req, res) => {
     });
   }
 };
-
 const deleteWorkInstructionStepsById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -934,7 +922,6 @@ const deleteWorkInstructionStepsById = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   workInstructionProcess,
   createWorkInstruction,

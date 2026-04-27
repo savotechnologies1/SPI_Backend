@@ -119,7 +119,6 @@ const importProcess = async (req, res) => {
     });
   }
 };
-
 const importParts = async (req, res) => {
   let filePath = null;
   try {
@@ -390,7 +389,6 @@ const importProductTree = async (req, res) => {
 
     for (const [pNumber, group] of Object.entries(groupedProducts)) {
       try {
-        console.log('groupgroup',group)
         const d = group.details;
         const csvCompName = d.companyName?.trim();
 
@@ -628,7 +626,6 @@ const importEmp = async (req, res) => {
     });
   }
 };
-
 const importSupp = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -743,7 +740,6 @@ const importSupp = async (req, res) => {
     });
   }
 };
-
 const importCust = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -859,7 +855,6 @@ const importCust = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   importProcess,
   importParts,

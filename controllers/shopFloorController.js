@@ -70,7 +70,6 @@ const login = async (req, res) => {
     });
   }
 };
-
 const sendForgotPasswordOTP = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -117,7 +116,6 @@ const sendForgotPasswordOTP = async (req, res) => {
     });
   }
 };
-
 const validOtp = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -176,7 +174,6 @@ const validOtp = async (req, res) => {
     });
   }
 };
-
 const resetPassword = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -227,7 +224,6 @@ const resetPassword = async (req, res) => {
       .json({ message: "Internal server error.", error: error.message });
   }
 };
-
 const checkToken = async (req, res) => {
   try {
     const user = await prisma.employee.findFirst({
@@ -270,7 +266,6 @@ const checkToken = async (req, res) => {
     });
   }
 };
-
 const employeeTimeLineDetail = async (req, res) => {
   try {
     const id = req.user?.id;
@@ -300,7 +295,6 @@ const employeeTimeLineDetail = async (req, res) => {
     });
   }
 };
-
 const getEmployeeStatus = async (req, res) => {
   try {
     const employeeId = req.user?.id;
@@ -335,7 +329,6 @@ const getEmployeeStatus = async (req, res) => {
     });
   }
 };
-
 const getEmployeeTimeline = async (req, res) => {
   try {
     const employeeId = req.user?.id;
@@ -377,7 +370,6 @@ const getEmployeeTimeline = async (req, res) => {
     });
   }
 };
-
 const createTimeLine = async (req, res) => {
   try {
     const employeeId = req.user.id;
@@ -406,7 +398,6 @@ const createTimeLine = async (req, res) => {
     });
   }
 };
-
 const vacationReq = async (req, res) => {
   try {
     const { startDate, endDate, hours, notes, employeeId } = req.body;
@@ -430,7 +421,6 @@ const vacationReq = async (req, res) => {
     });
   }
 };
-
 const profileDetail = async (req, res) => {
   try {
     const data = await prisma.employee.findFirst({
@@ -464,7 +454,6 @@ const profileDetail = async (req, res) => {
     });
   }
 };
-
 const updateProfileApi = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -508,7 +497,6 @@ const updateProfileApi = async (req, res) => {
     });
   }
 };
-
 const deleteProfileImage = async (req, res) => {
   try {
     await prisma.employee.update({
@@ -528,7 +516,6 @@ const deleteProfileImage = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   login,
   sendForgotPasswordOTP,

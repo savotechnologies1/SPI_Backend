@@ -62,7 +62,7 @@ cron.schedule(
         }
       }
     } catch (error) {
-      console.error("❌ Auto clock-out job failed:", error);
+      console.error("Auto clock-out job failed:", error);
     }
   },
   {

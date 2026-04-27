@@ -74,7 +74,6 @@ const login = async (req, res) => {
     });
   }
 };
-
 const sendForgotPasswordOTP = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -118,7 +117,6 @@ const sendForgotPasswordOTP = async (req, res) => {
     });
   }
 };
-
 const validOtp = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -175,7 +173,6 @@ const validOtp = async (req, res) => {
     });
   }
 };
-
 const resetPassword = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -226,7 +223,6 @@ const resetPassword = async (req, res) => {
       .json({ message: "Internal server error.", error: error.message });
   }
 };
-
 const checkToken = async (req, res) => {
   try {
     const user = await prisma.admin.findFirst({
@@ -267,7 +263,6 @@ const checkToken = async (req, res) => {
     });
   }
 };
-
 const createCustomer = async (req, res) => {
   const errors = validationResult(req);
   const checkValid = await checkValidations(errors);
@@ -314,7 +309,6 @@ const createCustomer = async (req, res) => {
     });
   }
 };
-
 const customerList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -396,7 +390,6 @@ const customerList = async (req, res) => {
     });
   }
 };
-
 const customerDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -416,7 +409,6 @@ const customerDetail = async (req, res) => {
     });
   }
 };
-
 const editCustomerDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -599,7 +591,6 @@ const supplierList = async (req, res) => {
     });
   }
 };
-
 const supplierDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -620,7 +611,6 @@ const supplierDetail = async (req, res) => {
     });
   }
 };
-
 const editSupplierDetail = async (req, res) => {
   try {
     const { firstName, lastName, companyName, email, address, billingTerms } =
@@ -663,7 +653,6 @@ const editSupplierDetail = async (req, res) => {
     });
   }
 };
-
 const deleteSupplier = async (req, res) => {
   try {
     const id = req.params.id;
@@ -687,7 +676,6 @@ const deleteSupplier = async (req, res) => {
     });
   }
 };
-
 const selectSupplier = async (req, res) => {
   try {
     const suppliers = await prisma.suppliers.findMany({
@@ -712,7 +700,6 @@ const selectSupplier = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const supplierOrder = async (req, res) => {
   try {
     const {
@@ -817,7 +804,6 @@ const supplierOrder = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const supplierOrderDetail = async (req, res) => {
   try {
     const { id } = req.params;
@@ -836,7 +822,6 @@ const supplierOrderDetail = async (req, res) => {
     });
   }
 };
-
 const sendSupplierEmail = async (req, res) => {
   try {
     const { id } = req.body;
@@ -981,7 +966,6 @@ const sendOrderToSupplier = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 const addProcess = async (req, res) => {
   try {
     const {
@@ -1028,7 +1012,6 @@ const addProcess = async (req, res) => {
     });
   }
 };
-
 const processList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -1085,7 +1068,6 @@ const processList = async (req, res) => {
     });
   }
 };
-
 const processDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1106,7 +1088,6 @@ const processDetail = async (req, res) => {
     });
   }
 };
-
 const editProcess = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1171,7 +1152,6 @@ const editProcess = async (req, res) => {
     });
   }
 };
-
 const deleteProcess = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1197,7 +1177,6 @@ const deleteProcess = async (req, res) => {
   } finally {
   }
 };
-
 const createEmployee = async (req, res) => {
   try {
     const getId = uuidv4().slice(0, 6);
@@ -1257,7 +1236,6 @@ const createEmployee = async (req, res) => {
     });
   }
 };
-
 const allEmployee = async (req, res) => {
   try {
     const { search = "", processLogin, status } = req.query;
@@ -1308,7 +1286,6 @@ const allEmployee = async (req, res) => {
     });
   }
 };
-
 const employeeDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1329,7 +1306,6 @@ const employeeDetail = async (req, res) => {
     });
   }
 };
-
 const editEmployee = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1379,7 +1355,6 @@ const editEmployee = async (req, res) => {
     });
   }
 };
-
 const deleteEmployee = async (req, res) => {
   try {
     const id = req.params.id;
@@ -1404,7 +1379,6 @@ const deleteEmployee = async (req, res) => {
     });
   }
 };
-
 const sendMailToEmplyee = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -1448,7 +1422,6 @@ const sendMailToEmplyee = async (req, res) => {
     });
   }
 };
-
 const createStockOrder = async (req, res) => {
   try {
     const {
@@ -1657,7 +1630,6 @@ const selectCustomer = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const selectProcess = async (req, res) => {
   try {
     const process = await prisma.process.findMany({
@@ -1740,7 +1712,6 @@ const selectPartNumber = async (req, res) => {
     });
   }
 };
-
 const selectProductNumber = async (req, res) => {
   try {
     const process = await prisma.PartNumber.findMany({
@@ -1810,7 +1781,6 @@ const customeOrder = async (req, res) => {
     });
   }
 };
-
 const createPartNumber = async (req, res) => {
   try {
     const fileData = await fileUploadFunc(req, res);
@@ -2140,7 +2110,6 @@ const createProductTree = async (req, res) => {
     });
   }
 };
-
 const getProductTree = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -2185,7 +2154,6 @@ const getProductTree = async (req, res) => {
     });
   }
 };
-
 const bomDataList = async (req, res) => {
   try {
     const paginationData = await paginationQuery(req.query);
@@ -2276,7 +2244,6 @@ const deleteProductPart = async (req, res) => {
     });
   }
 };
-
 const partNumberDetail = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2305,7 +2272,6 @@ const partNumberDetail = async (req, res) => {
     });
   }
 };
-
 const partDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -2347,7 +2313,6 @@ const partDetail = async (req, res) => {
     });
   }
 };
-
 const productDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -3095,25 +3060,25 @@ const searchCustomOrders = async (req, res) => {
     const { customerName, shipDate, partNumber, orderNumber } = req.query;
     const commonInclude = {
       customer: true,
-      product: { 
-        include: { 
-          components: { 
+      product: {
+        include: {
+          components: {
             include: {
               part: { select: { partNumber: true, partDescription: true, cost: true } }
             }
           }
-        } 
+        }
       },
       existingParts: {
         include: {
-          part: { 
-            include: { 
-              components: { 
+          part: {
+            include: {
+              components: {
                 include: {
                   part: { select: { partNumber: true, partDescription: true, cost: true } }
                 }
               }
-            } 
+            }
           },
           process: { select: { processName: true } },
         },
@@ -3123,7 +3088,7 @@ const searchCustomOrders = async (req, res) => {
       },
     };
 
-    const andConditions = [{status: "Pending", isDeleted: false }];
+    const andConditions = [{ status: "Pending", isDeleted: false }];
     if (orderNumber) {
       andConditions.push({ orderNumber: { contains: orderNumber.trim() } });
     }
@@ -3136,15 +3101,11 @@ const searchCustomOrders = async (req, res) => {
         ],
       });
     }
-    // ... Date filtering logic ...
-
     const orders = await prisma.customOrder.findMany({
       where: { AND: andConditions },
       include: commonInclude,
       orderBy: { createdAt: "desc" },
     });
-
-    // Formatting logic to structure the nested parts
     const formattedOrders = orders.map((order) => {
       const mappedExisting = (order.existingParts || []).map((ep) => ({
         id: ep.id,
@@ -3154,7 +3115,6 @@ const searchCustomOrders = async (req, res) => {
         qty: ep.quantity,
         processName: ep.process?.processName || "No Process",
         source: "Library",
-        // Sub-parts (Low level parts) ko yahan add kiya
         subComponents: (ep.part?.components || []).map(comp => ({
           partNumber: comp.part?.partNumber,
           description: comp.part?.partDescription,
@@ -3169,7 +3129,7 @@ const searchCustomOrders = async (req, res) => {
         qty: cp.quantity,
         processName: cp.process?.processName || "Manual Process",
         source: "Manual",
-        subComponents: [] // Manual parts usually don't have nested tree in this schema
+        subComponents: []
       }));
 
       return {
@@ -3183,129 +3143,9 @@ const searchCustomOrders = async (req, res) => {
       data: formattedOrders,
     });
   } catch (error) {
-    console.error("Search Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-// const searchCustomOrders = async (req, res) => {
-//   try {
-//     const { customerName, shipDate, partNumber, orderNumber } = req.query;
-
-//     const commonInclude = {
-//       customer: true,
-//       product: { select: { partNumber: true, partDescription: true } },
-//       existingParts: {
-//         include: {
-//           part: { select: { partNumber: true, partDescription: true } },
-//           process: { select: { processName: true } },
-//         },
-//       },
-//       customPart: {
-//         include: { process: { select: { processName: true } } },
-//       },
-//     };
-
-//     const andConditions = [{ isDeleted: false }];
-
-//     if (orderNumber) {
-//       andConditions.push({
-//         orderNumber: { contains: orderNumber.trim() },
-//       });
-//     }
-
-//     if (customerName) {
-//       const name = customerName.trim();
-//       andConditions.push({
-//         OR: [
-//           { customerName: { contains: name } },
-//           {
-//             customer: {
-//               OR: [
-//                 { firstName: { contains: name } },
-//                 { lastName: { contains: name } },
-//               ],
-//             },
-//           },
-//         ],
-//       });
-//     }
-
-//     if (shipDate) {
-//       const startOfDay = new Date(shipDate);
-//       startOfDay.setUTCHours(0, 0, 0, 0);
-
-//       const endOfDay = new Date(shipDate);
-//       endOfDay.setUTCHours(23, 59, 59, 999);
-
-//       andConditions.push({
-//         shipDate: {
-//           gte: startOfDay,
-//           lte: endOfDay,
-//         },
-//       });
-//     }
-
-//     if (partNumber) {
-//       const pNum = partNumber.trim();
-//       andConditions.push({
-//         OR: [
-//           { partNumber: { contains: pNum } },
-//           { product: { partNumber: { contains: pNum } } },
-//           {
-//             existingParts: {
-//               some: {
-//                 part: { partNumber: { contains: pNum } },
-//               },
-//             },
-//           },
-//           {
-//             customPart: {
-//               some: { partNumber: { contains: pNum } },
-//             },
-//           },
-//         ],
-//       });
-//     }
-
-//     const orders = await prisma.customOrder.findMany({
-//       where: { AND: andConditions },
-//       include: commonInclude,
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const formattedOrders = orders.map((order) => {
-//       const mappedExisting = (order.existingParts || []).map((ep) => ({
-//         id: ep.id,
-//         partId: ep.partId,
-//         partNumber: ep.part?.partNumber,
-//         partDescription: ep.part?.partDescription,
-//         qty: ep.quantity,
-//         processName: ep.process?.processName || "No Process",
-//         source: "Library",
-//       }));
-
-//       const mappedManual = (order.customPart || []).map((cp) => ({
-//         id: cp.id,
-//         partNumber: cp.partNumber,
-//         qty: cp.quantity,
-//         processName: cp.process?.processName || "Manual Process",
-//         source: "Manual",
-//       }));
-
-//       return {
-//         ...order,
-//         bomList: [...mappedExisting, ...mappedManual],
-//       };
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: formattedOrders,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 const stockOrderSchedule = async (req, res) => {
   const ordersToSchedule = req.body;
   try {
@@ -3466,9 +3306,7 @@ const customOrderSchedule = async (req, res) => {
     const payload = req.body;
     const adminId = req.user.id;
     const allPrismaPromises = [];
-    const customOrderIdsToUpdate = new Set(); // Unique Order IDs track karne ke liye
-
-    // Check user role for submission tracking
+    const customOrderIdsToUpdate = new Set();
     const submittedBy =
       req.user.role === "superAdmin"
         ? { submittedByAdmin: { connect: { id: req.user.id } } }
@@ -3476,8 +3314,6 @@ const customOrderSchedule = async (req, res) => {
 
     for (const item of payload) {
       if (!item.order_id) continue;
-
-      // Order ID ko set mein add karein taaki baad mein status update ho sake
       customOrderIdsToUpdate.add(item.order_id);
 
       const commonData = {
@@ -3486,7 +3322,6 @@ const customOrderSchedule = async (req, res) => {
         remainingQty: Number(item.quantity),
         delivery_date: new Date(item.delivery_date),
         status: item.status || "scheduled",
-        // Process connection
         ...(item.processId && { process: { connect: { id: item.processId } } }),
       };
 
@@ -3494,7 +3329,7 @@ const customOrderSchedule = async (req, res) => {
         where: {
           order_id_part_id_order_type: {
             order_id: item.order_id,
-            part_id: item.part_id || "", // Unique key ke liye empty string ya null handle karein
+            part_id: item.part_id || "",
             order_type: item.order_type || "CustomOrder",
           },
         },
@@ -3507,11 +3342,9 @@ const customOrderSchedule = async (req, res) => {
           order_id: item.order_id,
           order_type: item.order_type || "CustomOrder",
           type: item.type || "part",
-          // Relations connect karein
           ...(item.part_id && { part: { connect: { part_id: item.part_id } } }),
           ...(item.customPartId && { customPart: { connect: { id: item.customPartId } } }),
-          // CustomOrder table se link karne ke liye:
-          CustomOrder: { connect: { id: item.order_id } }, 
+          CustomOrder: { connect: { id: item.order_id } },
           ...submittedBy,
         },
       });
@@ -3520,10 +3353,7 @@ const customOrderSchedule = async (req, res) => {
     }
 
     if (allPrismaPromises.length > 0) {
-      // 1. Saare schedules ko database mein save karein
       await prisma.$transaction(allPrismaPromises);
-
-      // 2. MAIN STEP: CustomOrder table ka status "scheduled" update karein
       await prisma.customOrder.updateMany({
         where: {
           id: { in: Array.from(customOrderIdsToUpdate) },
@@ -3543,62 +3373,9 @@ const customOrderSchedule = async (req, res) => {
     return res.status(400).json({ message: "No valid orders found to schedule." });
 
   } catch (error) {
-    console.error("Custom Scheduling Error:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
-// const customOrderSchedule = async (req, res) => {
-//   try {
-//     const payload = req.body; 
-//     const adminId = req.user.id;
-//     for (const item of payload) {
-//       const existingRecord = await prisma.stockOrderSchedule.findFirst({
-//         where: {
-//           order_id: item.order_id,
-//           order_type: item.order_type,
-//           AND: [
-//             { part_id: item.part_id || null },
-//             { customPartId: item.customPartId || null }
-//           ]
-//         }
-//       });
-
-//       const commonData = {
-//         quantity: item.quantity,
-//         scheduleQuantity: item.quantity,
-//         remainingQty: item.quantity,
-//         delivery_date: new Date(item.delivery_date),
-//         status: item.status,
-//         process: item.processId ? { connect: { id: item.processId } } : undefined,
-//       };
-
-//       if (existingRecord) {
-//         await prisma.stockOrderSchedule.update({
-//           where: { id: existingRecord.id },
-//           data: commonData
-//         });
-//       } else {
-//         await prisma.stockOrderSchedule.create({
-//           data: {
-//             ...commonData,
-//             order_id: item.order_id,
-//             order_type: item.order_type,
-//             type: item.type || "part",
-//             part: item.part_id ? { connect: { part_id: item.part_id } } : undefined,
-//             customPart: item.customPartId ? { connect: { id: item.customPartId } } : undefined,
-//             submittedByAdmin: { connect: { id: adminId } }
-//           }
-//         });
-//       }
-//     }
-
-//     return res.status(200).json({ message: "Orders scheduled successfully!" });
-
-//   } catch (error) {
-//     console.error("Custom Scheduling Error:", error);
-//     return res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 const scheduleStockOrdersList = async (req, res) => {
   try {
     const { search, order_type } = req.query;
@@ -3609,14 +3386,14 @@ const scheduleStockOrdersList = async (req, res) => {
       whereClause.order_type = order_type;
     }
 
-if (search) {
+    if (search) {
       const searchTerm = search.trim();
       whereClause.OR = [
         { part: { partNumber: { contains: searchTerm } } },
         { customPart: { partNumber: { contains: searchTerm } } },
         { status: { contains: searchTerm } },
-      
-        { process: { processName: { contains: searchTerm } } } 
+
+        { process: { processName: { contains: searchTerm } } }
       ];
     }
     const [filteredSchedules, totalCount] = await Promise.all([
@@ -3635,10 +3412,10 @@ if (search) {
       prisma.stockOrderSchedule.count({ where: whereClause }),
     ]);
 
-const performerIds = [...new Set([
-  ...filteredSchedules.map((s) => s.completed_by),
-  ...filteredSchedules.map((s) => s.completed_EmpId) 
-].filter(Boolean))];
+    const performerIds = [...new Set([
+      ...filteredSchedules.map((s) => s.completed_by),
+      ...filteredSchedules.map((s) => s.completed_EmpId)
+    ].filter(Boolean))];
     const [admins, employees] = await Promise.all([
       prisma.admin.findMany({ where: { id: { in: performerIds } }, select: { id: true, name: true } }),
       prisma.employee.findMany({ where: { id: { in: performerIds } }, select: { id: true, firstName: true, lastName: true } }),
@@ -3664,18 +3441,18 @@ const performerIds = [...new Set([
       const type = schedule.order_type?.replace(/\s/g, "");
       const orderDetails = type === "StockOrder" ? stockMap.get(schedule.order_id) : customMap.get(schedule.order_id);
 
-      const mainProduct = type === "StockOrder" 
-        ? orderDetails?.productNumber 
+      const mainProduct = type === "StockOrder"
+        ? orderDetails?.productNumber
         : (orderDetails?.product?.partNumber || orderDetails?.partNumber || "Manual");
-      const isParent = (type === "CustomOrder" && schedule.part_id === orderDetails?.productId) || 
-                       (type === "StockOrder" && schedule.part_id === orderDetails?.partId);
+      const isParent = (type === "CustomOrder" && schedule.part_id === orderDetails?.productId) ||
+        (type === "StockOrder" && schedule.part_id === orderDetails?.partId);
 
       const displayCompletedBy = nameMap.get(schedule.completed_by) || schedule.completed_by || "Admin";
 
       return {
         ...schedule,
         mainProductName: mainProduct,
-        isParent: isParent, 
+        isParent: isParent,
         completed_by: displayCompletedBy,
         order: orderDetails,
         partDetails: {
@@ -3713,7 +3490,6 @@ const deleteProductTreeById = async (req, res) => {
       message: "deleteProductTreeById deleted successfully !",
     });
   } catch (error) {
-    console.log(error)
     return res.status(500).json({
       message: "Something went wrong . please try again later .",
     });
@@ -4098,7 +3874,7 @@ const checkStockQuantity = async (req, res) => {
     return res.status(200).json({
       message: "Stock quantity ",
     });
-  } catch (error) {}
+  } catch (error) { }
 };
 
 const getSupplierInventory = async (req, res) => {
@@ -4361,7 +4137,7 @@ const allEmployeeTimeLine = async (req, res) => {
       ...(isSuperAdmin && { createdBy: req.user?.id }),
       ...(queryEmployeeId && { employeeId: queryEmployeeId }),
       ...(startDateFilter && endDateFilter && {
-          timestamp: { gte: startDateFilter, lte: endDateFilter },
+        timestamp: { gte: startDateFilter, lte: endDateFilter },
       }),
     };
 
@@ -4414,12 +4190,12 @@ const allEmployeeTimeLine = async (req, res) => {
       const endDay = toLocalDateString(end);
 
       let tempDate = new Date(current);
-      
+
       while (toLocalDateString(tempDate) <= endDay) {
         const dateKey = toLocalDateString(tempDate);
-        
+
         if (dateKey === endDay && end.getHours() === 0 && end.getMinutes() === 0 && dateKey !== startDay) {
-           break;
+          break;
         }
 
         const uniqueKey = `${v.employeeId}_${dateKey}`;
@@ -4466,8 +4242,8 @@ const allEmployeeTimeLine = async (req, res) => {
 
     if (search) {
       const lowerSearch = search.toLowerCase();
-      timeSheetData = timeSheetData.filter(e => 
-        e.employeeName.toLowerCase().includes(lowerSearch) || 
+      timeSheetData = timeSheetData.filter(e =>
+        e.employeeName.toLowerCase().includes(lowerSearch) ||
         e.vacationStatus.toLowerCase().includes(lowerSearch)
       );
     }
@@ -4488,7 +4264,6 @@ const allEmployeeTimeLine = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error en TimeSheet:", error);
     return res.status(500).send({ message: "Internal Server Error" });
   }
 };
@@ -4597,7 +4372,6 @@ const vacationReqDetail = async (req, res) => {
     });
   }
 };
-
 const changeVacationRequestStatus = async (req, res) => {
   try {
     const { id, status } = req.body;
@@ -4710,9 +4484,8 @@ const timeClockList = async (req, res) => {
 
       return {
         id: item.id,
-        name: `${item.employeeInfo?.firstName || ""} ${
-          item.employeeInfo?.lastName || ""
-        }`,
+        name: `${item.employeeInfo?.firstName || ""} ${item.employeeInfo?.lastName || ""
+          }`,
         email: item.employeeInfo?.email || "",
         process: item.process?.processName || "N/A",
         machineName: item.process?.machineName || "N/A",
@@ -4758,9 +4531,8 @@ const sendVacationStatus = async (req, res) => {
       return res.status(400).send({ message: "Employee not found" });
     }
 
-    const fullName = `${user.employee?.firstName || ""} ${
-      user.employee?.lastName || ""
-    }`.trim();
+    const fullName = `${user.employee?.firstName || ""} ${user.employee?.lastName || ""
+      }`.trim();
     let statusMessage = "";
     let statusColor = "";
     let statusBgColor = "";
@@ -4840,7 +4612,6 @@ const getLiveProduction = async (req, res) => {
     res.status(500).json({ message: "Error fetching live production data" });
   }
 };
-
 const getDayRange = (dateString) => {
   const startOfDay = moment(dateString).startOf("day").toDate();
   const endOfDay = moment(dateString).endOf("day").toDate();
@@ -4989,7 +4760,6 @@ function parseCycleTime(cycleTimeStr) {
   const minutes = Number(cycleTimeStr.trim());
   return isNaN(minutes) ? 0 : minutes;
 }
-
 const processHourly = async (req, res) => {
   try {
     const tz = req.query.tz || "UTC";
@@ -5319,589 +5089,6 @@ const liveProductionGoalBoard = async (req, res) => {
       .json({ error: "Internal Server Error", details: error.message });
   }
 };
-// const currentStatusOverview = async (req, res) => {
-//   try {
-//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
-
-//     const todayStart = startDate
-//       ? moment.tz(startDate, tz).startOf("day").toDate()
-//       : moment.tz(tz).startOf("day").toDate();
-//     const todayEnd = endDate
-//       ? moment.tz(endDate, tz).endOf("day").toDate()
-//       : moment.tz(tz).endOf("day").toDate();
-
-//     const dateFilter = { gte: todayStart, lte: todayEnd };
-
-//     const [stockOrders, scrapEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: { isDeleted: false, updatedAt: dateFilter },
-//         include: {
-//           part: { select: { partDescription: true, partNumber: true } },
-//           process: {
-//             select: { processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, updatedAt: dateFilter },
-//         include: {
-//           PartNumber: {
-//             select: {
-//               partDescription: true,
-//               partNumber: true,
-//               process: {
-//                 select: {
-//                   processName: true,
-//                   machineName: true,
-//                   cycleTime: true,
-//                 },
-//               },
-//             },
-//           },
-//           process: {
-//             select: { processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//     ]);
-
-//     let totalActual = 0;
-//     let totalScrap = 0;
-//     let totalScheduled = 0;
-//     const completedDetails = [];
-
-//     // 1. Stock Orders calculation
-//     stockOrders.forEach((order) => {
-//       const actual = Number(order.completedQuantity) || 0;
-//       const scheduled = Number(order.scheduleQuantity) || 0;
-//       const scrap = Number(order.scrapQuantity) || 0;
-
-//       totalActual += actual;
-//       totalScheduled += scheduled;
-//       totalScrap += scrap;
-
-//       if (actual > 0 || scrap > 0) {
-//         const cycleTime = order.process?.cycleTime
-//           ? parseFloat(order.process.cycleTime)
-//           : 0;
-//         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
-
-//         // Productivity Calculation (Actual / Scheduled)
-//         let rowProductivity = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-//         // Efficiency Calculation (Total Output / Scheduled)
-//         let rowEfficiency =
-//           scheduled > 0 ? ((actual + scrap) / scheduled) * 100 : 0;
-
-//         completedDetails.push({
-//           processName: order.process?.processName || "Production",
-//           machineName: order.process?.machineName || "N/A",
-//           partNumber: order.part?.partNumber || "N/A",
-//           partDescription: order.part?.partDescription || "N/A",
-//           actual: actual,
-//           scheduled: scheduled,
-//           scrap: scrap,
-//           targetPerHour: targetPerHour,
-//           // 100% maximum limit apply ki gayi hai
-//           productivity: Math.min(rowProductivity, 100).toFixed(2),
-//           efficiency: Math.min(rowEfficiency, 100).toFixed(2),
-//           type: "Production",
-//           lastAction: order.updatedAt,
-//         });
-//       }
-//     });
-
-//     // 2. Manual Scrap Entries (इनका productivity 0 रहेगा क्योंकि schedule नहीं है)
-//     scrapEntries.forEach((entry) => {
-//       const sQty =
-//         Number(entry.scrapQuantity) || Number(entry.returnQuantity) || 0;
-
-//       if (sQty > 0) {
-//         totalScrap += sQty;
-//         const processInfo = entry.process || entry.PartNumber?.process;
-//         const cycleTime = processInfo?.cycleTime
-//           ? parseFloat(processInfo.cycleTime)
-//           : 0;
-//         const targetPerHour = cycleTime > 0 ? Math.round(60 / cycleTime) : 0;
-
-//         completedDetails.push({
-//           processName: processInfo?.processName || "Manual Entry",
-//           machineName: processInfo?.machineName || "N/A",
-//           partNumber: entry.PartNumber?.partNumber || "N/A",
-//           partDescription: entry.PartNumber?.partDescription || "N/A",
-//           actual: 0,
-//           scheduled: 0,
-//           scrap: sQty,
-//           targetPerHour: targetPerHour,
-//           productivity: "0.00",
-//           efficiency: "0.00",
-//           type: entry.type || "Return/Scrap",
-//           lastAction: entry.updatedAt,
-//         });
-//       }
-//     });
-
-//     // 3. Overall Summary Calculations
-//     const overallProductivityRaw =
-//       totalScheduled > 0 ? (totalActual / totalScheduled) * 100 : 0;
-//     const overallEfficiencyRaw =
-//       totalScheduled > 0
-//         ? ((totalActual + totalScrap) / totalScheduled) * 100
-//         : 0;
-
-//     res.json({
-//       summary: {
-//         totalActual,
-//         totalScrap,
-//         totalScheduled,
-//         totalOrders: stockOrders.length,
-//         // Overall metrics also capped at 100%
-//         productivity: Math.min(overallProductivityRaw, 100).toFixed(2),
-//         efficiency: Math.min(overallEfficiencyRaw, 100).toFixed(2),
-//       },
-//       details: completedDetails,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: "Internal Error", details: error.message });
-//   }
-// };
-
-// const currentStatusOverview = async (req, res) => {
-//   try {
-//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
-
-//     // Date Filtering (Moment logic as per your first snippet)
-//     const todayStart = startDate
-//       ? moment.tz(startDate, tz).startOf("day").toDate()
-//       : moment.tz(tz).startOf("day").toDate();
-//     const todayEnd = endDate
-//       ? moment.tz(endDate, tz).endOf("day").toDate()
-//       : moment.tz(tz).endOf("day").toDate();
-
-//     const dateFilter = { gte: todayStart, lte: todayEnd };
-
-//     const [stockOrders, scrapEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: { isDeleted: false, updatedAt: dateFilter },
-//         include: {
-//           part: { select: { partDescription: true, partNumber: true } },
-//           process: {
-//             select: { processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, updatedAt: dateFilter },
-//         include: {
-//           PartNumber: {
-//             select: {
-//               partDescription: true,
-//               partNumber: true,
-//               process: {
-//                 select: { processName: true, machineName: true, cycleTime: true },
-//               },
-//             },
-//           },
-//           process: {
-//             select: { processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//     ]);
-
-//     // Grouping Map - Jaise monitorChartsData mein manualGrouped tha
-//     const groupedData = {};
-
-//     let totalActual = 0;
-//     let totalScrap = 0;
-//     let totalScheduled = 0;
-
-//     // 1. Process Stock Orders (Manual Production)
-//     stockOrders.forEach((order) => {
-//       const pName = order.process?.processName || "Production";
-//       const mName = order.process?.machineName || "N/A";
-//       const partD = order.part?.partDescription || order.part?.partNumber || "N/A";
-//       const key = `${pName}-${mName}-${partD}`;
-
-//       const actual = Number(order.completedQuantity) || 0;
-//       const scheduled = Number(order.scheduleQuantity) || 0;
-//       const scrap = Number(order.scrapQuantity) || 0;
-
-//       if (!groupedData[key]) {
-//         groupedData[key] = {
-//           processName: pName,
-//           machineName: mName,
-//           partNumber: order.part?.partNumber || "N/A",
-//           partDescription: partD,
-//           actual: 0,
-//           scheduled: 0,
-//           scrap: 0,
-//           cycleTime: order.process?.cycleTime ? parseFloat(order.process.cycleTime) : 0,
-//           type: "Production",
-//           lastAction: order.updatedAt
-//         };
-//       }
-
-//       groupedData[key].actual += actual;
-//       groupedData[key].scheduled += scheduled;
-//       groupedData[key].scrap += scrap;
-      
-//       totalActual += actual;
-//       totalScheduled += scheduled;
-//       totalScrap += scrap;
-//     });
-
-//     // 2. Process Manual Scrap Entries (and merge if process/part matches)
-//     scrapEntries.forEach((entry) => {
-//       const procInfo = entry.process || entry.PartNumber?.process;
-//       const pName = procInfo?.processName || "Manual Entry";
-//       const mName = procInfo?.machineName || "N/A";
-//       const partD = entry.PartNumber?.partDescription || entry.PartNumber?.partNumber || "Manual Scrap";
-//       const key = `${pName}-${mName}-${partD}`;
-
-//       // Monitor logic uses returnQuantity or scrapQuantity
-//       const sQty = Number(entry.returnQuantity) || Number(entry.scrapQuantity) || 0;
-
-//       if (sQty > 0) {
-//         if (!groupedData[key]) {
-//           groupedData[key] = {
-//             processName: pName,
-//             machineName: mName,
-//             partNumber: entry.PartNumber?.partNumber || "N/A",
-//             partDescription: partD,
-//             actual: 0,
-//             scheduled: 0,
-//             scrap: 0,
-//             cycleTime: procInfo?.cycleTime ? parseFloat(procInfo.cycleTime) : 0,
-//             type: entry.type || "Return/Scrap",
-//             lastAction: entry.updatedAt
-//           };
-//         }
-//         groupedData[key].scrap += sQty;
-//         totalScrap += sQty;
-//       }
-//     });
-
-//     // 3. Final Calculation for each Row (Productivity & Efficiency)
-//     const completedDetails = Object.values(groupedData).map((item) => {
-//       const targetPerHour = item.cycleTime > 0 ? Math.round(60 / item.cycleTime) : 0;
-      
-//       // Productivity (Actual / Scheduled)
-//       let rowProductivity = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-//       // Efficiency ((Actual + Scrap) / Scheduled)
-//       let rowEfficiency = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
-
-//       return {
-//         ...item,
-//         targetPerHour,
-//         productivity: Math.min(rowProductivity, 100).toFixed(2),
-//         efficiency: Math.min(rowEfficiency, 100).toFixed(2),
-//       };
-//     });
-
-//     // 4. Overall Summary
-//     const overallProductivity = totalScheduled > 0 ? (totalActual / totalScheduled) * 100 : 0;
-//     const overallEfficiency = totalScheduled > 0 ? ((totalActual + totalScrap) / totalScheduled) * 100 : 0;
-
-//     res.json({
-//       summary: {
-//         totalActual,
-//         totalScrap,
-//         totalScheduled,
-//         totalOrders: stockOrders.length,
-//         productivity: Math.min(overallProductivity, 100).toFixed(2),
-//         efficiency: Math.min(overallEfficiency, 100).toFixed(2),
-//       },
-//       details: completedDetails,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: "Internal Error", details: error.message });
-//   }
-// };
-
-// const currentStatusOverview = async (req, res) => {
-//   try {
-//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
-//     let start, end;
-//     if (startDate && endDate) {
-//       start = moment.tz(startDate, tz).startOf("day").toDate();
-//       end = moment.tz(endDate, tz).endOf("day").toDate();
-//     } else {
-//       start = moment.tz(tz).startOf("day").toDate();
-//       end = moment.tz(tz).endOf("day").toDate();
-//     }
-
-//     const dateFilter = { gte: start, lte: end };
-
-//     const [stockOrders, scrapEntriesRecords] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter
-//         },
-//         include: {
-//           part: { select: { partDescription: true, partNumber: true } },
-//           process: {
-//             select: { id: true, processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter 
-//         },
-//         include: {
-//           PartNumber: { select: { partDescription: true, partNumber: true, process: true } },
-//           process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
-//         },
-//       }),
-//     ]);
-
-//     let totalActual = 0;
-//     let totalScheduled = 0;
-//     let totalScrap = 0;
-    
-//     const detailsMap = {};
-
-//     stockOrders.forEach((order) => {
-//       const scheduled = Number(order.scheduleQuantity) || 0;
-//       const actual = Number(order.completedQuantity) || 0;
-//       const scrap = Number(order.scrapQuantity) || 0;
-
-//       totalScheduled += scheduled;
-//       totalActual += actual;
-//       totalScrap += scrap;
-
-//       const pName = order.process?.processName || "Production";
-//       const mName = order.process?.machineName || "N/A";
-//       const partNo = order.part?.partNumber || "N/A";
-//       const key = `${pName}-${mName}-${partNo}`;
-
-//       if (!detailsMap[key]) {
-//         detailsMap[key] = {
-//           processName: pName,
-//           machineName: mName,
-//           partNumber: partNo,
-//           partDescription: order.part?.partDescription || partNo,
-//           scheduled: 0,
-//           actual: 0,
-//           scrap: 0,
-//           cycleTime: order.process?.cycleTime ? parseFloat(order.process.cycleTime) : 0,
-//           type: "Production",
-//         };
-//       }
-
-//       detailsMap[key].scheduled += scheduled;
-//       detailsMap[key].actual += actual;
-//       detailsMap[key].scrap += scrap;
-//     });
-
-//     scrapEntriesRecords.forEach((entry) => {
-//       const sQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
-//       if (sQty <= 0) return;
-
-//       totalScrap += sQty;
-
-//       const procInfo = entry.process || entry.PartNumber?.process;
-//       const pName = procInfo?.processName || "Manual Scrap";
-//       const mName = procInfo?.machineName || "N/A";
-//       const partNo = entry.PartNumber?.partNumber || "N/A";
-//       const key = `${pName}-${mName}-${partNo}`;
-
-//       if (!detailsMap[key]) {
-//         detailsMap[key] = {
-//           processName: pName,
-//           machineName: mName,
-//           partNumber: partNo,
-//           partDescription: entry.PartNumber?.partDescription || partNo,
-//           scheduled: 0,
-//           actual: 0,
-//           scrap: 0,
-//           cycleTime: procInfo?.cycleTime ? parseFloat(procInfo.cycleTime) : 0,
-//           type: "Manual Entry",
-//         };
-//       }
-//       detailsMap[key].scrap += sQty;
-//     });
-
-//     const details = Object.values(detailsMap).map((item) => {
-//       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-//       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
-
-//       return {
-//         ...item,
-//         productivity: Math.min(prodRaw, 100).toFixed(2),
-//         efficiency: Math.min(effRaw, 100).toFixed(2),
-//         targetPerHour: item.cycleTime > 0 ? Math.round(60 / item.cycleTime) : 0
-//       };
-//     });
-
-//     const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : 0;
-//     const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : 0;
-
-//     res.json({
-//       summary: {
-//         totalScheduled,     
-//         totalActual,         
-//         totalScrap,         
-//         progressPercent: `${overallProgress}%`,
-//         scrapRatePercent: `${overallScrapRate}%`
-//       },
-//       details: details.sort((a, b) => b.scheduled - a.scheduled)
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ error: "Internal Error", details: error.message });
-//   }
-// };
-
-// const currentStatusOverview = async (req, res) => {
-//   try {
-//     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
-//     let start, end;
-
-//     if (startDate && endDate) {
-//       start = moment.tz(startDate, tz).startOf("day").toDate();
-//       end = moment.tz(endDate, tz).endOf("day").toDate();
-//     } else {
-//       start = moment.tz(tz).startOf("day").toDate();
-//       end = moment.tz(tz).endOf("day").toDate();
-//     }
-
-//     const dateFilter = { gte: start, lte: end };
-
-//     const [productions, scrapEntriesRecords] = await Promise.all([
-//       // 1. StockOrderSchedule ki jagah ProductionResponse se data le rahe hain
-//       prisma.productionResponse.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter
-//         },
-//         include: {
-//           // Schema ke mutabiq PartNumber aur process relations use kar rahe hain
-//           PartNumber: { select: { partDescription: true, partNumber: true } },
-//           process: {
-//             select: { id: true, processName: true, machineName: true, cycleTime: true },
-//           },
-//         },
-//       }),
-//       // 2. Scrap entries manual entries ke liye
-//       prisma.scapEntries.findMany({
-//         where: { 
-//           isDeleted: false, 
-//           createdAt: dateFilter 
-//         },
-//         include: {
-//           PartNumber: { select: { partDescription: true, partNumber: true, process: true } },
-//           process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
-//         },
-//       }),
-//     ]);
-
-//     let totalActual = 0;
-//     let totalScheduled = 0;
-//     let totalScrap = 0;
-    
-//     const detailsMap = {};
-
-//     // PRODUCTION DATA PROCESSING
-//     productions.forEach((record) => {
-//       // ProductionResponse table ke columns use kar rahe hain
-//       const scheduled = Number(record.scheduleQuantity) || 0;
-//       const actual = Number(record.completedQuantity) || 0;
-//       const scrap = Number(record.scrapQuantity) || 0;
-
-//       totalScheduled += scheduled;
-//       totalActual += actual;
-//       totalScrap += scrap;
-
-//       const pName = record.process?.processName || "Production";
-//       const mName = record.process?.machineName || "N/A";
-//       const partNo = record.PartNumber?.partNumber || "N/A";
-//       const key = `${pName}-${mName}-${partNo}`;
-
-//       if (!detailsMap[key]) {
-//         detailsMap[key] = {
-//           processName: pName,
-//           machineName: mName,
-//           partNumber: partNo,
-//           partDescription: record.PartNumber?.partDescription || partNo,
-//           scheduled: 0,
-//           actual: 0,
-//           scrap: 0,
-//           cycleTime: record.process?.cycleTime ? parseFloat(record.process.cycleTime) : 0,
-//           type: "Production",
-//         };
-//       }
-
-//       detailsMap[key].scheduled += scheduled;
-//       detailsMap[key].actual += actual;
-//       detailsMap[key].scrap += scrap;
-//     });
-
-//     // SCAP ENTRIES PROCESSING
-//     scrapEntriesRecords.forEach((entry) => {
-//       const sQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
-//       if (sQty <= 0) return;
-
-//       totalScrap += sQty;
-
-//       const procInfo = entry.process || entry.PartNumber?.process;
-//       const pName = procInfo?.processName || "Manual Scrap";
-//       const mName = procInfo?.machineName || "N/A";
-//       const partNo = entry.PartNumber?.partNumber || "N/A";
-//       const key = `${pName}-${mName}-${partNo}`;
-
-//       if (!detailsMap[key]) {
-//         detailsMap[key] = {
-//           processName: pName,
-//           machineName: mName,
-//           partNumber: partNo,
-//           partDescription: entry.PartNumber?.partDescription || partNo,
-//           scheduled: 0,
-//           actual: 0,
-//           scrap: 0,
-//           cycleTime: procInfo?.cycleTime ? parseFloat(procInfo.cycleTime) : 0,
-//           type: "Manual Entry",
-//         };
-//       }
-//       detailsMap[key].scrap += sQty;
-//     });
-
-//     // Final calculations for each detail row
-//     const details = Object.values(detailsMap).map((item) => {
-//       // Productivity: Actual vs Scheduled
-//       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-//       // Efficiency: (Actual + Scrap) vs Scheduled (Yani kitna kaam process hua)
-//       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
-
-//       return {
-//         ...item,
-//         productivity: Math.min(prodRaw, 100).toFixed(2) + "%",
-//         efficiency: Math.min(effRaw, 100).toFixed(2) + "%",
-//         targetPerHour: item.cycleTime > 0 ? Math.round(60 / item.cycleTime) : 0
-//       };
-//     });
-
-//     const overallProgress = totalScheduled > 0 ? ((totalActual / totalScheduled) * 100).toFixed(1) : 0;
-//     const overallScrapRate = totalScheduled > 0 ? ((totalScrap / totalScheduled) * 100).toFixed(1) : 0;
-
-//     res.json({
-//       summary: {
-//         totalScheduled,     
-//         totalActual,         
-//         totalScrap,         
-//         progressPercent: `${overallProgress}%`,
-//         scrapRatePercent: `${overallScrapRate}%`
-//       },
-//       details: details.sort((a, b) => b.scheduled - a.scheduled)
-//     });
-
-//   } catch (error) {
-//     console.error("Overview API Error:", error);
-//     res.status(500).json({ error: "Internal Error", details: error.message });
-//   }
-// };
 const currentStatusOverview = async (req, res) => {
   try {
     const { startDate, endDate, tz = "Asia/Kolkata" } = req.query;
@@ -5911,7 +5098,6 @@ const currentStatusOverview = async (req, res) => {
       start = moment.tz(startDate, tz).startOf("day").toDate();
       end = moment.tz(endDate, tz).endOf("day").toDate();
     } else {
-      // Default: Aaj ka din (1 March se 10 April wala logic aap query params se bhej sakte hain)
       start = moment.tz(tz).startOf("day").toDate();
       end = moment.tz(tz).endOf("day").toDate();
     }
@@ -5919,7 +5105,6 @@ const currentStatusOverview = async (req, res) => {
     const dateFilter = { gte: start, lte: end };
 
     const [schedules, productions] = await Promise.all([
-      // 1. Scheduled Quantity yahan se aayegi
       prisma.stockOrderSchedule.findMany({
         where: { isDeleted: false, createdAt: dateFilter },
         include: {
@@ -5927,7 +5112,6 @@ const currentStatusOverview = async (req, res) => {
           process: { select: { id: true, processName: true, machineName: true, cycleTime: true } },
         },
       }),
-      // 2. Completed aur Scrap Quantity yahan se aayegi
       prisma.productionResponse.findMany({
         where: { isDeleted: false, createdAt: dateFilter },
         include: {
@@ -5940,10 +5124,8 @@ const currentStatusOverview = async (req, res) => {
     let totalScheduled = 0;
     let totalActual = 0;
     let totalScrap = 0;
-    
-    const detailsMap = {};
 
-    // 1. Pehle Schedules process karein (Baseline taiyar karne ke liye)
+    const detailsMap = {};
     schedules.forEach((sch) => {
       const scheduledQty = Number(sch.scheduleQuantity || sch.quantity) || 0;
       totalScheduled += scheduledQty;
@@ -5967,8 +5149,6 @@ const currentStatusOverview = async (req, res) => {
       }
       detailsMap[key].scheduled += scheduledQty;
     });
-
-    // 2. Ab Production data process karein (Actual performance ke liye)
     productions.forEach((prod) => {
       const actualQty = Number(prod.completedQuantity) || 0;
       const scrapQty = Number(prod.scrapQuantity) || 0;
@@ -5980,8 +5160,6 @@ const currentStatusOverview = async (req, res) => {
       const mName = prod.process?.machineName || "N/A";
       const partNo = prod.PartNumber?.partNumber || "N/A";
       const key = `${pName}-${mName}-${partNo}`;
-
-      // Agar koi aisi production hai jiska schedule nahi mila, toh naya entry banayenge
       if (!detailsMap[key]) {
         detailsMap[key] = {
           processName: pName,
@@ -5998,12 +5176,8 @@ const currentStatusOverview = async (req, res) => {
       detailsMap[key].actual += actualQty;
       detailsMap[key].scrap += scrapQty;
     });
-
-    // Calculations for Response
     const details = Object.values(detailsMap).map((item) => {
-      // Productivity = (Sahi pieces / Target)
       const prodRaw = item.scheduled > 0 ? (item.actual / item.scheduled) * 100 : 0;
-      // Efficiency = (Total effort / Target)
       const effRaw = item.scheduled > 0 ? ((item.actual + item.scrap) / item.scheduled) * 100 : 0;
 
       return {
@@ -6019,9 +5193,9 @@ const currentStatusOverview = async (req, res) => {
 
     res.json({
       summary: {
-        totalScheduled,     
-        totalActual,         
-        totalScrap,         
+        totalScheduled,
+        totalActual,
+        totalScrap,
         progressPercent: `${overallProgress}%`,
         scrapRatePercent: `${overallScrapRate}%`
       },
@@ -6029,7 +5203,6 @@ const currentStatusOverview = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Overview API Error:", error);
     res.status(500).json({ error: "Internal Error", details: error.message });
   }
 };
@@ -6101,748 +5274,6 @@ const currentQualityStatusOverview = async (req, res) => {
       .json({ error: "Internal Server Error", details: error.message });
   }
 };
-
-// const monitorChartsData = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     let start, end;
-//     if (startDate && endDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       end = new Date(endDate);
-//       end.setHours(23, 59, 59, 999);
-//     } else {
-//       const today = new Date();
-//       start = new Date(today.setHours(0, 0, 0, 0));
-//       end = new Date(today.setHours(23, 59, 59, 999));
-//     }
-
-//     const manualData = await prisma.stockOrderSchedule.findMany({
-//       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-//       include: {
-//         part: { select: { partNumber: true, partDescription: true } },
-//         customPart: { select: { partNumber: true } },
-//         CustomOrder: { select: { partNumber: true } },
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-//     const manualGrouped = {};
-//     manualData.forEach((item) => {
-//       const pDisplay = `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`;
-
-//       const partD =
-//         item.part?.partDescription ||
-//         item.part?.partNumber ||
-//         item.customPart?.partNumber ||
-//         item.CustomOrder?.partNumber ||
-//         "Custom Part";
-
-//       const key = `${pDisplay}-${partD}`;
-
-//       if (!manualGrouped[key]) {
-//         manualGrouped[key] = {
-//           process: pDisplay,
-//           part: partD,
-//           qty: 0,
-//           scrap: 0,
-//         };
-//       }
-//       manualGrouped[key].qty += item.completedQuantity || 0;
-//       manualGrouped[key].scrap += item.scrapQuantity || 0;
-//     });
-
-//     const productionData = await prisma.productionResponse.findMany({
-//       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
-//       include: {
-//         PartNumber: { select: { partNumber: true, partDescription: true } },
-//         CustomOrder: { select: { partNumber: true } },
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-// const monitorTable = productionData
-//   .filter((item) => item.completedQuantity > 0 || item.scrapQuantity > 0)
-//   .map((item) => {
-//     const sTime = new Date(item.cycleTimeStart).getTime();
-//     const eTime = item.cycleTimeEnd ? new Date(item.cycleTimeEnd).getTime() : new Date().getTime();
-    
-//     const actual = Number(item.completedQuantity || 0);
-    
-//     // FIX: Quantity se divide karke minutes mein nikalein (Dive logic)
-//     let diffMinutes = 0;
-//     if (actual > 0) {
-//         diffMinutes = (eTime - sTime) / (1000 * 60) / actual;
-//     }
-
-//     return {
-//       process: `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`,
-//       part: item.PartNumber?.partDescription || item.PartNumber?.partNumber || item.CustomOrder?.partNumber || "Custom Part",
-//       // Minutes mein display karein taaki Dive se match ho
-//       cycleTime: `${diffMinutes.toFixed(2)} min`, 
-//       // Agar seconds mein hi chahiye par per piece wala:
-//       // cycleTime: `${(diffMinutes * 60).toFixed(0)} sec` 
-//     };
-//   });
-//     const scrapEntries = await prisma.scapEntries.findMany({
-//       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-//       include: {
-//         PartNumber: { select: { partNumber: true, partDescription: true } },
-//         process: { select: { processName: true, machineName: true } },
-//         StockOrder: { select: { orderNumber: true } },
-//       },
-//     });
-
-//     const scrapGroupedMap = {};
-//     scrapEntries.forEach((entry) => {
-//       const pDisplay = `${entry.process?.processName || "N/A"} (${entry.process?.machineName || ""})`;
-//       const partD =
-//         entry.PartNumber?.partDescription ||
-//         entry.PartNumber?.partNumber ||
-//         "Manual Scrap";
-//       const key = `${pDisplay}-${partD}`;
-
-//       if (!scrapGroupedMap[key]) {
-//         scrapGroupedMap[key] = { process: pDisplay, part: partD, scrap: 0 };
-//       }
-//       scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
-//     });
-
-//     Object.values(manualGrouped).forEach((item) => {
-//       if (item.scrap > 0) {
-//         if (!scrapGroupedMap[`${item.process}-${item.part}`]) {
-//           scrapGroupedMap[`${item.process}-${item.part}`] = {
-//             process: item.process,
-//             part: item.part,
-//             scrap: item.scrap,
-//           };
-//         } else {
-//         }
-//       }
-//     });
-
-//     const productionScrap = Object.values(scrapGroupedMap).sort(
-//       (a, b) => b.scrap - a.scrap,
-//     );
-
-//     return res.status(200).json({
-//       manualTable: Object.values(manualGrouped),
-//       monitorTable,
-//       productionScrap,
-//       totals: {
-//         totalCompletedQty: manualData.reduce(
-//           (sum, i) => sum + (i.completedQuantity || 0),
-//           0,
-//         ),
-//         totalScrapQty: Object.values(scrapGroupedMap).reduce(
-//           (sum, i) => sum + i.scrap,
-//           0,
-//         ),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date();
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date();
-//     end.setHours(23, 59, 59, 999);
-
-//     // const filterCondition = {
-//     //   isDeleted: false,
-//     //   ...(processId && processId !== "All" && { processId }),
-//     //   ...(partId && partId !== "All" && { partId: partId }),
-//     //   ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//     //   submittedDateTime: { gte: start, lte: end },
-//     // };
-// const filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       submittedDateTime: { gte: start, lte: end },
-//     };
-
-//     // FIX: Agar partId filter laga hai, toh use dono fields (Standard aur Custom) mein dhundo
-//     if (partId && partId !== "All") {
-//       filterCondition.OR = [
-//         { partId: partId },        // Standard Part check
-//         { customOrderId: partId }  // Custom Order/Part check
-//       ];
-//     }
-
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: { // Custom Order ke andar ke parts bhi include karein
-//             include: {
-//                 customPart: true 
-//             }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-//     // const productions = await prisma.productionResponse.findMany({
-//     //   where: filterCondition,
-//     //   include: {
-//     //     process: true,
-//     //     PartNumber: true,
-//     //     StockOrder: true,
-//     //     CustomOrder: true,
-//     //     employeeInfo: true,
-//     //   },
-//     //   orderBy: { createdAt: "desc" },
-//     // });
-
-//     const orderIds = [
-//       ...new Set(productions.map((p) => p.orderId).filter(Boolean)),
-//     ];
-
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         order_id: { in: orderIds },
-//         isDeleted: false,
-//       },
-//       include: {
-//         part: { select: { part_id: true, partNumber: true } },
-//         customPart: { select: { id: true, partNumber: true } },
-//       },
-//     });
-// const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = productions.map((record) => {
-//       // 1. Schedule Table se target (scheduled quantity) match karna
-//       const matchSchedule = schedules.find(
-//         (s) =>
-//           s.order_id === record.orderId &&
-//           (s.part_id === record.partId || s.processId === record.processId)
-//       );
-
-//       // Logic: Pehle production record ki qty dekho, fir schedule table ki, aur agar dono 0 hain 
-//       // par kaam hua hai, toh use Actual ke barabar maan lo (taaki 0% Efficiency na aaye)
-//       let scheduled = Number(record.scheduleQuantity || matchSchedule?.scheduleQuantity || 0);
-//       const actual = Number(record.completedQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       if (scheduled === 0 && actual > 0) {
-//         scheduled = actual; // Unplanned production ko 100% efficiency dene ke liye
-//       }
-
-//       // 2. Part Number dhundne ka logic
-//       // let displayPartNumber =
-//       //   record.PartNumber?.partNumber ||
-//       //   record.StockOrder?.productNumber ||
-//       //   record.CustomOrder?.partNumber;
-//          let displayPartNumber =
-//         record.PartNumber?.partNumber ||
-//         record.StockOrder?.productNumber ||
-//         record.CustomOrder?.partNumber ||
-//         (record.CustomOrder?.customPart && record.CustomOrder.customPart[0]?.partNumber); // CustomPart table se naam lena
-//       if (!displayPartNumber) {
-//         displayPartNumber =
-//           matchSchedule?.part?.partNumber ||
-//           matchSchedule?.customPart?.partNumber;
-//       }
-//       displayPartNumber = displayPartNumber || "N/A";
-
-//       // 3. Efficiency aur Productivity Calculation
-//       const productivityNum = scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-//       const efficiencyNum = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-
-//       // 4. Cycle Time Calculation (Jo pehle 1.51 min aa raha tha)
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-//         cycleTime = (endT - startT) / (1000 * 60) / actual;
-//       }
-
-//       // 5. Employee Grouping (employeeMap update)
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo
-//         ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}`
-//         : "Admin";
-//       const empKey = `${empId}_${record.process?.id || "no_process"}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           totalScheduled: 0,
-//           totalCompleted: 0,
-//           totalScrap: 0,
-//           totalCT: 0,
-//           count: 0,
-//         };
-//       }
-//       employeeMap[empKey].totalScheduled += scheduled;
-//       employeeMap[empKey].totalCompleted += actual;
-//       employeeMap[empKey].totalScrap += scrap;
-//       employeeMap[empKey].totalCT += cycleTime;
-//       employeeMap[empKey].count += actual > 0 ? 1 : 0;
-
-//       // 6. Top Performance Map update
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = {
-//           employeeName: empName,
-//           totalScheduled: 0,
-//           totalCompleted: 0,
-//           totalScrap: 0,
-//         };
-//       }
-//       topPerformanceMap[empId].totalScheduled += scheduled;
-//       topPerformanceMap[empId].totalCompleted += actual;
-//       topPerformanceMap[empId].totalScrap += scrap;
-
-//       // Frontend ko bhejne wala single row data
-//       return {
-//         orderType: record.order_type || "StockOrder",
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-//     // const employeeMap = {};
-//     // const topPerformanceMap = {};
-
-//     // const orderData = productions.map((record) => {
-//     //   const scheduled = Number(record.scheduleQuantity || 0);
-//     //   const actual = Number(record.completedQuantity || 0);
-//     //   const scrap = Number(record.scrapQuantity || 0);
-
-//     //   let displayPartNumber =
-//     //     record.PartNumber?.partNumber ||
-//     //     record.StockOrder?.productNumber ||
-//     //     record.CustomOrder?.partNumber;
-
-//     //   if (!displayPartNumber) {
-//     //     const matchSchedule = schedules.find(
-//     //       (s) =>
-//     //         s.order_id === record.orderId &&
-//     //         (s.part_id === record.partId || s.processId === record.processId),
-//     //     );
-//     //     displayPartNumber =
-//     //       matchSchedule?.part?.partNumber ||
-//     //       matchSchedule?.customPart?.partNumber;
-//     //   }
-
-//     //   displayPartNumber = displayPartNumber || "N/A";
-//     //   const productivity =
-//     //     scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-//     //   const efficiency = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-//     //   let cycleTime = 0;
-//     //   if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//     //     const startT = new Date(record.cycleTimeStart).getTime();
-//     //     const endT = new Date(record.cycleTimeEnd).getTime();
-//     //     cycleTime = (endT - startT) / (1000 * 60) / actual;
-//     //   }
-
-//     //   const empId = record.employeeInfo?.id || "admin";
-//     //   const empName = record.employeeInfo
-//     //     ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}`
-//     //     : "Admin";
-//     //   const empKey = `${empId}_${record.process?.id || "no_process"}`;
-//     //   if (!employeeMap[empKey]) {
-//     //     employeeMap[empKey] = {
-//     //       processName: record.process?.processName || "N/A",
-//     //       machineName: record.process?.machineName || "N/A",
-//     //       employeeName: empName,
-//     //       totalScheduled: 0,
-//     //       totalCompleted: 0,
-//     //       totalScrap: 0,
-//     //       totalCT: 0,
-//     //       count: 0,
-//     //     };
-//     //   }
-//     //   employeeMap[empKey].totalScheduled += scheduled;
-//     //   employeeMap[empKey].totalCompleted += actual;
-//     //   employeeMap[empKey].totalScrap += scrap;
-//     //   employeeMap[empKey].totalCT += cycleTime;
-//     //   employeeMap[empKey].count += actual > 0 ? 1 : 0;
-
-//     //   if (!topPerformanceMap[empId]) {
-//     //     topPerformanceMap[empId] = {
-//     //       employeeName: empName,
-//     //       totalScheduled: 0,
-//     //       totalCompleted: 0,
-//     //       totalScrap: 0,
-//     //     };
-//     //   }
-//     //   topPerformanceMap[empId].totalScheduled += scheduled;
-//     //   topPerformanceMap[empId].totalCompleted += actual;
-//     //   topPerformanceMap[empId].totalScrap += scrap;
-
-//     //   return {
-//     //     orderType: record.order_type || "StockOrder",
-//     //     processName: record.process?.processName || "N/A",
-//     //     machineName: record.process?.machineName || "N/A",
-//     //     partNumber: displayPartNumber,
-//     //     scheduled,
-//     //     actual,
-//     //     scrap,
-//     //     productivity: productivity.toFixed(1) + "%",
-//     //     efficiency: efficiency.toFixed(1) + "%",
-//     //     avgCycleTime: cycleTime.toFixed(2) + " min",
-//     //     employee: empName,
-//     //     createdAt: record.createdAt,
-//     //   };
-//     // });
-
-//     const productivitySummary = Object.values(employeeMap).map((emp) => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.totalCompleted,
-//       Scrap: emp.totalScrap,
-//       CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0.00",
-//       Eff:
-//         emp.totalScheduled > 0
-//           ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1) + "%"
-//           : "0.0%",
-//       Prod:
-//         emp.totalScheduled > 0
-//           ? (
-//               ((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) *
-//               100
-//             ).toFixed(1) + "%"
-//           : "0.0%",
-//     }));
-
-//   // Top Performers calculation logic
-//     const topPerformers = Object.values(topPerformanceMap)
-//       .map((emp) => {
-//         // Efficiency calculation
-//         const effNum =
-//           emp.totalScheduled > 0
-//             ? (emp.totalCompleted / emp.totalScheduled) * 100
-//             : 0;
-
-//         // PRODUCTIVITY calculation (Actual - Scrap) / Scheduled
-//         const prodNum =
-//           emp.totalScheduled > 0
-//             ? ((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) * 100
-//             : 0;
-
-//         return {
-//           employeeName: emp.employeeName,
-//           totalEfficiency: effNum.toFixed(1) + "%",
-//           totalProductivity: prodNum.toFixed(1) + "%", // Ye line add hui hai
-//           totalQty: emp.totalCompleted,
-//           totalScrap: emp.totalScrap,
-//           _sortVal: effNum, // Sorting efficiency ke base par hi rakhi hai
-//           _sortProd: prodNum,
-//         };
-//       })
-//       .sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers, // Ab isme productivity bhi jayegi
-//     });
-
-//     // return res.status(200).json({
-//     //   message: "Data fetched successfully",
-//     //   totalRecords: orderData.length,
-//     //   data: orderData,
-//     //   productivity: productivitySummary,
-//     //   topPerformers,
-//     // });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-// const monitorChartsData = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     let start, end;
-//     if (startDate && endDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       end = new Date(endDate);
-//       end.setHours(23, 59, 59, 999);
-//     } else {
-//       const today = new Date();
-//       start = new Date(today);
-//       start.setHours(0, 0, 0, 0);
-//       end = new Date(today);
-//       end.setHours(23, 59, 59, 999);
-//     }
-
-//     // 1. Manual Data (Schedules)
-//     const manualData = await prisma.stockOrderSchedule.findMany({
-//       where: { 
-//         createdAt: { gte: start, lte: end }, 
-//         isDeleted: false 
-//       },
-//       include: {
-//         part: { select: { partNumber: true, partDescription: true } },
-//         customPart: { select: { partNumber: true } }, // Ispe dhyan dein
-//         CustomOrder: { select: { partNumber: true } },
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-//     const manualGrouped = {};
-//     manualData.forEach((item) => {
-//       const pDisplay = `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`;
-      
-//       // Custom Part check logic
-//       const partD =
-//         item.customPart?.partNumber || 
-//         item.part?.partNumber ||
-//         item.part?.partDescription ||
-//         item.CustomOrder?.partNumber ||
-//         "Unknown Part";
-
-//       const key = `${pDisplay}-${partD}`;
-
-//       if (!manualGrouped[key]) {
-//         manualGrouped[key] = { process: pDisplay, part: partD, qty: 0, scrap: 0 };
-//       }
-//       manualGrouped[key].qty += item.completedQuantity || 0;
-//       manualGrouped[key].scrap += item.scrapQuantity || 0;
-//     });
-
-//     // 2. Production Data (Real-time monitor)
-//     const productionData = await prisma.productionResponse.findMany({
-//       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
-//       include: {
-//         PartNumber: { select: { partNumber: true, partDescription: true } },
-//         CustomOrder: { select: { partNumber: true } },
-//         // AGAR AAPNE SCHEMA UPDATE KIYA HAI TOH YAHAN customPart ADD KAREIN:
-//         // customPart: { select: { partNumber: true } }, 
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-//     const monitorTable = productionData
-//       .filter((item) => (item.completedQuantity || 0) > 0 || (item.scrapQuantity || 0) > 0)
-//       .map((item) => {
-//         const sTime = new Date(item.cycleTimeStart).getTime();
-//         const eTime = item.cycleTimeEnd ? new Date(item.cycleTimeEnd).getTime() : new Date().getTime();
-//         const actual = Number(item.completedQuantity || 0);
-        
-//         let diffMinutes = 0;
-//         if (actual > 0) {
-//           diffMinutes = (eTime - sTime) / (1000 * 60) / actual;
-//         }
-
-//         return {
-//           process: `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`,
-//           part: item.PartNumber?.partNumber || item.CustomOrder?.partNumber || "Custom Part",
-//           cycleTime: `${diffMinutes.toFixed(2)} min`,
-//         };
-//       });
-
-//     // Final Response structure match karein
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: manualData.length + productionData.length,
-//       data: Object.values(manualGrouped), // Yeh "manualTable" ka kaam karega
-//       monitorTable,
-//       productionScrap: [], // scrap logic yahan add kar sakte hain
-//       productivity: [], // Calculation logic here
-//       topPerformers: []
-//     });
-
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
-
-// const monitorChartsData = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     let start, end;
-//     if (startDate && endDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       end = new Date(endDate);
-//       end.setHours(23, 59, 59, 999);
-//     } else {
-//       const today = new Date();
-//       start = new Date(today.setHours(0, 0, 0, 0));
-//       end = new Date(today.setHours(23, 59, 59, 999));
-//     }
-
-//     const manualData = await prisma.stockOrderSchedule.findMany({
-//       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-//       include: {
-//         part: { select: { partNumber: true, partDescription: true } },
-//         customPart: { select: { partNumber: true } },
-//         CustomOrder: { select: { partNumber: true } },
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-//     const manualGrouped = {};
-//     manualData.forEach((item) => {
-//       const pDisplay = `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`;
-
-//       const partD =
-//         item.part?.partDescription ||
-//         item.part?.partNumber ||
-//         item.customPart?.partNumber ||
-//         item.CustomOrder?.partNumber ||
-//         "Custom Part";
-
-//       const key = `${pDisplay}-${partD}`;
-
-//       if (!manualGrouped[key]) {
-//         manualGrouped[key] = {
-//           process: pDisplay,
-//           part: partD,
-//           qty: 0,
-//           scrap: 0,
-//         };
-//       }
-//       manualGrouped[key].qty += item.completedQuantity || 0;
-//       manualGrouped[key].scrap += item.scrapQuantity || 0;
-//     });
-
-//     const productionData = await prisma.productionResponse.findMany({
-//       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
-//       include: {
-//         PartNumber: { select: { partNumber: true, partDescription: true } },
-//         CustomOrder: { select: { partNumber: true } },
-//         process: { select: { processName: true, machineName: true } },
-//       },
-//     });
-
-//     const monitorTable = productionData
-//       .filter((item) => item.completedQuantity > 0 || item.scrapQuantity > 0)
-//       .map((item) => {
-//         const sTime = new Date(item.cycleTimeStart);
-//         const eTime = item.cycleTimeEnd
-//           ? new Date(item.cycleTimeEnd)
-//           : new Date();
-//         const diffSec = (eTime - sTime) / 1000;
-
-//         return {
-//           process: `${item.process?.processName || "N/A"} (${item.process?.machineName || ""})`,
-//           part:
-//             item.PartNumber?.partDescription ||
-//             item.PartNumber?.partNumber ||
-//             item.CustomOrder?.partNumber ||
-//             "Custom Part",
-//           cycleTime:
-//             diffSec < 60
-//               ? `${diffSec.toFixed(0)} sec`
-//               : `${(diffSec / 60).toFixed(2)} min`,
-//         };
-//       });
-// const scrapEntries = await prisma.scapEntries.findMany({
-//   where: { createdAt: { gte: start, lte: end }, isDeleted: false },
-//   include: {
-//     PartNumber: { select: { partNumber: true, partDescription: true } },
-//     process: { select: { processName: true, machineName: true } }, // Pehle direct check
-//     StockOrder: { 
-//       include: { 
-//         process: { select: { processName: true, machineName: true } } // Agar upar null ho toh yahan se lein
-//       } 
-//     },
-//   },
-// });
-
-//     const scrapGroupedMap = {};
-//     // scrapEntries.forEach((entry) => {
-//     //   const pDisplay = `${entry.process?.processName || "N/A"} (${entry.process?.machineName || ""})`;
-//     //   const partD =
-//     //     entry.PartNumber?.partDescription ||
-//     //     entry.PartNumber?.partNumber ||
-//     //     "Manual Scrap";
-//     //   const key = `${pDisplay}-${partD}`;
-
-//     //   if (!scrapGroupedMap[key]) {
-//     //     scrapGroupedMap[key] = { process: pDisplay, part: partD, scrap: 0 };
-//     //   }
-//     //   scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
-//     // });
-//       scrapEntries.forEach((entry) => {
-//         // Logic: Pehle entry.process dekho, agar wo null hai toh entry.StockOrder.process dekho
-//         const proc = entry.process || entry.StockOrder?.process;
-
-//         const pDisplay = proc 
-//           ? `${proc.processName} (${proc.machineName || ""})` 
-//           : "Manual/General Scrap"; // Agar kahin bhi process na mile toh ye naam dikhega
-
-//         const partD =
-//           entry.PartNumber?.partDescription ||
-//           entry.PartNumber?.partNumber ||
-//           "Manual Scrap";
-
-//         const key = `${pDisplay}-${partD}`;
-
-//         if (!scrapGroupedMap[key]) {
-//           scrapGroupedMap[key] = { process: pDisplay, part: partD, scrap: 0 };
-//         }
-//         scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
-//       });
-//      Object.values(manualGrouped).forEach((item) => {
-//       if (item.scrap > 0) {
-//         if (!scrapGroupedMap[`${item.process}-${item.part}`]) {
-//           scrapGroupedMap[`${item.process}-${item.part}`] = {
-//             process: item.process,
-//             part: item.part,
-//             scrap: item.scrap,
-//           };
-//         } else {
-//         }
-//       }
-//     });
-
-//     const productionScrap = Object.values(scrapGroupedMap).sort(
-//       (a, b) => b.scrap - a.scrap,
-//     );
-
-//     return res.status(200).json({
-//       manualTable: Object.values(manualGrouped),
-//       monitorTable,
-//       productionScrap,
-//       totals: {
-//         totalCompletedQty: manualData.reduce(
-//           (sum, i) => sum + (i.completedQuantity || 0),
-//           0,
-//         ),
-//         totalScrapQty: Object.values(scrapGroupedMap).reduce(
-//           (sum, i) => sum + i.scrap,
-//           0,
-//         ),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// };
 const monitorChartsData = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -6858,8 +5289,6 @@ const monitorChartsData = async (req, res) => {
       start = new Date(today.setHours(0, 0, 0, 0));
       end = new Date(today.setHours(23, 59, 59, 999));
     }
-
-    // 1. Fetch Manual Production Data (StockOrderSchedule)
     const manualData = await prisma.stockOrderSchedule.findMany({
       where: { createdAt: { gte: start, lte: end }, isDeleted: false },
       include: {
@@ -6894,7 +5323,6 @@ const monitorChartsData = async (req, res) => {
       manualGrouped[key].scrap += item.scrapQuantity || 0;
     });
 
-    // 2. Fetch Production Response Data (for Cycle Time table)
     const productionData = await prisma.productionResponse.findMany({
       where: { isDeleted: false, createdAt: { gte: start, lte: end } },
       include: {
@@ -6925,7 +5353,6 @@ const monitorChartsData = async (req, res) => {
         };
       });
 
-    // 3. Fetch Scrap Entries
     const scrapEntries = await prisma.scapEntries.findMany({
       where: {
         createdAt: { gte: start, lte: end },
@@ -6945,8 +5372,6 @@ const monitorChartsData = async (req, res) => {
     });
 
     const scrapGroupedMap = {};
-
-    // Grouping Scrap Entries
     scrapEntries.forEach((entry) => {
       const procData = entry.process || entry.PartNumber?.process;
       const pDisplay = procData
@@ -6965,8 +5390,6 @@ const monitorChartsData = async (req, res) => {
       }
       scrapGroupedMap[key].scrap += entry.returnQuantity || 0;
     });
-
-    // Merge scrap from Manual Production into scrapGroupedMap
     Object.values(manualGrouped).forEach((item) => {
       if (item.scrap > 0) {
         const key = `${item.process}-${item.part}`;
@@ -6982,7 +5405,6 @@ const monitorChartsData = async (req, res) => {
       }
     });
 
-    // --- CALCULATE TOTALS ---
     const totalCompletedQty = manualData.reduce(
       (sum, i) => sum + (i.completedQuantity || 0),
       0
@@ -6992,13 +5414,6 @@ const monitorChartsData = async (req, res) => {
       (sum, i) => sum + i.scrap,
       0
     );
-
-    // --- CONSOLE LOGS ---
-    console.log("====================================");
-    console.log(`DATE RANGE: ${start.toISOString()} TO ${end.toISOString()}`);
-    console.log(`TOTAL COMPLETED QTY (Manual): ${totalCompletedQty}`);
-    console.log(`TOTAL SCRAP QTY (Combined): ${totalScrapQty}`);
-    console.log("====================================");
 
     const productionScrap = Object.values(scrapGroupedMap).sort(
       (a, b) => b.scrap - a.scrap
@@ -7014,1000 +5429,9 @@ const monitorChartsData = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in monitorChartsData:", error);
     res.status(500).json({ error: error.message });
   }
 };
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     // 1. Date Range Setup
-//     const start = startDate ? new Date(startDate) : new Date();
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date();
-//     end.setHours(23, 59, 59, 999);
-
-//     // 2. Filter Condition Setup
-//     let filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       submittedDateTime: { gte: start, lte: end },
-//     };
-
-//     // FIX: Part Filter (Dono Standard aur Custom IDs ko handle karega)
-//     if (partId && partId !== "All") {
-//       filterCondition.OR = [
-//         { partId: partId },         // Standard Part ID
-//         { customOrderId: partId },  // Custom Order ID
-//         { orderId: partId }         // General Order ID
-//       ];
-//     }
-
-//     // 3. Database Query
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: {
-//           include: {
-//             customPart: true // Custom parts ki list ke liye
-//           }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     // 4. Order Schedules fetch karna (Target Qty ke liye)
-//     const orderIds = [...new Set(productions.map((p) => p.orderId).filter(Boolean))];
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         order_id: { in: orderIds },
-//         isDeleted: false,
-//       },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     // 5. Main Data Mapping Loop
-//     const orderData = productions.map((record) => {
-//       // Logic: Part Name dhundna (Standard vs Custom)
-//       let displayPartNumber =
-//         record.PartNumber?.partNumber ||
-//         record.StockOrder?.productNumber ||
-//         record.CustomOrder?.partNumber ||
-//         (record.CustomOrder?.customPart && record.CustomOrder.customPart[0]?.partNumber) ||
-//         "N/A";
-
-//       // Logic: Scheduled Quantity (Target) nikalna
-//       const matchSchedule = schedules.find((s) => s.order_id === record.orderId);
-//       let scheduled = Number(record.scheduleQuantity || matchSchedule?.scheduleQuantity || 0);
-//       const actual = Number(record.completedQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       // FIX: 0.0% Efficiency logic (Agar target 0 hai par kaam hua hai toh target = actual maan lo)
-//       if (scheduled === 0 && actual > 0) {
-//         scheduled = actual;
-//       }
-
-//       // Efficiency & Productivity Calculation
-//       const productivityNum = scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-//       const efficiencyNum = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-
-//       // Cycle Time Calculation (Minutes per piece)
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-//         cycleTime = (endT - startT) / (1000 * 60) / actual;
-//       }
-
-//       // 6. Employee Grouping (For Performance Summary Table)
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo
-//         ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}`
-//         : "Admin";
-//       const empKey = `${empId}_${record.process?.id || "no_process"}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           totalScheduled: 0,
-//           totalCompleted: 0,
-//           totalScrap: 0,
-//           totalCT: 0,
-//           count: 0,
-//         };
-//       }
-//       employeeMap[empKey].totalScheduled += scheduled;
-//       employeeMap[empKey].totalCompleted += actual;
-//       employeeMap[empKey].totalScrap += scrap;
-//       employeeMap[empKey].totalCT += cycleTime;
-//       employeeMap[empKey].count += actual > 0 ? 1 : 0;
-
-//       // 7. Top Performance Ranking Map
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = {
-//           employeeName: empName,
-//           totalScheduled: 0,
-//           totalCompleted: 0,
-//           totalScrap: 0,
-//         };
-//       }
-//       topPerformanceMap[empId].totalScheduled += scheduled;
-//       topPerformanceMap[empId].totalCompleted += actual;
-//       topPerformanceMap[empId].totalScrap += scrap;
-
-//       return {
-//         orderType: record.order_type || "StockOrder",
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 8. Productivity Summary Format
-//     const productivitySummary = Object.values(employeeMap).map((emp) => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.totalCompleted,
-//       Scrap: emp.totalScrap,
-//       CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0.00",
-//       Eff: emp.totalScheduled > 0 ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalScheduled > 0 ? (((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) * 100).toFixed(1) + "%" : "0.0%",
-//     }));
-
-//     // 9. Top Performers Ranking Format
-//     const topPerformers = Object.values(topPerformanceMap)
-//       .map((emp) => {
-//         const effNum = emp.totalScheduled > 0 ? (emp.totalCompleted / emp.totalScheduled) * 100 : 0;
-//         const prodNum = emp.totalScheduled > 0 ? ((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) * 100 : 0;
-//         return {
-//           employeeName: emp.employeeName,
-//           totalEfficiency: effNum.toFixed(1) + "%",
-//           totalProductivity: prodNum.toFixed(1) + "%",
-//           totalQty: emp.totalCompleted,
-//           totalScrap: emp.totalScrap,
-//           _sortVal: effNum,
-//           _sortProd: prodNum,
-//         };
-//       })
-//       .sort((a, b) => b._sortVal - a._sortVal);
-
-//     // 10. Final Response
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers,
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     // 1. Date Range Setup (Wide range for 2026 data support)
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     // 2. Initial Filter Condition
-//     let filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       createdAt: { gte: start, lte: end },
-//     };
-
-//     // 3. APPLY CUSTOM PART ID FILTER (Jo pehle sahi kiya tha)
-//     if (partId && partId !== "All") {
-//       // Check if this UUID belongs to CustomPart table
-//       const customPartCheck = await prisma.customPart.findUnique({
-//         where: { id: partId },
-//         select: { customOrderId: true }
-//       });
-
-//       if (customPartCheck) {
-//         // Agar Custom Part mil gaya, toh uske parent Order ID se filter karein
-//         filterCondition.customOrderId = customPartCheck.customOrderId;
-//       } else {
-//         // Agar nahi, toh normal search karein
-//         filterCondition.OR = [
-//           { partId: partId },
-//           { customOrderId: partId },
-//           { orderId: partId }
-//         ];
-//       }
-//     }
-
-//     // 4. Database Query with all Relations
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: {
-//           include: {
-//             customPart: true // To get names like "gobi", "aloo"
-//           }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     // 5. Mapping Logic (Gobi/Aloo Logic + Calculations)
-//     const orderData = productions.map((record) => {
-      
-//       // LOGIC: Sahi Part Number display karna
-//       let displayPartNumber = "N/A";
-//       if (record.PartNumber) {
-//         displayPartNumber = record.PartNumber.partNumber;
-//       } else if (record.CustomOrder) {
-//         // Agar Custom Order hai, toh check karein ki kya filtered partId wahi hai
-//         const matchedCP = record.CustomOrder.customPart?.find(cp => cp.id === partId);
-//         if (matchedCP) {
-//           displayPartNumber = matchedCP.partNumber;
-//         } else {
-//           // Default to first custom part name if no match
-//           displayPartNumber = record.CustomOrder.customPart?.[0]?.partNumber || record.CustomOrder.partNumber || "Custom Order";
-//         }
-//       } else if (record.StockOrder) {
-//         displayPartNumber = record.StockOrder.productNumber;
-//       }
-
-//       const actual = Number(record.completedQuantity || 0);
-//       const scheduled = Number(record.scheduleQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       // Calculations
-//       const productivityNum = scheduled > 0 ? (((actual - scrap) / scheduled) * 100) : 0;
-//       const efficiencyNum = scheduled > 0 ? ((actual / scheduled) * 100) : 0;
-
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-//         cycleTime = (endT - startT) / (1000 * 60) / actual;
-//       }
-
-//       // Grouping Data for Productivity Table
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}` : "Admin";
-//       const empKey = `${empId}_${record.process?.id || 'no_proc'}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, Scrap: 0, totalCT: 0, count: 0, totalSched: 0
-//         };
-//       }
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalCT += (cycleTime * actual); // Total minutes spent
-//       employeeMap[empKey].count += actual; // Total pieces produced
-//       employeeMap[empKey].totalSched += scheduled;
-
-//       // Top Performer Tracking
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       return {
-//         orderType: record.customOrderId ? "CustomOrder" : (record.order_type || "N/A"),
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 6. Productivity Summary Formatting
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0.00",
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     // 7. Top Performers Ranking
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//       const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//       return {
-//         employeeName: emp.name,
-//         totalEfficiency: eff.toFixed(1) + "%",
-//         totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//         totalQty: emp.comp,
-//         totalScrap: emp.scrp,
-//         _sortVal: eff
-//       };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     // Final Response
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     let filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       createdAt: { gte: start, lte: end },
-//     };
-
-//     if (partId && partId !== "All") {
-//       const customPartCheck = await prisma.customPart.findUnique({
-//         where: { id: partId },
-//         select: { customOrderId: true }
-//       });
-
-//       if (customPartCheck) {
-//         filterCondition.customOrderId = customPartCheck.customOrderId;
-//       } else {
-//         filterCondition.OR = [
-//           { partId: partId },
-//           { customOrderId: partId },
-//           { orderId: partId }
-//         ];
-//       }
-//     }
-
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: {
-//           include: {
-//             customPart: true 
-//           }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = productions.map((record) => {
-//       // 1. Part Number Logic
-//       let displayPartNumber = "N/A";
-//       if (record.PartNumber) {
-//         displayPartNumber = record.PartNumber.partNumber;
-//       } else if (record.CustomOrder) {
-//         const matchedCP = record.CustomOrder.customPart?.find(cp => cp.id === partId);
-//         if (matchedCP) {
-//           displayPartNumber = matchedCP.partNumber;
-//         } else {
-//           displayPartNumber = record.CustomOrder.customPart?.[0]?.partNumber || record.CustomOrder.partNumber || "Custom Order";
-//         }
-//       } else if (record.StockOrder) {
-//         displayPartNumber = record.StockOrder.productNumber;
-//       }
-
-//       const actual = Number(record.completedQuantity || 0);
-//       const scheduled = Number(record.scheduleQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       // 2. CYCLE TIME CALCULATION (Improved)
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-        
-//         if (!isNaN(startT) && !isNaN(endT)) {
-//             const diffInMs = endT - startT;
-//             const diffInMin = diffInMs / (1000 * 60);
-//             cycleTime = diffInMin / actual; // Time per piece
-//         }
-//       }
-
-//       const productivityNum = scheduled > 0 ? (((actual - scrap) / scheduled) * 100) : 0;
-//       const efficiencyNum = scheduled > 0 ? ((actual / scheduled) * 100) : 0;
-
-//       // 3. Aggregation Logic
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}` : "Admin";
-//       const empKey = `${empId}_${record.process?.id || 'no_proc'}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, Scrap: 0, totalDurationMin: 0, countForCT: 0, totalSched: 0
-//         };
-//       }
-      
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalSched += scheduled;
-
-//       // Cycle time aggregate logic: Duration add karein agar valid hai
-//       if (cycleTime > 0) {
-//           employeeMap[empKey].totalDurationMin += (cycleTime * actual);
-//           employeeMap[empKey].countForCT += actual;
-//       }
-
-//       // Top Performer logic...
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       return {
-//         orderType: record.customOrderId ? "CustomOrder" : (record.order_type || "N/A"),
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min", // Individual record CT
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 4. Productivity Summary Formatting
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       // Average calculation based on actual total pieces that had valid time
-//       CT: emp.countForCT > 0 ? (emp.totalDurationMin / emp.countForCT).toFixed(2) : "0.00",
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     // 5. Top Performers Ranking logic... (same as your original)
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//       const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//       return {
-//         employeeName: emp.name,
-//         totalEfficiency: eff.toFixed(1) + "%",
-//         totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//         totalQty: emp.comp,
-//         totalScrap: emp.scrp,
-//         _sortVal: eff
-//       };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     // Filter condition for StockOrderSchedule
-//     let filterCondition = {
-//       isDeleted: false,
-//       createdAt: { gte: start, lte: end },
-//       // Note: Agar StockOrderSchedule me employee link hai toh ye chalega
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }), 
-//       ...(processId && processId !== "All" && { processId }),
-//     };
-
-//     if (partId && partId !== "All") {
-//         filterCondition.part_id = partId; // Screenshot me column name part_id hai
-//     }
-
-//     // Changing main query to stockOrderSchedule
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,        // Relation check karein aapke schema me
-//         PartNumber: true,     // Relation check karein
-//         StockOrder: true,     // Relation check karein
-//         employeeInfo: true,    // Performance ke liye employee relation zaroori hai
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = schedules.map((record) => {
-//       // 1. Part Number Logic
-//       let displayPartNumber = record.PartNumber?.partNumber || record.StockOrder?.productNumber || "N/A";
-
-//       // IMPORTANT: StockOrderSchedule ke columns use ho rahe hain
-//       const actual = Number(record.completedQuantity || 0); 
-//       const scheduled = Number(record.quantity || 0); // 'quantity' is scheduled quantity in this table
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       // 2. CYCLE TIME (Schedule table me shayad start/end time na ho, agar nahi hai toh 0 rahega)
-//       let cycleTime = 0;
-//       if (record.stepstartTime && record.stepstartEnd && actual > 0) {
-//         const startT = new Date(record.stepstartTime).getTime();
-//         const endT = new Date(record.stepstartEnd).getTime();
-//         if (!isNaN(startT) && !isNaN(endT)) {
-//             cycleTime = ((endT - startT) / (1000 * 60)) / actual;
-//         }
-//       }
-
-//       const productivityNum = scheduled > 0 ? (((actual - scrap) / scheduled) * 100) : 0;
-//       const efficiencyNum = scheduled > 0 ? ((actual / scheduled) * 100) : 0;
-
-//       // 3. Aggregation Logic
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}` : "Admin";
-//       const empKey = `${empId}_${record.process?.id || 'no_proc'}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, Scrap: 0, totalDurationMin: 0, countForCT: 0, totalSched: 0
-//         };
-//       }
-      
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalSched += scheduled;
-
-//       if (cycleTime > 0) {
-//           employeeMap[empKey].totalDurationMin += (cycleTime * actual);
-//           employeeMap[empKey].countForCT += actual;
-//       }
-
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       return {
-//         orderType: "StockOrder",
-//         processName: record.process?.processName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 4. Productivity Summary Formatting
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       CT: emp.countForCT > 0 ? (emp.totalDurationMin / emp.countForCT).toFixed(2) : "0.00",
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     // 5. Top Performers
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//       const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//       return {
-//         employeeName: emp.name,
-//         totalEfficiency: eff.toFixed(1) + "%",
-//         totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//         totalQty: emp.comp,
-//         totalScrap: emp.scrp,
-//         _sortVal: eff
-//       };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: "Data fetched from StockOrderSchedule",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-// old
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     let filterCondition = {
-//       isDeleted: false,
-//       createdAt: { gte: start, lte: end },
-//     };
-//     if (processId && processId !== "All" && processId !== "All machine") {
-//       filterCondition.processId = processId;
-//     }
-
-//     if (employeeId && employeeId !== "All") {
-//       filterCondition.completed_EmpId = employeeId;
-//     }
-
-//     if (partId && partId !== "All") {
-//       filterCondition.part_id = partId;
-//     }
-
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: { include: { product: true } },
-//         customPart: true, // Custom parts ke liye
-//         completedByEmployee: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = schedules.map((record) => {
-//       let displayPartNumber = 
-//         record.customPart?.partNumber || 
-//         record.PartNumber?.partNumber || 
-//         record.CustomOrder?.partNumber || 
-//         record.StockOrder?.productNumber || 
-//         "N/A";
-
-//       const scheduled = Number(record.scheduleQuantity || record.quantity || 0); 
-//       const actual = Number(record.completedQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       const empId = record.completedByEmployee?.id || "admin";
-//       const empName = record.completedByEmployee 
-//         ? `${record.completedByEmployee.firstName || ''} ${record.completedByEmployee.lastName || ''}`.trim() 
-//         : "Admin";
-      
-//       const processKey = record.process?.id || 'no_proc';
-//       const empKey = `${empId}_${processKey}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, 
-//           Scrap: 0, 
-//           totalSched: 0
-//         };
-//       }
-      
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalSched += scheduled;
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       const productivityNum = scheduled > 0 ? (((actual - scrap) / scheduled) * 100) : 0;
-//       const efficiencyNum = scheduled > 0 ? ((actual / scheduled) * 100) : 0;
-
-//       return {
-//         orderType: record.order_type || "N/A",
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 4. Formatting Summary (This will show all machines if All machine was selected)
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//       const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//       return {
-//         employeeName: emp.name,
-//         totalEfficiency: eff.toFixed(1) + "%",
-//         totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//         totalQty: emp.comp,
-//         totalScrap: emp.scrp,
-//         _sortVal: eff
-//       };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: processId === "All machine" ? "All machines data fetched successfully" : "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-// old
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     let filterCondition = {
-//       isDeleted: false,
-//       createdAt: { gte: start, lte: end },
-//     };
-
-//     if (processId && processId !== "All" && processId !== "All machine") {
-//       filterCondition.processId = processId;
-//     }
-//     if (employeeId && employeeId !== "All") {
-//       filterCondition.completed_EmpId = employeeId;
-//     }
-//     if (partId && partId !== "All") {
-//       filterCondition.part_id = partId;
-//     }
-
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: { include: { product: true } },
-//         customPart: true,
-//         completedByEmployee: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const orderIds = schedules.map(s => s.order_id);
-//     const productions = await prisma.productionResponse.findMany({
-//       where: {
-//         OR: [
-//           { orderId: { in: orderIds } },
-//           { customOrderId: { in: orderIds } }
-//         ],
-//         isDeleted: false
-//       }
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = schedules.map((record) => {
-//       let displayPartNumber = 
-//         record.customPart?.partNumber || 
-//         record.PartNumber?.partNumber || 
-//         record.CustomOrder?.partNumber || 
-//         record.StockOrder?.productNumber || 
-//         "N/A";
-
-//       const scheduled = Number(record.scheduleQuantity || record.quantity || 0); 
-//       const actual = Number(record.completedQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       const matchedProductions = productions.filter(p => 
-//         (p.orderId === record.order_id || p.customOrderId === record.order_id) && 
-//         p.processId === record.processId &&
-//         (p.partId === record.part_id || p.partId === record.partNumberPart_id)
-//       );
-
-//       let totalCycleTimeMinutes = 0;
-//       let ctCount = 0;
-
-//       matchedProductions.forEach(prod => {
-//         if (prod.cycleTimeStart && prod.cycleTimeEnd && prod.completedQuantity > 0) {
-//           const sTime = new Date(prod.cycleTimeStart).getTime();
-//           const eTime = new Date(prod.cycleTimeEnd).getTime();
-//           const diffMinutes = (eTime - sTime) / (1000 * 60);
-//           totalCycleTimeMinutes += (diffMinutes / prod.completedQuantity);
-//           ctCount++;
-//         }
-//       });
-
-//       const avgCTForThisSchedule = ctCount > 0 ? (totalCycleTimeMinutes / ctCount) : 0;
-//       const empId = record.completedByEmployee?.id || "admin";
-//       const empName = record.completedByEmployee 
-//         ? `${record.completedByEmployee.firstName || ''} ${record.completedByEmployee.lastName || ''}`.trim() 
-//         : "Admin";
-      
-//       const processKey = record.process?.id || 'no_proc';
-//       const empKey = `${empId}_${processKey}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, Scrap: 0, totalSched: 0, totalCT: 0, totalCtCount: 0
-//         };
-//       }
-      
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalSched += scheduled;
-//       if (avgCTForThisSchedule > 0) {
-//         employeeMap[empKey].totalCT += avgCTForThisSchedule;
-//         employeeMap[empKey].totalCtCount += 1;
-//       }
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       const productivityNum = scheduled > 0 ? (((actual - scrap) / scheduled) * 100) : 0;
-//       const efficiencyNum = scheduled > 0 ? ((actual / scheduled) * 100) : 0;
-
-//       return {
-//         orderType: record.order_type || "N/A",
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: avgCTForThisSchedule > 0 ? avgCTForThisSchedule.toFixed(2) + " min" : "0.00 min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       CT: emp.totalCtCount > 0 ? (emp.totalCT / emp.totalCtCount).toFixed(2) : "0.00",
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//       const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//       return {
-//         employeeName: emp.name,
-//         totalEfficiency: eff.toFixed(1) + "%",
-//         totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//         totalQty: emp.comp,
-//         totalScrap: emp.scrp,
-//         _sortVal: eff
-//       };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: "Data fetched from Schedule & Production timing calculated",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Error", error: error.message });
-//   }
-// };
-
 const getDiveApi = async (req, res) => {
   try {
     const { processId, startDate, endDate, employeeId, partId } = req.query;
@@ -8017,7 +5441,6 @@ const getDiveApi = async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
     end.setHours(23, 59, 59, 999);
 
-    // Filter Condition for ProductionResponse table
     let filterCondition = {
       isDeleted: false,
       createdAt: { gte: start, lte: end },
@@ -8026,7 +5449,6 @@ const getDiveApi = async (req, res) => {
     if (processId && processId !== "All" && processId !== "All machine") {
       filterCondition.processId = processId;
     }
-    // Schema ke mutabiq employee ID 'stationUserId' field mein store hoti hai
     if (employeeId && employeeId !== "All") {
       filterCondition.stationUserId = employeeId;
     }
@@ -8041,7 +5463,7 @@ const getDiveApi = async (req, res) => {
         PartNumber: true,
         StockOrder: true,
         CustomOrder: { include: { product: true } },
-        employeeInfo: true, // Schema mein 'employeeInfo' relation name hai
+        employeeInfo: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -8050,19 +5472,14 @@ const getDiveApi = async (req, res) => {
     const topPerformanceMap = {};
 
     const orderData = productions.map((record) => {
-      // Part number display logic
-      let displayPartNumber = 
-        record.PartNumber?.partNumber || 
-        record.CustomOrder?.partNumber || 
-        record.StockOrder?.productNumber || 
+      let displayPartNumber =
+        record.PartNumber?.partNumber ||
+        record.CustomOrder?.partNumber ||
+        record.StockOrder?.productNumber ||
         "N/A";
-
-      // ProductionResponse table se values le rahe hain
       const actual = Number(record.completedQuantity || 0);
       const scrap = Number(record.scrapQuantity || 0);
       const scheduled = Number(record.scheduleQuantity || 0);
-
-      // Cycle time calculation for this specific record
       let avgCTForThisRecord = 0;
       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
         const sTime = new Date(record.cycleTimeStart).getTime();
@@ -8070,17 +5487,13 @@ const getDiveApi = async (req, res) => {
         const diffMinutes = (eTime - sTime) / (1000 * 60);
         avgCTForThisRecord = (diffMinutes / actual);
       }
-
-      // Employee details using 'employeeInfo'
       const empId = record.employeeInfo?.id || "admin";
-      const empName = record.employeeInfo 
-        ? `${record.employeeInfo.firstName || ''} ${record.employeeInfo.lastName || ''}`.trim() 
+      const empName = record.employeeInfo
+        ? `${record.employeeInfo.firstName || ''} ${record.employeeInfo.lastName || ''}`.trim()
         : "Admin";
-      
+
       const processKey = record.process?.id || 'no_proc';
       const empKey = `${empId}_${processKey}`;
-
-      // Productivity Map setup
       if (!employeeMap[empKey]) {
         employeeMap[empKey] = {
           processName: record.process?.processName || "N/A",
@@ -8089,7 +5502,7 @@ const getDiveApi = async (req, res) => {
           Qty: 0, Scrap: 0, totalSched: 0, totalCT: 0, totalCtCount: 0
         };
       }
-      
+
       employeeMap[empKey].Qty += actual;
       employeeMap[empKey].Scrap += scrap;
       employeeMap[empKey].totalSched += scheduled;
@@ -8098,7 +5511,6 @@ const getDiveApi = async (req, res) => {
         employeeMap[empKey].totalCtCount += 1;
       }
 
-      // Top Performance Map setup
       if (!topPerformanceMap[empId]) {
         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
       }
@@ -8157,627 +5569,9 @@ const getDiveApi = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("API Error:", error);
     res.status(500).json({ message: "Error", error: error.message });
   }
 };
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     // 1. Date Range Setup (Aapke JSON mein 2026 ki date hai, isliye wide range)
-//     const start = startDate ? new Date(startDate) : new Date("2024-01-01");
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date("2027-12-31");
-//     end.setHours(23, 59, 59, 999);
-
-//     // 2. Filter Condition
-//     let filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       createdAt: { gte: start, lte: end },
-//     };
-
-//     // FIX: Part Filter (Custom Part ID support)
-//     if (partId && partId !== "All") {
-//       filterCondition.OR = [
-//         { partId: partId },         // Standard Part
-//         { customOrderId: partId },  // Custom Order
-//         { orderId: partId }         // Stock Order
-//       ];
-//     }
-
-//     // 3. Database Query (Sari relations ke saath)
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: {
-//           include: {
-//             customPart: true // Custom parts ka naam nikalne ke liye
-//           }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     // 4. Main Data Mapping (Exactly as per your JSON)
-//     const orderData = productions.map((record) => {
-      
-//       // LOGIC: Sahi Part Number nikalna
-//       let displayPartNumber = "N/A";
-//       if (record.PartNumber) {
-//         displayPartNumber = record.PartNumber.partNumber;
-//       } else if (record.CustomOrder) {
-//         // Agar Custom Order hai toh customPart list se naam uthao (gobi, aloo, etc.)
-//         if (record.CustomOrder.customPart && record.CustomOrder.customPart.length > 0) {
-//           displayPartNumber = record.CustomOrder.customPart[0].partNumber;
-//         } else {
-//           displayPartNumber = record.CustomOrder.partNumber || "Custom Order";
-//         }
-//       } else if (record.StockOrder) {
-//         displayPartNumber = record.StockOrder.productNumber;
-//       }
-
-//       const actual = Number(record.completedQuantity || 0);
-//       const scheduled = Number(record.scheduleQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       // Calculations
-//       const productivityNum = scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-//       const efficiencyNum = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-//         cycleTime = (endT - startT) / (1000 * 60) / actual;
-//       }
-
-//       // Grouping for Summary
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}` : "System";
-//       const empKey = `${empId}_${record.process?.id || 'no_proc'}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0, Scrap: 0, totalCT: 0, count: 0, totalSched: 0
-//         };
-//       }
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalCT += cycleTime;
-//       employeeMap[empKey].count += actual > 0 ? 1 : 0;
-//       employeeMap[empKey].totalSched += scheduled;
-
-//       // Top Performer Map
-//       if (!topPerformanceMap[empId]) {
-//         topPerformanceMap[empId] = { name: empName, sched: 0, comp: 0, scrp: 0 };
-//       }
-//       topPerformanceMap[empId].sched += scheduled;
-//       topPerformanceMap[empId].comp += actual;
-//       topPerformanceMap[empId].scrp += scrap;
-
-//       return {
-//         orderType: record.customOrderId ? "CustomOrder" : (record.order_type || "N/A"),
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // 5. Productivity Summary
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       processName: emp.processName,
-//       machineName: emp.machineName,
-//       employeeName: emp.employeeName,
-//       Qty: emp.Qty,
-//       Scrap: emp.Scrap,
-//       CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0.00",
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%"
-//     }));
-
-//     // 6. Top Performers
-//     const topPerformers = Object.values(topPerformanceMap).map(emp => {
-//         const eff = emp.sched > 0 ? (emp.comp / emp.sched) * 100 : 0;
-//         return {
-//             employeeName: emp.name,
-//             totalEfficiency: eff.toFixed(1) + "%",
-//             totalProductivity: emp.sched > 0 ? (((emp.comp - emp.scrp) / emp.sched) * 100).toFixed(1) + "%" : "0.0%",
-//             totalQty: emp.comp,
-//             totalScrap: emp.scrp,
-//             _sortVal: eff
-//         };
-//     }).sort((a, b) => b._sortVal - a._sortVal);
-
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ message: "Error", error: error.message });
-//   }
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const cycleTimeComparisionData = async (req, res) => {
-//   try {
-//     let { startDate, endDate, partId, processId } = req.query;
-//     if (!partId) {
-//       return res.status(400).json({ error: "partId is required" });
-//     }
-//     const start = new Date(startDate || "2024-01-01");
-//     const end = new Date(endDate || "2025-12-31");
-
-//     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-//       return res
-//         .status(400)
-//         .json({ error: "Invalid date format (YYYY-MM-DD)" });
-//     }
-
-//     const respWhere = {
-//       partId: partId,
-//       isDeleted: false,
-//     };
-
-//     if (processId) {
-//       respWhere.processId = processId;
-//     }
-
-//     const productionResponses = await prisma.productionResponse.findMany({
-//       where: respWhere,
-//       include: {
-//         process: { select: { processName: true, machineName: true } },
-//         PartNumber: { select: { cycleTime: true } },
-//       },
-//     });
-
-//     const grouped = {};
-//     productionResponses.forEach((resp) => {
-//       if (!grouped[resp.processId]) {
-//         grouped[resp.processId] = {
-//           processName: resp.process?.processName || "Unknown",
-//           machineName: resp.process?.machineName || "N/A",
-//           manualCTs: [],
-//           idealCT: resp.PartNumber?.cycleTime
-//             ? Number(resp.PartNumber.cycleTime) / 60
-//             : 0,
-//         };
-//       }
-
-//       if (resp.cycleTimeStart && resp.cycleTimeEnd) {
-//         const durationMin =
-//           (new Date(resp.cycleTimeEnd) - new Date(resp.cycleTimeStart)) /
-//           1000 /
-//           60;
-//         if (durationMin > 0)
-//           grouped[resp.processId].manualCTs.push(durationMin);
-//       }
-//     });
-
-//     const processWiseCT = Object.values(grouped).map((p) => ({
-//       processName: p.processName,
-//       machineName: p.machineName,
-//       manualCT:
-//         p.manualCTs.length > 0
-//           ? p.manualCTs.reduce((a, b) => a + b, 0) / p.manualCTs.length
-//           : 0,
-//       idealCT: p.idealCT,
-//     }));
-
-//     const stepTrackings = await prisma.productionStepTracking.findMany({
-//       where: {
-//         status: "completed",
-//         stepStartTime: { not: null },
-//         stepEndTime: { not: null },
-//         productionResponse: {
-//           processId: processId || undefined,
-//           isDeleted: false,
-//         },
-//       },
-//       include: {
-//         workInstructionStep: {
-//           select: {
-//             id: true,
-//             stepNumber: true,
-//             title: true,
-//           },
-//         },
-//       },
-//     });
-
-//     const stepGrouped = {};
-//     stepTrackings.forEach((st) => {
-//       const stepId = st.workInstructionStep?.id;
-//       if (!stepId) return;
-
-//       const duration =
-//         (new Date(st.stepEndTime) - new Date(st.stepStartTime)) / 1000 / 60;
-
-//       if (!stepGrouped[stepId]) {
-//         stepGrouped[stepId] = {
-//           stepId,
-//           stepTitle: st.workInstructionStep.title,
-//           stepNumber: st.workInstructionStep.stepNumber,
-//           durations: [],
-//         };
-//       }
-//       if (duration > 0) stepGrouped[stepId].durations.push(duration);
-//     });
-
-//     const stepAverages = Object.values(stepGrouped)
-//       .map((s) => ({
-//         stepId: s.stepId,
-//         stepTitle: s.stepTitle,
-//         stepNumber: s.stepNumber,
-//         averageDuration:
-//           s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
-//         count: s.durations.length,
-//       }))
-//       .sort((a, b) => a.stepNumber - b.stepNumber);
-
-//     const overallAverage =
-//       stepAverages.length > 0
-//         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
-//           stepAverages.length
-//         : 0;
-
-//     res.json({
-//       message: "Cycle Time Comparison fetched successfully",
-//       data: {
-//         processWiseCT,
-//         stepWiseCT: {
-//           stepAverages,
-//           overallAverage,
-//         },
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       error: "Internal Server Error",
-//       details: error.message,
-//     });
-//   }
-// };
-
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     const start = startDate ? new Date(startDate) : new Date();
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date();
-//     end.setHours(23, 59, 59, 999);
-
-//     let filterCondition = {
-//       isDeleted: false,
-//       ...(processId && processId !== "All" && { processId }),
-//       ...(employeeId && employeeId !== "All" && { stationUserId: employeeId }),
-//       submittedDateTime: { gte: start, lte: end },
-//     };
-
-//     // --- FIX FOR CUSTOM PART ID ---
-//     if (partId && partId !== "All") {
-//       // Pehle check karein ki kya yeh ID kisi CustomPart ki hai
-//       const customPartCheck = await prisma.customPart.findUnique({
-//         where: { id: partId },
-//         select: { customOrderId: true }
-//       });
-
-//       if (customPartCheck) {
-//         // Agar Custom Part mil gaya, toh uske CustomOrder se data filter karein
-//         filterCondition.customOrderId = customPartCheck.customOrderId;
-//       } else {
-//         // Agar Custom Part nahi hai, toh normal IDs check karein
-//         filterCondition.OR = [
-//           { partId: partId },
-//           { customOrderId: partId },
-//           { orderId: partId }
-//         ];
-//       }
-//     }
-//     // ------------------------------
-
-//     const productions = await prisma.productionResponse.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,
-//         StockOrder: true,
-//         CustomOrder: {
-//           include: {
-//             customPart: true, // Isse Custom Part ka naam milega
-//           }
-//         },
-//         employeeInfo: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const customOrderIds = [...new Set(productions.map((p) => p.customOrderId).filter(Boolean))];
-//     const orderIds = [...new Set(productions.map((p) => p.orderId).filter(Boolean))];
-
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         OR: [
-//           { order_id: { in: orderIds } },
-//           { customOrderId: { in: customOrderIds } }
-//         ],
-//         isDeleted: false,
-//       },
-//     });
-
-//     const employeeMap = {};
-//     const topPerformanceMap = {};
-
-//     const orderData = productions.map((record) => {
-//       // Display Name Logic (Specifically for Custom Parts)
-//       let displayPartNumber = "N/A";
-      
-//       if (record.PartNumber) {
-//         displayPartNumber = record.PartNumber.partNumber;
-//       } else if (record.CustomOrder) {
-//         // Agar customPart list mein hai toh pehle wale ka naam uthao
-//         if (record.CustomOrder.customPart && record.CustomOrder.customPart.length > 0) {
-//           // Agar humne specific CustomPart filter kiya hai, toh wahi naam dikhayein
-//           const matchedCP = record.CustomOrder.customPart.find(cp => cp.id === partId);
-//           displayPartNumber = matchedCP ? matchedCP.partNumber : record.CustomOrder.customPart[0].partNumber;
-//         } else {
-//           displayPartNumber = record.CustomOrder.partNumber || "Custom Order";
-//         }
-//       }
-
-//       const matchSchedule = schedules.find((s) => 
-//         (s.order_id === record.orderId && record.orderId) || 
-//         (s.customOrderId === record.customOrderId && record.customOrderId)
-//       );
-      
-//       let scheduled = Number(record.scheduleQuantity || matchSchedule?.scheduleQuantity || 0);
-//       const actual = Number(record.completedQuantity || 0);
-//       const scrap = Number(record.scrapQuantity || 0);
-
-//       if (scheduled === 0 && actual > 0) scheduled = actual;
-
-//       const productivityNum = scheduled > 0 ? ((actual - scrap) / scheduled) * 100 : 0;
-//       const efficiencyNum = scheduled > 0 ? (actual / scheduled) * 100 : 0;
-
-//       let cycleTime = 0;
-//       if (record.cycleTimeStart && record.cycleTimeEnd && actual > 0) {
-//         const startT = new Date(record.cycleTimeStart).getTime();
-//         const endT = new Date(record.cycleTimeEnd).getTime();
-//         cycleTime = (endT - startT) / (1000 * 60) / actual;
-//       }
-
-//       // Grouping and Summary calculations...
-//       const empId = record.employeeInfo?.id || "admin";
-//       const empName = record.employeeInfo ? `${record.employeeInfo.firstName} ${record.employeeInfo.lastName}` : "Admin";
-//       const empKey = `${empId}_${record.process?.id || "no_process"}`;
-
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: record.process?.processName || "N/A",
-//           machineName: record.process?.machineName || "N/A",
-//           employeeName: empName,
-//           totalScheduled: 0,
-//           totalCompleted: 0,
-//           totalScrap: 0,
-//           totalCT: 0,
-//           count: 0,
-//         };
-//       }
-//       employeeMap[empKey].totalScheduled += scheduled;
-//       employeeMap[empKey].totalCompleted += actual;
-//       employeeMap[empKey].totalScrap += scrap;
-//       employeeMap[empKey].totalCT += (cycleTime * actual);
-//       employeeMap[empKey].count += actual;
-
-//       return {
-//         orderType: record.customOrderId ? "CustomOrder" : "StockOrder",
-//         processName: record.process?.processName || "N/A",
-//         machineName: record.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled,
-//         actual,
-//         scrap,
-//         productivity: productivityNum.toFixed(1) + "%",
-//         efficiency: efficiencyNum.toFixed(1) + "%",
-//         avgCycleTime: cycleTime.toFixed(2) + " min",
-//         employee: empName,
-//         createdAt: record.createdAt,
-//       };
-//     });
-
-//     // Final response structure
-//     return res.status(200).json({
-//       message: "Data fetched successfully",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: Object.values(employeeMap).map(emp => ({
-//         ...emp,
-//         CT: emp.count > 0 ? (emp.totalCT / emp.count).toFixed(2) : "0.00",
-//         Eff: emp.totalScheduled > 0 ? ((emp.totalCompleted / emp.totalScheduled) * 100).toFixed(1) + "%" : "0.0%",
-//         Prod: emp.totalScheduled > 0 ? (((emp.totalCompleted - emp.totalScrap) / emp.totalScheduled) * 100).toFixed(1) + "%" : "0.0%"
-//       })),
-//       topPerformers: [] // Add ranking logic here if needed
-//     });
-
-//   } catch (error) {
-//     console.error("API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
-
-// const getDiveApi = async (req, res) => {
-//   try {
-//     const { processId, startDate, endDate, employeeId, partId } = req.query;
-
-//     // 1. Date Range Setup
-//     const start = startDate ? new Date(startDate) : new Date();
-//     start.setHours(0, 0, 0, 0);
-//     const end = endDate ? new Date(endDate) : new Date();
-//     end.setHours(23, 59, 59, 999);
-
-//     // 2. Filter Condition for StockOrderSchedule
-//     let filterCondition = {
-//       isDeleted: false,
-//       // Date filter createdAt par (ya agar completed_date use karna chahein)
-//       createdAt: { gte: start, lte: end },
-//     };
-
-//     if (processId && processId !== "All") {
-//       filterCondition.processId = processId;
-//     }
-
-//     if (employeeId && employeeId !== "All") {
-//       // Completed_EmpId ya submittedByEmployeeId check karein
-//       filterCondition.OR = [
-//         { completed_EmpId: employeeId },
-//         { submittedByEmployeeId: employeeId }
-//       ];
-//     }
-
-//     // 3. Part Filter (Specifically for Custom Part ID from your screenshot)
-//     if (partId && partId !== "All") {
-//       filterCondition.OR = [
-//         { part_id: partId },         // Standard Part
-//         { customPartId: partId },    // Custom Part (Jo aap dhoond rahe hain)
-//         { partNumberPart_id: partId },
-//         { customOrderId: partId }
-//       ];
-//     }
-
-//     // 4. Query from StockOrderSchedule
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: filterCondition,
-//       include: {
-//         process: true,
-//         PartNumber: true,      // Standard part details
-//         customPart: true,      // Custom part details (newpart, etc.)
-//         CustomOrder: true,     // Custom order details
-//         completedByEmployee: true,
-//         submittedByEmployee: true,
-//       },
-//       orderBy: { createdAt: "desc" },
-//     });
-
-//     const employeeMap = {};
-
-//     // 5. Mapping the Schedule Data to Performance Format
-//     const orderData = schedules.map((item) => {
-      
-//       // Part Number Logic
-//       const displayPartNumber = 
-//         item.customPart?.partNumber || 
-//         item.PartNumber?.partNumber || 
-//         item.CustomOrder?.partNumber || 
-//         "N/A";
-
-//       const scheduled = Number(item.scheduleQuantity || 0);
-//       const actual = Number(item.completedQuantity || 0);
-//       const scrap = Number(item.scrapQuantity || 0);
-
-//       // Avoid 0% if work is done but no target set
-//       const effectiveScheduled = (scheduled === 0 && actual > 0) ? actual : scheduled;
-
-//       const efficiency = effectiveScheduled > 0 ? (actual / effectiveScheduled) * 100 : 0;
-//       const productivity = effectiveScheduled > 0 ? ((actual - scrap) / effectiveScheduled) * 100 : 0;
-
-//       // Employee Name
-//       const emp = item.completedByEmployee || item.submittedByEmployee;
-//       const empName = emp ? `${emp.firstName} ${emp.lastName}` : "Admin/System";
-
-//       // Grouping for Productivity Summary
-//       const empKey = `${emp?.id || 'admin'}_${item.processId || 'no_proc'}`;
-//       if (!employeeMap[empKey]) {
-//         employeeMap[empKey] = {
-//           processName: item.process?.processName || "N/A",
-//           machineName: item.process?.machineName || "N/A",
-//           employeeName: empName,
-//           Qty: 0,
-//           Scrap: 0,
-//           totalSched: 0
-//         };
-//       }
-//       employeeMap[empKey].Qty += actual;
-//       employeeMap[empKey].Scrap += scrap;
-//       employeeMap[empKey].totalSched += effectiveScheduled;
-
-//       return {
-//         orderType: item.customPartId ? "CustomOrder" : "StockOrder",
-//         processName: item.process?.processName || "N/A",
-//         machineName: item.process?.machineName || "N/A",
-//         partNumber: displayPartNumber,
-//         scheduled: effectiveScheduled,
-//         actual,
-//         scrap,
-//         productivity: productivity.toFixed(1) + "%",
-//         efficiency: efficiency.toFixed(1) + "%",
-//         avgCycleTime: "N/A", // Schedule table doesn't track start/end times usually
-//         employee: empName,
-//         createdAt: item.createdAt,
-//       };
-//     });
-
-//     // 6. Formatting Productivity Summary
-//     const productivitySummary = Object.values(employeeMap).map(emp => ({
-//       ...emp,
-//       Eff: emp.totalSched > 0 ? ((emp.Qty / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//       Prod: emp.totalSched > 0 ? (((emp.Qty - emp.Scrap) / emp.totalSched) * 100).toFixed(1) + "%" : "0.0%",
-//     }));
-
-//     return res.status(200).json({
-//       message: "Data fetched successfully from schedules",
-//       totalRecords: orderData.length,
-//       data: orderData,
-//       productivity: productivitySummary,
-//       topPerformers: productivitySummary.sort((a, b) => parseFloat(b.Eff) - parseFloat(a.Eff)).slice(0, 5)
-//     });
-
-//   } catch (error) {
-//     console.error("Schedule API Error:", error);
-//     res.status(500).json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
 const cycleTimeComparisionData = async (req, res) => {
   try {
     let { startDate, endDate, partId, processId } = req.query;
@@ -8897,7 +5691,7 @@ const cycleTimeComparisionData = async (req, res) => {
     const overallAverage =
       stepAverages.length > 0
         ? stepAverages.reduce((sum, s) => sum + s.averageDuration, 0) /
-          stepAverages.length
+        stepAverages.length
         : 0;
 
     res.json({
@@ -8911,7 +5705,6 @@ const cycleTimeComparisionData = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("API Error:", error);
     res.status(500).json({
       error: "Internal Server Error",
       details: error.message,
@@ -9114,7 +5907,7 @@ const dashBoardData = async (req, res) => {
         const unitValue =
           (parseFloat(item.cost) || 0) +
           ((parseFloat(item.cycleTime) || 0) / 60) *
-            (item.process?.ratePerHour || 0);
+          (item.process?.ratePerHour || 0);
         totalInventoryCount += extraStock;
         totalInventoryCost += extraStock * unitValue;
       }
@@ -9160,58 +5953,43 @@ const dashBoardData = async (req, res) => {
 
     const cT = getTotals(currSched, currScrapEntries);
     const lT = getTotals(lastSched, lastScrapEntries);
-const scrapFromProduction = productionResponses.reduce((sum, record) => {
-  const qty = record.scrapQuantity || 0;
-  const cost = parseFloat(record.PartNumber?.cost || 0); // PartNumber relation hona chahiye
-  return sum + (qty * cost);
-}, 0);
-
-const scrapQtyFromProduction = productionResponses.reduce((sum, record) => sum + (record.scrapQuantity || 0), 0);
-
-// 2. ScapEntries se scrap nikalna (General/Supplier scrap)
-const scrapFromEntriesCost = currScrapEntries.reduce((sum, e) => {
-  const qty = Number(e.returnQuantity) || 0;
-  const cost = parseFloat(e.PartNumber?.cost || 0);
-  return sum + (qty * cost);
-}, 0);
-
-const scrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
-
-// TOTALS
-const totalScrapCost = scrapFromProduction + scrapFromEntriesCost;
-const totalScrapQty = scrapQtyFromProduction + scrapQtyFromEntries
-
-const lastMonthProductionResponses = await prisma.productionResponse.findMany({
-  where: {
-    isDeleted: false,
-    submittedDateTime: { gte: lastMonthStart, lte: lastMonthEnd },
-  },
-  include: { PartNumber: true },
-});
-
-// 2. CURRENT MONTH SCRAP (ProductionResponse + ScapEntries)
-const currentScrapQtyFromProd = productionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
-const currentScrapCostFromProd = productionResponses.reduce((sum, r) => 
-  sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
-
-const currentScrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
-const currentScrapCostFromEntries = currScrapEntries.reduce((sum, e) => 
-  sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
-
-const totalCurrentScrapQty = currentScrapQtyFromProd + currentScrapQtyFromEntries;
-const totalCurrentScrapCost = currentScrapCostFromProd + currentScrapCostFromEntries;
-
-// 3. LAST MONTH SCRAP (Comparison ke liye)
-const lastScrapQtyFromProd = lastMonthProductionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
-const lastScrapCostFromProd = lastMonthProductionResponses.reduce((sum, r) => 
-  sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
-
-const lastScrapQtyFromEntries = lastScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
-const lastScrapCostFromEntries = lastScrapEntries.reduce((sum, e) => 
-  sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
-
-const totalLastScrapQty = lastScrapQtyFromProd + lastScrapQtyFromEntries;
-const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
+    const scrapFromProduction = productionResponses.reduce((sum, record) => {
+      const qty = record.scrapQuantity || 0;
+      const cost = parseFloat(record.PartNumber?.cost || 0);
+      return sum + (qty * cost);
+    }, 0);
+    const scrapQtyFromProduction = productionResponses.reduce((sum, record) => sum + (record.scrapQuantity || 0), 0);
+    const scrapFromEntriesCost = currScrapEntries.reduce((sum, e) => {
+      const qty = Number(e.returnQuantity) || 0;
+      const cost = parseFloat(e.PartNumber?.cost || 0);
+      return sum + (qty * cost);
+    }, 0);
+    const scrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+    const totalScrapCost = scrapFromProduction + scrapFromEntriesCost;
+    const totalScrapQty = scrapQtyFromProduction + scrapQtyFromEntries
+    const lastMonthProductionResponses = await prisma.productionResponse.findMany({
+      where: {
+        isDeleted: false,
+        submittedDateTime: { gte: lastMonthStart, lte: lastMonthEnd },
+      },
+      include: { PartNumber: true },
+    });
+    const currentScrapQtyFromProd = productionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
+    const currentScrapCostFromProd = productionResponses.reduce((sum, r) =>
+      sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
+    const currentScrapQtyFromEntries = currScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+    const currentScrapCostFromEntries = currScrapEntries.reduce((sum, e) =>
+      sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
+    const totalCurrentScrapQty = currentScrapQtyFromProd + currentScrapQtyFromEntries;
+    const totalCurrentScrapCost = currentScrapCostFromProd + currentScrapCostFromEntries;
+    const lastScrapQtyFromProd = lastMonthProductionResponses.reduce((sum, r) => sum + (r.scrapQuantity || 0), 0);
+    const lastScrapCostFromProd = lastMonthProductionResponses.reduce((sum, r) =>
+      sum + (r.scrapQuantity || 0) * (parseFloat(r.PartNumber?.cost) || 0), 0);
+    const lastScrapQtyFromEntries = lastScrapEntries.reduce((sum, e) => sum + (Number(e.returnQuantity) || 0), 0);
+    const lastScrapCostFromEntries = lastScrapEntries.reduce((sum, e) =>
+      sum + (Number(e.returnQuantity) || 0) * (parseFloat(e.PartNumber?.cost) || 0), 0);
+    const totalLastScrapQty = lastScrapQtyFromProd + lastScrapQtyFromEntries;
+    const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
     res.status(200).json({
       productivityData,
       currentRevenue,
@@ -9233,127 +6011,28 @@ const totalLastScrapCost = lastScrapCostFromProd + lastScrapCostFromEntries;
         currentScrapQty: cT.sQty,
         currentScrapCost: cT.sCost.toFixed(2),
         lastScrapCost: lT.sCost.toFixed(2),
-        // scrapChangePercent: getStats(cT.sQty, lT.sQty, true).percent,
-        // scrapIndicator: getStats(cT.sQty, lT.sQty, true).indicator,
-       
-    scrapChangePercent: getStats(totalCurrentScrapQty, totalLastScrapQty, true).percent,
-    scrapIndicator: getStats(totalCurrentScrapQty, totalLastScrapQty, true).indicator,
+        scrapChangePercent: getStats(totalCurrentScrapQty, totalLastScrapQty, true).percent,
+        scrapIndicator: getStats(totalCurrentScrapQty, totalLastScrapQty, true).indicator,
       },
       openOrders: { total: openOrdersList.length, list: openOrdersList },
       fulfilledOrders: { total: fulfilledList.length, list: fulfilledList },
       totalOrders: openOrdersList.length + fulfilledList.length,
     });
   } catch (error) {
-    console.log(error);
-    
+
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-// const dailySchedule = async (req, res) => {
-//   try {
-//     const { date, process } = req.query;
-
-//     if (!date) {
-//       return res.status(400).json({ message: "Date is required" });
-//     }
-//     const startOfDay = new Date(date);
-//     startOfDay.setHours(0, 0, 0, 0);
-//     const endOfDay = new Date(date);
-//     endOfDay.setHours(23, 59, 59, 999);
-//     const whereClause = {
-//       isDeleted: false,
-//       createdAt: { gte: startOfDay, lte: endOfDay },
-//     };
-
-//     if (process) {
-//       whereClause.part = { processId: process };
-//     }
-//     const filteredSchedules = await prisma.stockOrderSchedule.findMany({
-//       where: whereClause,
-//       orderBy: { createdAt: "desc" },
-//       include: {
-//         part: {
-//           select: {
-//             partNumber: true,
-//             process: {
-//               select: {
-//                 processName: true,
-//                 machineName: true,
-//               },
-//             },
-//           },
-//         },
-//         completedByEmployee: { select: { firstName: true, lastName: true } },
-//       },
-//     });
-
-//     if (!filteredSchedules.length) {
-//       return res
-//         .status(200)
-//         .json({ message: "No scheduled orders found.", data: [] });
-//     }
-//     const stockOrderIds = [];
-//     const customOrderIds = [];
-//     filteredSchedules.forEach((schedule) => {
-//       if (schedule.order_type === "StockOrder" && schedule.order_id)
-//         stockOrderIds.push(schedule.order_id);
-//       if (schedule.order_type === "CustomOrder" && schedule.order_id)
-//         customOrderIds.push(schedule.order_id);
-//     });
-
-//     const [stockOrders, customOrders] = await Promise.all([
-//       stockOrderIds.length
-//         ? prisma.stockOrder.findMany({
-//             where: { id: { in: stockOrderIds } },
-//             include: { part: { select: { partNumber: true } } },
-//           })
-//         : [],
-//       customOrderIds.length
-//         ? prisma.customOrder.findMany({
-//             where: { id: { in: customOrderIds } },
-//             include: { product: { select: { partNumber: true } } },
-//           })
-//         : [],
-//     ]);
-
-//     const stockOrderMap = new Map(stockOrders.map((o) => [o.id, o]));
-//     const customOrderMap = new Map(customOrders.map((o) => [o.id, o]));
-
-//     const schedulesWithOrders = filteredSchedules.map((schedule) => {
-//       let orderData = null;
-//       if (schedule.order_type === "StockOrder")
-//         orderData = stockOrderMap.get(schedule.order_id) || null;
-//       if (schedule.order_type === "CustomOrder")
-//         orderData = customOrderMap.get(schedule.order_id) || null;
-//       return { ...schedule, order: orderData };
-//     });
-
-//     return res.status(200).json({
-//       message: "Scheduled orders retrieved successfully!",
-//       data: schedulesWithOrders,
-//     });
-//   } catch (error) {
-//     return res
-//       .status(500)
-//       .json({ message: "Something went wrong.", error: error.message });
-//   }
-// };
 const dailySchedule = async (req, res) => {
   try {
     const { date, process } = req.query;
-
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
-
-    // 1. Date Range Banayein (ISO format strings)
     const startOfDay = new Date(date);
     startOfDay.setUTCHours(0, 0, 0, 0);
-    
     const endOfDay = new Date(date);
     endOfDay.setUTCHours(23, 59, 59, 999);
-
-    // Prisma ko String chahiye, isliye .toISOString() use kar rahe hain
     const startStr = startOfDay.toISOString();
     const endStr = endOfDay.toISOString();
 
@@ -9364,26 +6043,23 @@ const dailySchedule = async (req, res) => {
 
     const whereClause = {
       isDeleted: false,
-      // Process filter logic
       ...(process && process !== "" && process !== "All" && { processId: process }),
-      
-      // Sabhi date fields ko range ke saath check karein
       OR: [
-        { delivery_date: rangeFilter }, // Schedule Table
-        { order_date: rangeFilter },    // Schedule Table
+        { delivery_date: rangeFilter },
+        { order_date: rangeFilter },
         {
           StockOrder: {
             OR: [
-              { shipDate: rangeFilter },  // Order Table
-              { orderDate: rangeFilter }  // Order Table
+              { shipDate: rangeFilter },
+              { orderDate: rangeFilter }
             ]
           }
         },
         {
           CustomOrder: {
             OR: [
-              { shipDate: rangeFilter },  // Order Table
-              { orderDate: rangeFilter }  // Order Table
+              { shipDate: rangeFilter },
+              { orderDate: rangeFilter }
             ]
           }
         }
@@ -9421,7 +6097,6 @@ const dailySchedule = async (req, res) => {
       data: dataWithOrders,
     });
   } catch (error) {
-    console.error("Error in dailySchedule:", error);
     return res.status(500).json({ message: "Something went wrong.", error: error.message });
   }
 };
@@ -9535,176 +6210,18 @@ const capacityStatus = async (req, res) => {
       .json({ message: "Server Error", error: error.message });
   }
 };
-// const productionEfficieny = async (req, res) => {
-//   try {
-//     const { month, year } = req.query;
-
-//     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
-//     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-
-//     const [scheduleData, scrapFromEntries, productionResponses] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-//         include: { part: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-//         include: { PartNumber: true },
-//       }),
-//       // Dashboard se match karne ke liye ye table zaroori hai
-//       prisma.productionResponse.findMany({
-//         where: { isDeleted: false, submittedDateTime: { gte: startDate, lte: endDate } },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCompleted = 0;
-//     let totalScrapCost = 0;
-//     let totalSupplierReturn = 0;
-//     const dailyMap = new Map();
-
-//     // 1. Production Response se Scrap Cost calculate karein
-//     productionResponses.forEach((record) => {
-//       const sQty = record.scrapQuantity || 0;
-//       const sCost = parseFloat(record.PartNumber?.cost || 0);
-//       totalScrapCost += (sQty * sCost);
-//     });
-
-//     // 2. Stock Order Schedule calculation (Completed Qty)
-//     scheduleData.forEach((item) => {
-//       const d = new Date(item.createdAt);
-//       const dateKey = d.toISOString().split("T")[0];
-//       const compQty = item.completedQuantity || 0;
-//       const scrapQty = item.scrapQuantity || 0; // Schedule ka scrap
-//       const pCost = parseFloat(item.part?.cost || 0);
-
-//       if (compQty > 0) {
-//         totalCompleted += compQty;
-//         if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, { date: dateKey, completed: 0 });
-//         dailyMap.get(dateKey).completed += compQty;
-//       }
-
-//       // Schedule table wali scrap cost bhi add karein (Dashboard logic match)
-//       totalScrapCost += (scrapQty * pCost);
-//     });
-
-//     // 3. Scrap Entries calculation (Supplier Return logic)
-//     scrapFromEntries.forEach((entry) => {
-//       const entryQty = Number(entry.returnQuantity) || 0;
-//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const entryTotalCost = entryQty * entryPartCost;
-
-//       totalScrapCost += entryTotalCost;
-
-//       // Supplier Return check
-//       if (entry.supplierId && entry.supplierId !== "") {
-//         totalSupplierReturn += entryTotalCost;
-//       }
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: Array.from(dailyMap.values()).sort(
-//         (a, b) => new Date(a.date) - new Date(b.date)
-//       ),
-//       totals: {
-//         totalCompleted,
-//         totalScrapCost: Number(totalScrapCost.toFixed(2)),
-//         totalSupplierReturn: Number(totalSupplierReturn.toFixed(2)),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// };
-
-// const productionEfficieny = async (req, res) => {
-//   try {
-//     const { month, year } = req.query;
-
-//     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
-//     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-
-//     const [scheduleData, scrapFromEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-//         include: { part: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCompleted = 0;
-//     let totalScrapCost = 0;
-//     let totalSupplierReturn = 0;
-//     const dailyMap = new Map();
-
-//     scheduleData.forEach((item) => {
-//       const d = new Date(item.createdAt);
-//       const dateKey = d.toISOString().split("T")[0];
-      
-//       const compQty = item.completedQuantity || 0;
-//       const sQtyInSchedule = item.scrapQuantity || 0;
-//       const pCost = parseFloat(item.part?.cost || 0);
-
-//       // Completed Quantity
-//       if (compQty > 0) {
-//         totalCompleted += compQty;
-//         if (!dailyMap.has(dateKey)) {
-//           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
-//         }
-//         dailyMap.get(dateKey).completed += compQty;
-//       }
-
-//       totalScrapCost += (sQtyInSchedule * pCost);
-//     });
-
-//     scrapFromEntries.forEach((entry) => {
-//       const entryQty = Number(entry.returnQuantity) || 0;
-//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const entryTotalCost = entryQty * entryPartCost;
-
-//       totalScrapCost += entryTotalCost;
-
-//       // Supplier Return check
-//       if (entry.supplierId && entry.supplierId !== "" && entry.supplierId !== null) {
-//         totalSupplierReturn += entryTotalCost;
-//       }
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: Array.from(dailyMap.values()).sort(
-//         (a, b) => new Date(a.date) - new Date(b.date)
-//       ),
-//       totals: {
-//         totalCompleted,
-//         totalScrapCost: Number(totalScrapCost.toFixed(2)),
-//         totalSupplierReturn: Number(totalSupplierReturn.toFixed(2)),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 
 const productionEfficieny = async (req, res) => {
   try {
     const { month, year } = req.query;
-
-    // Month aur Year ke mutabiq start aur end date set karna
     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
     const [productionData, scrapFromEntries] = await Promise.all([
-      // 1. ProductionResponse se Completed aur Scrap data lena
       prisma.productionResponse.findMany({
         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
-        include: { PartNumber: true }, // Part cost nikalne ke liye
+        include: { PartNumber: true },
       }),
-      // 2. ScapEntries se Supplier/Manual scrap data lena
       prisma.scapEntries.findMany({
         where: { isDeleted: false, createdAt: { gte: startDate, lte: endDate } },
         include: { PartNumber: true },
@@ -9716,16 +6233,14 @@ const productionEfficieny = async (req, res) => {
     let totalSupplierReturn = 0;
     const dailyMap = new Map();
 
-    // PRODUCTION DATA PROCESSING
     productionData.forEach((item) => {
       const d = new Date(item.createdAt);
       const dateKey = d.toISOString().split("T")[0];
-      
+
       const compQty = Number(item.completedQuantity) || 0;
       const scrapQty = Number(item.scrapQuantity) || 0;
       const pCost = parseFloat(item.PartNumber?.cost || 0);
 
-      // 1. Total Completed Quantity calculation
       if (compQty > 0) {
         totalCompleted += compQty;
         if (!dailyMap.has(dateKey)) {
@@ -9734,22 +6249,16 @@ const productionEfficieny = async (req, res) => {
         dailyMap.get(dateKey).completed += compQty;
       }
 
-      // 2. Production ke dauran hua scrap cost
       if (scrapQty > 0) {
         totalScrapCost += (scrapQty * pCost);
       }
     });
 
-    // SCAP ENTRIES PROCESSING (Supplier aur Manual returns)
     scrapFromEntries.forEach((entry) => {
       const entryQty = (Number(entry.scrapQuantity) || 0) + (Number(entry.returnQuantity) || 0);
       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
       const entryTotalCost = entryQty * entryPartCost;
-
-      // Scrap cost mein manual/supplier scrap bhi add karein
       totalScrapCost += entryTotalCost;
-
-      // Supplier Return check (sirf woh jo supplier ko wapas gaya)
       if (entry.supplierId || entry.returnSupplierId) {
         totalSupplierReturn += entryTotalCost;
       }
@@ -9767,90 +6276,9 @@ const productionEfficieny = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Efficiency API Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
-// const productionEfficieny = async (req, res) => {
-//   try {
-//     const { month, year } = req.query;
-
-//     const startDate = new Date(year, month - 1, 1, 0, 0, 0);
-//     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-
-//     const [scheduleData, scrapFromEntries] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: {
-//           isDeleted: false,
-//           order_date: { gte: startDate, lte: endDate },
-//         },
-//         include: { part: true },
-//       }),
-//       prisma.scapEntries.findMany({
-//         where: {
-//           isDeleted: false,
-//           createdAt: { gte: startDate, lte: endDate },
-//         },
-//         include: { PartNumber: true },
-//       }),
-//     ]);
-
-//     let totalCompleted = 0;
-//     let totalScrapCost = 0;
-//     let totalSupplierReturn = 0;
-//     const dailyMap = new Map();
-
-//     scheduleData.forEach((item) => {
-//       const d = new Date(item.order_date || item.createdAt);
-//       const dateKey = d.toISOString().split("T")[0];
-
-//       const compQty = item.completedQuantity || 0;
-//       const scrpQty = item.scrapQuantity || 0;
-//       const partCost = parseFloat(item.part?.cost || 0);
-
-//       if (compQty > 0) {
-//         totalCompleted += compQty;
-//         if (!dailyMap.has(dateKey))
-//           dailyMap.set(dateKey, { date: dateKey, completed: 0 });
-//         dailyMap.get(dateKey).completed += compQty;
-//       }
-
-//       if (scrpQty > 0) {
-//         totalScrapCost += scrpQty * partCost;
-//       }
-//     });
-
-//     scrapFromEntries.forEach((entry) => {
-//       const entryQty = Number(entry.returnQuantity) || 0;
-//       const entryPartCost = parseFloat(entry.PartNumber?.cost || 0);
-//       const entryTotalCost = entryQty * entryPartCost;
-
-//       totalScrapCost += entryTotalCost;
-
-//       if (
-//         entry.supplierId ||
-//         entry.type === "supplier" ||
-//         entry.returnSupplierId
-//       ) {
-//         totalSupplierReturn += entryTotalCost;
-//       }
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       data: Array.from(dailyMap.values()).sort(
-//         (a, b) => new Date(a.date) - new Date(b.date),
-//       ),
-//       totals: {
-//         totalCompleted,
-//         totalScrapCost: Number(totalScrapCost.toFixed(2)),
-//         totalSupplierReturn: Number(totalSupplierReturn.toFixed(2)),
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// };
 const fiexedDataCalculation = async (req, res) => {
   try {
     const { category, name, cost, depreciation } = req.body;
@@ -10018,49 +6446,32 @@ const getFixedCostGraph = async (req, res) => {
       .json({ success: false, message: "Error fetching graph data" });
   }
 };
-
-// const getParts = async (req, res) => {
-//   try {
-//     const parts = await prisma.partNumber.findMany({
-//       where: { isDeleted: false },
-//       select: { part_id: true, partDescription: true, partNumber: true },
-//     });
-//     res.json(parts);
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-
 const getParts = async (req, res) => {
   try {
-    // 1. Standard Parts fetch karein
     const standardParts = await prisma.partNumber.findMany({
       where: { isDeleted: false },
-      select: { 
-        part_id: true, 
-        partNumber: true, 
-        partDescription: true 
+      select: {
+        part_id: true,
+        partNumber: true,
+        partDescription: true
       },
     });
 
-    // 2. Custom Parts fetch karein (Jo CustomPart table mein hain)
     const customParts = await prisma.customPart.findMany({
-      select: { 
-        id: true, 
+      select: {
+        id: true,
         partNumber: true,
       },
     });
 
-    // 3. Custom Order ke main parts (Agar kuch alag hain)
     const customOrderParts = await prisma.customOrder.findMany({
       where: { isDeleted: false },
-      select: { 
-        id: true, 
+      select: {
+        id: true,
         partNumber: true,
       },
     });
 
-    // Sabhi data ko ek hi format mein map karein
     const allParts = [
       ...standardParts.map(p => ({
         part_id: p.part_id,
@@ -10082,7 +6493,6 @@ const getParts = async (req, res) => {
       }))
     ];
 
-    // Duplicate partNumbers ko remove karein (Unique List)
     const uniquePartsMap = new Map();
     allParts.forEach(item => {
       if (item.partNumber && !uniquePartsMap.has(item.partNumber)) {
@@ -10097,260 +6507,6 @@ const getParts = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-
-
-// const revenueApi1 = async (req, res) => {
-//   try {
-//     const year = parseInt(req.query.year);
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: { isDeleted: false },
-//       include: {
-//         part: true,
-//         process: true,
-//         StockOrder: true,
-//         CustomOrder: true,
-//       },
-//     });
-
-//     const fixedCosts = await prisma.fixedCost.findMany({
-//       select: { expenseCost: true },
-//     });
-
-//     const totalFixedCost = fixedCosts.reduce(
-//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-//       0,
-//     );
-
-//     let totalRevenue = 0;
-//     let totalCOGS = 0;
-//     let scrapCost = 0;
-//     let supplierReturn = 0;
-
-//     let projectionOpenOrderRevenue = 0;
-//     let projectionOpenPartsCost = 0;
-//     let projectionOpenLaborCost = 0;
-
-//     const monthlyRevenue = {};
-//     const monthlyCOGS = {};
-//     const dailyCashFlow = {};
-
-//     schedules.forEach((order) => {
-//       const date = new Date(order.order_date);
-//       if (year && date.getFullYear() !== year) return;
-
-//       const qtyFulfilled = order.completedQuantity || 0;
-//       const qtyUnfulfilled = order.remainingQty || 0;
-
-//       const monthKey =
-//         date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
-//       const dateKey = date.toISOString().slice(0, 10);
-
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const productCost = parseFloat(
-//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
-//       );
-//       const cycleTimeMinutes = order.part?.cycleTime || 0;
-//       const cycleTimeHours = cycleTimeMinutes / 60;
-//       const ratePerHour = order?.process?.ratePerHour || 0;
-
-//       const orderCOGS =
-//         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
-//       const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
-
-//       totalRevenue += fulfilledRevenue;
-//       totalCOGS += orderCOGS;
-
-//       monthlyRevenue[monthKey] =
-//         (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
-//       monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
-
-//       const unfulfilledRevenue = (partCost + productCost) * qtyUnfulfilled;
-//       projectionOpenOrderRevenue += unfulfilledRevenue;
-
-//       const unfulfilledPartsCost = partCost * qtyUnfulfilled;
-//       projectionOpenPartsCost += unfulfilledPartsCost;
-
-//       const unfulfilledLaborCost =
-//         cycleTimeHours * ratePerHour * qtyUnfulfilled;
-//       projectionOpenLaborCost += unfulfilledLaborCost;
-
-//       const currentScrap = order.scrapQuantity
-//         ? partCost * order.scrapQuantity
-//         : 0;
-//       scrapCost += currentScrap;
-//       supplierReturn += currentScrap;
-
-//       dailyCashFlow[dateKey] =
-//         (dailyCashFlow[dateKey] || 0) + (partCost + productCost) * qtyFulfilled;
-//     });
-
-//     res.json({
-//       totalRevenue,
-//       totalCOGS,
-//       grossProfit: totalRevenue - totalCOGS - scrapCost - supplierReturn,
-//       scrapCost,
-//       supplierReturn,
-//       totalFixedCost,
-//       monthlyRevenue,
-//       monthlyCOGS,
-//       dailyCashFlow,
-
-//       projections: {
-//         orderCard: {
-//           title: "Total Open Order Revenue",
-//           value: projectionOpenOrderRevenue,
-//         },
-//         partCard: {
-//           title: "Total Open Parts Cost",
-//           value: projectionOpenPartsCost,
-//         },
-//         employeeCard: {
-//           title: "Total Open Labor Cost",
-//           value: projectionOpenLaborCost,
-//         },
-//         fixedCostCard: {
-//           title: "Total Fixed Cost",
-//           value: totalFixedCost,
-//         },
-//       },
-
-//       unfulfilledRevenue: projectionOpenOrderRevenue,
-//       cashflowNeeded:
-//         totalFixedCost + projectionOpenPartsCost + projectionOpenLaborCost,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Something went wrong while fetching revenue & COGS.",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// const revenueApi1 = async (req, res) => {
-//   try {
-//     const { startDate, endDate, year } = req.query;
-
-//     // 1. Date Range Logic (Timezone Friendly)
-//     let start, end;
-//     if (startDate) {
-//       start = new Date(startDate);
-//       start.setHours(0, 0, 0, 0);
-//       const endRef = endDate ? new Date(endDate) : new Date(startDate);
-//       end = new Date(endRef);
-//       end.setHours(23, 59, 59, 999);
-//     } else if (year) {
-//       start = new Date(`${year}-01-01T00:00:00.000Z`);
-//       end = new Date(`${year}-12-31T23:59:59.999Z`);
-//     } else {
-//       // Default: Current Year
-//       const currentYear = new Date().getFullYear();
-//       start = new Date(`${currentYear}-01-01T00:00:00.000Z`);
-//       end = new Date(`${currentYear}-12-31T23:59:59.999Z`);
-//     }
-
-//     // 2. Fetch Data (Prisma level filter for performance)
-//     const [schedules, fixedCosts] = await Promise.all([
-//       prisma.stockOrderSchedule.findMany({
-//         where: {
-//           isDeleted: false,
-//           // Note: Agar projections saare dekhne hain regardless of date,
-//           // toh yahan se order_date filter hatana padega.
-//           // Lekin reporting ke liye filtered data hi sahi rehta hai.
-//           order_date: { gte: start, lte: end },
-//         },
-//         include: {
-//           part: true,
-//           process: true,
-//           StockOrder: true,
-//           CustomOrder: true,
-//         },
-//       }),
-//       prisma.fixedCost.findMany({ where: { isDeleted: false } }),
-//     ]);
-
-//     const totalFixedCost = fixedCosts.reduce(
-//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-//       0,
-//     );
-
-//     let totalRevenue = 0,
-//       totalCOGS = 0,
-//       scrapCost = 0,
-//       supplierReturn = 0;
-//     let projOpenRev = 0,
-//       projOpenParts = 0,
-//       projOpenLabor = 0;
-
-//     const monthlyRevenue = {},
-//       monthlyCOGS = {},
-//       dailyCashFlow = {};
-
-//     schedules.forEach((order) => {
-//       const date = new Date(order.order_date);
-//       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-//       const dateKey = date.toISOString().slice(0, 10);
-
-//       const qtyFulfilled = Number(order.completedQuantity) || 0;
-//       const qtyUnfulfilled = Number(order.remainingQty) || 0; // Ye 0 ho jata hai completion pe
-
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const productCost = parseFloat(
-//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
-//       );
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-
-//       // --- ACTUAL REVENUE (Jo complete ho gaya) ---
-//       const orderCOGS =
-//         (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
-//       const fulfilledRevenue = (partCost + productCost) * qtyFulfilled;
-
-//       totalRevenue += fulfilledRevenue;
-//       totalCOGS += orderCOGS;
-
-//       if (qtyFulfilled > 0) {
-//         monthlyRevenue[monthKey] =
-//           (monthlyRevenue[monthKey] || 0) + fulfilledRevenue;
-//         monthlyCOGS[monthKey] = (monthlyCOGS[monthKey] || 0) + orderCOGS;
-//         dailyCashFlow[dateKey] =
-//           (dailyCashFlow[dateKey] || 0) + fulfilledRevenue;
-//       }
-
-//       // --- PROJECTIONS (Jo abhi pending hai) ---
-//       projOpenRev += (partCost + productCost) * qtyUnfulfilled;
-//       projOpenParts += partCost * qtyUnfulfilled;
-//       projOpenLabor += cycleTimeHours * ratePerHour * qtyUnfulfilled;
-
-//       // Scrap logic
-//       const currentScrap = (Number(order.scrapQuantity) || 0) * partCost;
-//       scrapCost += currentScrap;
-//     });
-
-//     res.json({
-//       success: true,
-//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       grossProfit: parseFloat(
-//         (totalRevenue - totalCOGS - scrapCost).toFixed(2),
-//       ),
-//       scrapCost: parseFloat(scrapCost.toFixed(2)),
-//       totalFixedCost,
-//       monthlyRevenue,
-//       monthlyCOGS,
-//       dailyCashFlow,
-//       projections: {
-//         totalOpenOrderRevenue: projOpenRev,
-//         totalOpenPartsCost: projOpenParts,
-//         totalOpenLaborCost: projOpenLabor,
-//         cashflowNeeded: totalFixedCost + projOpenParts + projOpenLabor,
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
 const revenueApi1 = async (req, res) => {
   try {
     const { startDate, endDate, year } = req.query;
@@ -10407,12 +6563,9 @@ const revenueApi1 = async (req, res) => {
       const date = new Date(order.order_date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const dateKey = date.toISOString().slice(0, 10);
+      const plannedQty = Number(order.plannedQuantity) || 0;
+      const qtyFulfilled = Number(order.completedQuantity) || 0;
 
-      // --- QUANTITY LOGIC FIX ---
-      const plannedQty = Number(order.plannedQuantity) || 0; // Total jitna banana hai
-      const qtyFulfilled = Number(order.completedQuantity) || 0; // Jitna ban chuka hai
-
-      // Agar remainingQty 0 hai but planned > completed, toh difference ko projection maane
       let qtyUnfulfilled = Number(order.remainingQty) || 0;
       if (qtyUnfulfilled === 0 && plannedQty > qtyFulfilled) {
         qtyUnfulfilled = plannedQty - qtyFulfilled;
@@ -10425,7 +6578,6 @@ const revenueApi1 = async (req, res) => {
       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
 
-      // --- ACTUALS (Completed) ---
       if (qtyFulfilled > 0) {
         const orderCOGS =
           (partCost + cycleTimeHours * ratePerHour) * qtyFulfilled;
@@ -10440,15 +6592,11 @@ const revenueApi1 = async (req, res) => {
         dailyCashFlow[dateKey] =
           (dailyCashFlow[dateKey] || 0) + fulfilledRevenue;
       }
-
-      // --- PROJECTIONS (Pending) ---
       if (qtyUnfulfilled > 0) {
         projOpenRev += (partCost + productCost) * qtyUnfulfilled;
         projOpenParts += partCost * qtyUnfulfilled;
         projOpenLabor += cycleTimeHours * ratePerHour * qtyUnfulfilled;
       }
-
-      // Scrap
       const currentScrap = (Number(order.scrapQuantity) || 0) * partCost;
       scrapCost += currentScrap;
     });
@@ -10539,7 +6687,6 @@ const scheudleInventory = async (req, res) => {
     });
   }
 };
-
 const updateInventoryData = async (req, res) => {
   try {
     const { partNumber, qtyAvailable, safetyStock, unitCost } = req.body;
@@ -10582,7 +6729,6 @@ const updateInventoryData = async (req, res) => {
     });
   }
 };
-
 const getLabourForcast = async (req, res) => {
   try {
     const { processId, startDate, endDate, forecastHours } = req.query;
@@ -10649,225 +6795,6 @@ const getLabourForcast = async (req, res) => {
     });
   }
 };
-
-// const businessAnalysisApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     if (!startDate || !endDate) {
-//       return res
-//         .status(400)
-//         .json({ message: "startDate and endDate are required." });
-//     }
-
-//     // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
-//     const [sy, sm, sd] = startDate.split("-").map(Number);
-//     const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
-
-//     const [ey, em, ed] = endDate.split("-").map(Number);
-//     const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
-
-//     const timeDifference = end.getTime() - start.getTime();
-//     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
-
-//     // Fetch Schedules based on the corrected date range
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         isDeleted: false,
-//         order_date: { gte: start, lte: end },
-//       },
-//       include: {
-//         part: true,
-//         process: true,
-//         StockOrder: true,
-//         CustomOrder: true,
-//       },
-//     });
-
-//     const fixedCostsData = await prisma.fixedCost.findMany({
-//       where: { isDeleted: false },
-//       select: { expenseCost: true },
-//     });
-
-//     const sumFixedCosts = fixedCostsData.reduce(
-//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-//       0,
-//     );
-
-//     // Prorate fixed cost based on days selected
-//     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
-
-//     let totalRevenue = 0;
-//     let bomCost = 0;
-//     let laborCost = 0;
-//     let scrapCost = 0;
-//     let supplierReturn = 0;
-//     let inventoryCost = 0;
-
-//     schedules.forEach((order) => {
-//       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
-//       const qtyRemaining = parseFloat(order.remainingQty || 0);
-//       const scrapQty = parseFloat(order.scrapQuantity || 0);
-
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const salePrice = parseFloat(
-//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
-//       );
-
-//       // --- Time & Labor Calculation (Synced with Costing API) ---
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-//       const unitLabor = cycleTimeHours * ratePerHour;
-
-//       // Calculations
-//       const revenuePerUnit = partCost + salePrice;
-//       totalRevenue += revenuePerUnit * qtyFulfilled;
-
-//       bomCost += partCost * qtyFulfilled;
-//       laborCost += unitLabor * qtyFulfilled;
-
-//       scrapCost += scrapQty * partCost;
-//       supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
-
-//       // Inventory = Unfinished Qty * (Material + Labor effort put so far)
-//       inventoryCost += qtyRemaining * (partCost + unitLabor);
-//     });
-
-//     const totalCOGS = bomCost + laborCost;
-//     const operatingExpenses = totalCOGS + proratedFixedCost + scrapCost;
-//     const profit = totalRevenue - operatingExpenses;
-
-//     res.status(200).json({
-//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       bomCost: parseFloat(bomCost.toFixed(2)),
-//       laborCost: parseFloat(laborCost.toFixed(2)),
-//       totalFixedCost: parseFloat(proratedFixedCost.toFixed(2)),
-//       operatingExpenses: parseFloat(operatingExpenses.toFixed(2)),
-//       Profit: parseFloat(profit.toFixed(2)),
-//       InventoryCost: parseFloat(inventoryCost.toFixed(2)),
-//       scrapCost: parseFloat(scrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
-//       daysInPeriod,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Error fetching business analysis data",
-//       error: error.message,
-//     });
-//   }
-// };
-
-// const businessAnalysisApi = async (req, res) => {
-//   try {
-//     const { startDate, endDate } = req.query;
-
-//     if (!startDate || !endDate) {
-//       return res
-//         .status(400)
-//         .json({ message: "startDate and endDate are required." });
-//     }
-
-//     // --- DATE FIX: Local Timezone Sync (Same as Costing API) ---
-//     const [sy, sm, sd] = startDate.split("-").map(Number);
-//     const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); // Local 00:00:00
-
-//     const [ey, em, ed] = endDate.split("-").map(Number);
-//     const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); // Local 23:59:59
-
-//     const timeDifference = end.getTime() - start.getTime();
-//     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
-
-//     // Fetch Schedules based on the corrected date range
-//     const schedules = await prisma.stockOrderSchedule.findMany({
-//       where: {
-//         isDeleted: false,
-//         order_date: { gte: start, lte: end },
-//       },
-//       include: {
-//         part: true,
-//         process: true,
-//         StockOrder: true,
-//         CustomOrder: true,
-//       },
-//     });
-
-//     const fixedCostsData = await prisma.fixedCost.findMany({
-//       where: { isDeleted: false },
-//       select: { expenseCost: true },
-//     });
-
-//     const sumFixedCosts = fixedCostsData.reduce(
-//       (sum, item) => sum + parseFloat(item.expenseCost || 0),
-//       0,
-//     );
-
-//     // Prorate fixed cost based on days selected
-//     const proratedFixedCost = (sumFixedCosts / 365) * daysInPeriod;
-
-//     let totalRevenue = 0;
-//     let bomCost = 0;
-//     let laborCost = 0;
-//     let scrapCost = 0;
-//     let supplierReturn = 0;
-//     let inventoryCost = 0;
-
-//     schedules.forEach((order) => {
-//       const qtyFulfilled = parseFloat(order.completedQuantity || 0);
-//       const qtyRemaining = parseFloat(order.remainingQty || 0);
-//       const scrapQty = parseFloat(order.scrapQuantity || 0);
-
-//       const partCost = parseFloat(order.part?.cost || 0);
-//       const salePrice = parseFloat(
-//         order.StockOrder?.cost || order.CustomOrder?.totalCost || 0,
-//       );
-
-//       // --- Time & Labor Calculation (Synced with Costing API) ---
-//       const cycleTimeHours = (parseFloat(order.part?.cycleTime) || 0) / 60;
-//       const ratePerHour = parseFloat(order.process?.ratePerHour || 0);
-//       const unitLabor = cycleTimeHours * ratePerHour;
-
-//       // Calculations
-//       const revenuePerUnit = partCost + salePrice;
-//       totalRevenue += revenuePerUnit * qtyFulfilled;
-
-//       bomCost += partCost * qtyFulfilled;
-//       laborCost += unitLabor * qtyFulfilled;
-
-//       scrapCost += scrapQty * partCost;
-//       supplierReturn += scrapQty * partCost; // Scrap is usually returned/debited
-
-//       // Inventory = Unfinished Qty * (Material + Labor effort put so far)
-//       inventoryCost += qtyRemaining * (partCost + unitLabor);
-//     });
-
-//     const totalCOGS = bomCost + laborCost;
-//     const operatingExpenses = totalCOGS + proratedFixedCost + scrapCost;
-//     const profit = totalRevenue - operatingExpenses;
-
-//     res.status(200).json({
-//       totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-//       totalCOGS: parseFloat(totalCOGS.toFixed(2)),
-//       bomCost: parseFloat(bomCost.toFixed(2)),
-//       laborCost: parseFloat(laborCost.toFixed(2)),
-//       totalFixedCost: parseFloat(proratedFixedCost.toFixed(2)),
-//       operatingExpenses: parseFloat(operatingExpenses.toFixed(2)),
-//       Profit: parseFloat(profit.toFixed(2)),
-//       InventoryCost: parseFloat(inventoryCost.toFixed(2)),
-//       scrapCost: parseFloat(scrapCost.toFixed(2)),
-//       supplierReturn: parseFloat(supplierReturn.toFixed(2)),
-//       cashFlow: parseFloat(profit.toFixed(2)), // Profit as basic cashflow
-//       daysInPeriod,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Error fetching business analysis data",
-//       error: error.message,
-//     });
-//   }
-// };
-
 const businessAnalysisApi = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -10877,9 +6804,9 @@ const businessAnalysisApi = async (req, res) => {
     }
 
     const [sy, sm, sd] = startDate.split("-").map(Number);
-    const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0); 
+    const start = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
     const [ey, em, ed] = endDate.split("-").map(Number);
-    const end = new Date(ey, em - 1, ed, 23, 59, 59, 999); 
+    const end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     const timeDifference = end.getTime() - start.getTime();
     const daysInPeriod = Math.ceil(timeDifference / (1000 * 3600 * 24)) || 1;
 
@@ -10977,7 +6904,6 @@ const businessAnalysisApi = async (req, res) => {
     });
   }
 };
-
 const getProductParts = async (req, res) => {
   try {
     const { id } = req.params;
@@ -11051,7 +6977,6 @@ const getSelectParts = async (req, res) => {
     });
   }
 };
-
 const getSelectProducts = async (req, res) => {
   try {
     const products = await prisma.partNumber.findMany({
@@ -11075,7 +7000,6 @@ const getSelectProducts = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   login,
   sendForgotPasswordOTP,
