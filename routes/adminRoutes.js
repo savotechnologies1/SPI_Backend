@@ -114,6 +114,7 @@ const {
   revenueApi1,
   getSelectParts,
   getSelectProducts,
+  getOrderCatalogData,
 } = require("../controllers/adminController");
 const adminValidateToken = require("../middlewares/adminValidateTokenHandler");
 const {
@@ -513,4 +514,5 @@ router.post("/scan-complete/:id", adminValidateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", adminValidateToken, scanScrapAction);
 router.get("/select-parts", adminValidateToken, getSelectParts);
 router.get("/select-products", adminValidateToken, getSelectProducts);
+router.get("/get-order-catelog-data", getOrderCatalogData);
 module.exports = router;

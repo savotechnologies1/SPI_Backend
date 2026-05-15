@@ -7000,6 +7000,101 @@ const getSelectProducts = async (req, res) => {
     });
   }
 };
+const getOrderCatalogData = async (req, res) => {
+  try {
+    const { searchQuery } = req.query;
+
+    // 1. Fetch Standard Products
+    const products = await prisma.partNumber.findMany({
+      where: {
+        isDeleted: false,
+        type: { contains: "Product" }, 
+        OR: searchQuery ? [
+          { partNumber: { contains: searchQuery } },
+          { partDescription: { contains: searchQuery } }
+        ] : undefined
+      },
+      select: {
+        part_id: true,
+        partNumber: true,
+        partDescription: true,
+        cost: true,
+        availStock: true,
+        partImages: { where: { isDeleted: false }, take: 1 }
+      }
+    });
+
+    // 2. Fetch Custom Orders
+    const customOrders = await prisma.customOrder.findMany({
+      where: {
+        isDeleted: false,
+        status: "Pending",
+        OR: searchQuery ? [
+          { orderNumber: { contains: searchQuery } },
+          { customerName: { contains: searchQuery } }
+        ] : undefined
+      },
+      include: {
+        customer: { select: { firstName: true, lastName: true, email: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 3. Fetch Tenant Settings SAFELY
+    let activeGateway = "STRIPE"; // Default fallback
+    
+    // Check if prisma.tenant actually exists before calling it
+    if (prisma.tenant) {
+        try {
+            const tenantSettings = await prisma.tenant.findFirst({
+                select: { paymentGateway: true }
+            });
+            if (tenantSettings?.paymentGateway) {
+                activeGateway = tenantSettings.paymentGateway;
+            }
+        } catch (dbError) {
+            console.warn("Tenant table might not exist in database yet:", dbError.message);
+        }
+    } else {
+        console.warn("Prisma Client does not have 'tenant' model. Did you run 'npx prisma generate'?");
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Catalog data retrieved successfully",
+      data: {
+        catalogProducts: products.map(p => ({
+          id: p.part_id,
+          name: p.partNumber,
+          description: p.partDescription,
+          price: p.cost,
+          stock: p.availStock,
+          image: p.partImages[0]?.imageUrl || null
+        })),
+        readyCustomOrders: customOrders.map(co => ({
+          id: co.id,
+          orderNumber: co.orderNumber,
+          customerName: co.customerName,
+          totalCost: co.totalCost,
+          quantity: co.productQuantity,
+          type: 'custom'
+        })),
+        settings: {
+          activeGateway: activeGateway // Now safely returns "STRIPE" if table is missing
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("Catalog API Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load order catalog",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   login,
   sendForgotPasswordOTP,
@@ -7112,4 +7207,5 @@ module.exports = {
   sendOrderToSupplier,
   getSelectParts,
   getSelectProducts,
+  getOrderCatalogData
 };

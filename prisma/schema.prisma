@@ -272,10 +272,12 @@ model StockOrder {
   schedules                                       StockOrderSchedule[]
   processLogin                                    processLogin[]
   scapEntries                                     scapEntries[]
-
+  tenantId           String?              @db.Char(36)
+  tenant             Tenant?              @relation(fields: [tenantId], references: [id])
   @@index([customerId], map: "StockOrder_customerId_fkey")
   @@index([partId], map: "StockOrder_partId_fkey")
   @@index([productNumber], map: "StockOrder_productNumber_fkey")
+  
 }
 
 model CustomOrder {
@@ -307,7 +309,8 @@ model CustomOrder {
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
   existingParts      CustomOrderExistingPart[]
-
+ tenantId           String?                   @db.Char(36)
+  tenant             Tenant?                   @relation(fields: [tenantId], references: [id])
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
   @@index([partId], map: "CustomOrder_partId_fkey")
@@ -795,7 +798,18 @@ model DailyInventory {
 
   @@index([date])
 }
-
+model Tenant {
+  id                 String   @id @default(uuid())
+  tenantName         String
+  paymentGateway     String   
+  apiKey             String   
+  apiSecret          String   
+  webhookSecret      String?
+  createdAt          DateTime @default(now())
+  
+  stockOrders        StockOrder[]
+  customOrders       CustomOrder[]
+}
 enum TimeClockEventType {
   CLOCK_IN
   CLOCK_OUT

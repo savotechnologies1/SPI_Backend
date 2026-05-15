@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BHIVES Checkout UI</title>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --brand-blue: #001b3d; /* BHIVES Dark Blue */
+            --brand-yellow: #ffc107; /* BHIVES Yellow */
+            --bg-light: #f8f9fa;
+            --border-color: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            background-color: var(--bg-light);
+            height: 100vh;
+        }
+
+        /* 1. Sidebar Placeholder (Matching BHIVES) */
+        .sidebar {
+            width: 240px;
+            background-color: var(--brand-blue);
+            color: white;
+            padding: 20px;
+        }
+
+        /* 2. Main Content Area */
+        .main-content {
+            flex-grow: 1;
+            padding: 25px;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 { font-size: 24px; font-weight: 600; margin: 0; }
+
+        /* 3. Catalog Grid (Aapki images ke mutabiq) */
+        .catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .product-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 16px; /* rounded-2xl jaisa aapke code mein hai */
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-img {
+            width: 100%;
+            height: 150px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        .product-name { font-weight: bold; font-size: 16px; margin: 0 0 5px 0; }
+        .product-price { font-size: 18px; color: var(--brand-blue); font-weight: 700; }
+        .available-qty { font-size: 12px; color: #777; margin-bottom: 15px; }
+
+        .add-to-cart-btn {
+            background-color: var(--brand-yellow);
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .add-to-cart-btn:hover { background-color: #e0ac06; }
+
+        /* 4. Cart Sidebar (Navy Blue from Client PDF) */
+        .cart-section {
+            width: 380px;
+            background-color: var(--brand-blue); /* Dark Navy Blue */
+            color: white;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+        }
+
+        .cart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .cart-title { color: var(--brand-yellow); font-size: 28px; font-weight: bold; }
+
+        .checkout-btn {
+            background-color: var(--brand-yellow);
+            color: black;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Cart Items */
+        .cart-items-list { flex-grow: 1; overflow-y: auto; }
+        .cart-item {
+            margin-bottom: 25px;
+            border-bottom: 1px solid #ffffff20;
+            padding-bottom: 15px;
+        }
+
+        .qty-box {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .qty-btn {
+            background: var(--brand-yellow);
+            border: none;
+            width: 30px;
+            height: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .qty-input {
+            background: white;
+            color: black;
+            width: 40px;
+            text-align: center;
+            padding: 5px 0;
+            margin: 0 5px;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        /* Total Section */
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--brand-yellow);
+            padding-top: 20px;
+            border-top: 2px solid #ffffff30;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Placeholder -->
+    <div class="sidebar">
+        <h2 style="color: var(--brand-yellow)">BHIVES</h2>
+        <p>Dashboard</p>
+        <p>Orders</p>
+        <p><b>Product Catalog</b></p> <!-- Naya Page -->
+    </div>
+
+    <!-- Main Catalog Area -->
+    <div class="main-content">
+        <div class="header">
+            <h1>Product Catalog</h1>
+        </div>
+
+        <div class="catalog-grid">
+            <!-- Product 1 -->
+            <div class="product-card">
+                <div class="product-img"></div>
+                <p class="product-name">Wireless Headphones</p>
+                <p class="product-price">$129.99</p>
+                <p class="available-qty">Available: 14</p>
+                <button class="add-to-cart-btn">Add to Cart</button>
+            </div>
+
+            <!-- Product 2 -->
+            <div class="product-card">
+                <div class="product-img"></div>
+                <p class="product-name">Smart Watch Series X</p>
+                <p class="product-price">$199.00</p>
+                <p class="available-qty">Available: 8</p>
+                <button class="add-to-cart-btn">Add to Cart</button>
+            </div>
+
+            <!-- Custom Order Item -->
+            <div class="product-card" style="border: 1px dashed var(--brand-yellow);">
+                <p class="product-name" style="color: #d4a017;">[Custom] Engraved Watch</p>
+                <p class="product-price">$250.00</p>
+                <p class="available-qty">Ready to Sell: 1</p>
+                <button class="add-to-cart-btn">Add to Cart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Sidebar (Exactly as Client Image) -->
+    <div class="cart-section">
+        <div class="cart-header">
+            <span class="cart-title">Cart</span>
+            <button class="checkout-btn">Proceed to Checkout</button>
+        </div>
+
+        <div class="cart-items-list">
+            <!-- Selected Item -->
+            <div class="cart-item">
+                <p style="margin:0; font-weight: bold;">Wireless Headphones</p>
+                <p style="font-size: 14px; color: #aaa; margin: 5px 0;">$129.99</p>
+                <div class="qty-box">
+                    <button class="qty-btn">-</button>
+                    <div class="qty-input">1</div>
+                    <button class="qty-btn">+</button>
+                </div>
+            </div>
+
+            <p style="color: var(--brand-yellow); font-size: 12px; margin-top: 30px; font-weight: bold;">Custom Orders Ready to Sell</p>
+            <div class="cart-item">
+                <p style="margin:0; font-weight: bold;">Custom Engraved Watches</p>
+                <div class="qty-box">
+                    <button class="qty-btn">-</button>
+                    <div class="qty-input">2</div>
+                    <button class="qty-btn">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="total-row">
+            <span>Total</span>
+            <span>$698.98</span>
+        </div>
+    </div>
+
+</body>
+</html>
