@@ -188,6 +188,7 @@ const {
   importSupp,
 } = require("../controllers/importController");
 const { max } = require("moment");
+const { createPayment, handleStripeWebhook, getOrderStatus, capturePaypalOrder, handlePaypalWebhook } = require("../controllers/paymentController");
 const router = express.Router();
 router.post("/login", adminLogin, login);
 router.post("/forget-password", forgotPass, sendForgotPasswordOTP);
@@ -514,5 +515,18 @@ router.post("/scan-complete/:id", adminValidateToken, scanCompleteAction);
 router.post("/scan-scrap/:id", adminValidateToken, scanScrapAction);
 router.get("/select-parts", adminValidateToken, getSelectParts);
 router.get("/select-products", adminValidateToken, getSelectProducts);
-router.get("/get-order-catelog-data", getOrderCatalogData);
+router.get("/get-order-catelog-data",adminValidateToken, getOrderCatalogData);
+router.post('/create-payment', adminValidateToken,createPayment);
+
+router.post(
+    '/webhooks/stripe', 
+    express.raw({ type: 'application/json' }), 
+    handleStripeWebhook
+);
+router.get("/get-order-status",adminValidateToken, getOrderStatus);
+router.post('/capture-paypal', adminValidateToken,capturePaypalOrder);
+router.post(
+    '/webhooks/paypal', 
+    handlePaypalWebhook 
+);
 module.exports = router;

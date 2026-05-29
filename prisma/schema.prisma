@@ -27,6 +27,8 @@ model admin {
   profileImg         String               @default("") @db.VarChar(255)
   state              String               @default("") @db.Char(50)
   zipCode            String               @default("") @db.Char(50)
+  tenantId           String?              @db.Char(100)
+  tenant             Tenant?              @relation(fields: [tenantId], references: [id])
   submittedBy        StockOrderSchedule[]
   StockOrderSchedule StockOrderSchedule[] @relation("AdminSchedules")
   scapEntries        scapEntries[]
@@ -272,12 +274,11 @@ model StockOrder {
   schedules                                       StockOrderSchedule[]
   processLogin                                    processLogin[]
   scapEntries                                     scapEntries[]
-  tenantId           String?              @db.Char(36)
-  tenant             Tenant?              @relation(fields: [tenantId], references: [id])
+  
+
   @@index([customerId], map: "StockOrder_customerId_fkey")
   @@index([partId], map: "StockOrder_partId_fkey")
   @@index([productNumber], map: "StockOrder_productNumber_fkey")
-  
 }
 
 model CustomOrder {
@@ -309,8 +310,10 @@ model CustomOrder {
   ProductionResponse ProductionResponse[]
   schedules          StockOrderSchedule[]
   existingParts      CustomOrderExistingPart[]
- tenantId           String?                   @db.Char(36)
+  tenantId           String?                   @db.Char(100)
   tenant             Tenant?                   @relation(fields: [tenantId], references: [id])
+  paymentStatus    PaymentStatus @default(PENDING) // Naya field sirf payment ke liye
+
   @@index([productId], map: "CustomOrder_productId_fkey")
   @@index([customerId], map: "CustomOrder_customerId_fkey")
   @@index([partId], map: "CustomOrder_partId_fkey")
@@ -801,14 +804,50 @@ model DailyInventory {
 model Tenant {
   id                 String   @id @default(uuid())
   tenantName         String
-  paymentGateway     String   
-  apiKey             String   
-  apiSecret          String   
-  webhookSecret      String?
-  createdAt          DateTime @default(now())
   
-  stockOrders        StockOrder[]
+  // Stripe Settings
+  stripeSecretKey    String?  
+  
+  // PayPal Settings
+  paypalClientId     String?  
+  paypalSecretKey    String?  
+
+  createdAt          DateTime @default(now())
+  admins             admin[]      
   customOrders       CustomOrder[]
+  
+  // YEH LINE ADD KAREIN
+  transactions       Transaction[] 
+}
+model Transaction {
+  id                String   @id @default(uuid()) @db.Char(100)
+  orderNumber       String   
+  orderType         OrderType 
+  amount            Decimal  @db.Decimal(10, 2)
+  currency          String   @default("USD")
+  gateway           String   
+  gatewayOrderId    String?  
+  gatewayTransId    String?  
+  status            PaymentStatus @default(PENDING)
+  customerEmail     String?
+  tenantId          String?  @db.Char(100)
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([orderNumber])
+}
+
+enum OrderType {
+  STOCK
+  CUSTOM
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
 }
 enum TimeClockEventType {
   CLOCK_IN

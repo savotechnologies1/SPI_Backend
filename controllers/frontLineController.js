@@ -331,17 +331,13 @@ const getEmployeeStatus = async (req, res) => {
 const getEmployeeTimeline = async (req, res) => {
   try {
     const employeeId = req.user?.id;
-
     if (!employeeId) {
       return res.status(401).json({ message: "Not authorized." });
     }
-
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
-
     const timelineEvents = await prisma.timeClock.findMany({
       where: {
         employeeId: employeeId,
@@ -359,7 +355,6 @@ const getEmployeeTimeline = async (req, res) => {
         notes: true,
       },
     });
-
     return res.status(200).json({
       message: "Timeline retrieved successfully!",
       data: timelineEvents,

@@ -11,6 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "@paypal/paypal-server-sdk": "^2.3.0",
     "@prisma/client": "^6.16.3",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
@@ -30,11 +32,12 @@
     "mysql2": "^3.14.1",
     "nanoid": "^5.1.5",
     "node-cron": "^4.2.1",
-    "nodemailer": "^7.0.3",
+    "nodemailer": "^7.0.13",
     "nodemailer-smtp-transport": "^2.7.4",
     "nodemon": "^3.1.10",
     "path": "^0.12.7",
     "string-humanize": "^1.0.1",
+    "stripe": "^22.1.1",
     "twilio": "^5.5.2",
     "uuid": "^11.1.0",
     "uuidv4": "^6.2.13"
