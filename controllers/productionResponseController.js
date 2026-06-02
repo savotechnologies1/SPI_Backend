@@ -28,45 +28,6 @@ const stationLogout = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-// const stationLogin = async (req, res) => {
-//   try {
-//     const { processId, stationUserId, type } = req.body;
-//     if (!stationUserId || !processId) {
-//       return res
-//         .status(400)
-//         .json({ message: "Invalid Station User or Process ID." });
-//     }
-//     if (type === "training") {
-//       await prisma.productionResponse.updateMany({
-//         where: {
-//           stationUserId: stationUserId,
-//           processId: processId,
-//           type: "training",
-//           isDeleted: false,
-//         },
-//       });
-//     }
-//     const processLoginData = await prisma.productionResponse.create({
-//       data: {
-//         process: { connect: { id: processId } },
-//         employeeInfo: { connect: { id: stationUserId } },
-//         type,
-//         traniningStatus: false,
-//         cycleTimeStart: new Date(),
-//         order_type: type === "training" ? "Training" : "N/A",
-//       },
-//     });
-
-//     return res.status(200).json({
-//       message: "Logged in. Training restarted from Part 1.",
-//       data: processLoginData,
-//     });
-//   } catch (error) {
-//     console.log('errorerror',error)
-//     return res.status(500).json({ message: error.message });
-//   }
-// };
-
 const stationLogin = async (req, res) => {
   try {
     const { processId, stationUserId, type } = req.body;
@@ -78,7 +39,6 @@ const stationLogin = async (req, res) => {
     }
 
     if (type === "training") {
-      // FIX: Added the 'data' property to specify what to update
       await prisma.productionResponse.updateMany({
         where: {
           stationUserId: stationUserId,
@@ -87,7 +47,7 @@ const stationLogin = async (req, res) => {
           isDeleted: false,
         },
         data: {
-          isDeleted: true, // Mark old training sessions as deleted/inactive
+          isDeleted: true, 
         },
       });
     }
