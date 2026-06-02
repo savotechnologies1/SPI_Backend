@@ -7,8 +7,8 @@ const connectDB = async () => {
     const getId = uuidv4().slice(0, 6);
     const convertedPass = md5("Admin@123");
     const adminCount = await prisma.admin.count();
-     let defaultTenant = await prisma.tenant.findFirst();
-console.log('defaultTenant',defaultTenant)
+    let defaultTenant = await prisma.tenant.findFirst();
+    console.log('defaultTenant', defaultTenant)
     if (!defaultTenant) {
       // Agar koi tenant nahi hai, toh .env se keys uthakar default tenant banayein
       defaultTenant = await prisma.tenant.create({
@@ -54,16 +54,17 @@ console.log('defaultTenant',defaultTenant)
             tenantId: defaultTenant.id
           },
         });
-      }}
-      const templateCount = await prisma.mailTemplate.count();
-      if (templateCount === 0) {
-        await prisma.mailTemplate.createMany({
-          data: [
-            {
-              templateEvent: "otp-verify",
-              subject: "BHIVES OTP Verification",
-              mailVariables: "%otp%",
-              htmlBody: `<!DOCTYPE html>
+      }
+    }
+    const templateCount = await prisma.mailTemplate.count();
+    if (templateCount === 0) {
+      await prisma.mailTemplate.createMany({
+        data: [
+          {
+            templateEvent: "otp-verify",
+            subject: "BHIVES OTP Verification",
+            mailVariables: "%otp%",
+            htmlBody: `<!DOCTYPE html>
             <html lang="en">
               <head>
                 <meta charset="UTF-8" />
@@ -85,13 +86,13 @@ console.log('defaultTenant',defaultTenant)
                 </div>
               </body>
             </html>`,
-              textBody: "Your BHIVES Verification code is %otp%",
-            },
-            {
-              templateEvent: "account-created",
-              subject: "Your Account has been Created",
-              mailVariables: "%email%, %password%",
-              htmlBody: `<!DOCTYPE html>
+            textBody: "Your BHIVES Verification code is %otp%",
+          },
+          {
+            templateEvent: "account-created",
+            subject: "Your Account has been Created",
+            mailVariables: "%email%, %password%",
+            htmlBody: `<!DOCTYPE html>
                       <html lang="en">
                         <head>
                           <meta charset="UTF-8" />
@@ -115,14 +116,14 @@ console.log('defaultTenant',defaultTenant)
                           </div>
                         </body>
                       </html>`,
-              textBody:
-                "Your account is created with email: %email% and password: %password%",
-            },
-            {
-              templateEvent: "send-order-to-the-supplier",
-              subject: "Supplier Order Request",
-              mailVariables: "%email%",
-              htmlBody: `<!DOCTYPE html>
+            textBody:
+              "Your account is created with email: %email% and password: %password%",
+          },
+          {
+            templateEvent: "send-order-to-the-supplier",
+            subject: "Supplier Order Request",
+            mailVariables: "%email%",
+            htmlBody: `<!DOCTYPE html>
               <html lang="en">
                 <head>
                   <meta charset="UTF-8" />
@@ -191,14 +192,14 @@ console.log('defaultTenant',defaultTenant)
                 </body>
               </html>
               `,
-              textBody:
-                "Your account is created with email: %email% and password: %password%",
-            },
-            {
-              templateEvent: "send-employee-vacation-req-status",
-              subject: "Employe Vacation Request Status",
-              mailVariables: "%status%",
-              htmlBody: `<!DOCTYPE html>
+            textBody:
+              "Your account is created with email: %email% and password: %password%",
+          },
+          {
+            templateEvent: "send-employee-vacation-req-status",
+            subject: "Employe Vacation Request Status",
+            mailVariables: "%status%",
+            htmlBody: `<!DOCTYPE html>
           <html lang="en">
             <head>
               <meta charset="UTF-8" />
@@ -278,14 +279,51 @@ console.log('defaultTenant',defaultTenant)
             </body>
           </html>`,
 
-              textBody:
-                "Your account is created with email: %email% and password: %password%",
-            },
-            {
-              templateEvent: "order-payment-link",
-  subject: "Complete your Purchase - %tenantName%",
-  mailVariables: "%name%, %amount%, %paymentUrl%, %tenantName%",
-              htmlBody: `<!DOCTYPE html>
+            textBody:
+              "Your account is created with email: %email% and password: %password%",
+          },
+          //           {
+          //             templateEvent: "order-payment-link",
+          // subject: "Complete your Purchase - %tenantName%",
+          // mailVariables: "%name%, %amount%, %paymentUrl%, %tenantName%",
+          //             htmlBody: `<!DOCTYPE html>
+          //   <html lang="en">
+          //   <head>
+          //     <meta charset="UTF-8" />
+          //     <title>Payment Request</title>
+          //   </head>
+          //   <body style="font-family: Arial, sans-serif; background-color: #f4f7fc; margin: 0; padding: 20px;">
+          //     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+          //       <div style="background-color: #4f46e5; color: #ffffff; padding: 30px; text-align: center;">
+          //         <h1 style="margin: 0; font-size: 24px;">Complete Your Payment</h1>
+          //       </div>
+          //       <div style="padding: 30px; color: #333333; line-height: 1.6;">
+          //         <p>Hello <strong>%name%</strong>,</p>
+          //         <p>Your order is ready at <strong>%tenantName%</strong>. Please use the link below to complete your payment and finalize the order.</p>
+
+          //         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+          //           <p style="margin: 0 0 10px 0; font-size: 14px; color: #64748b;">Total Amount Due</p>
+          //           <p style="margin: 0; font-size: 28px; font-weight: bold; color: #1e293b;">$%amount%</p>
+          //         </div>
+
+          //         <div style="text-align: center; margin-top: 30px;">
+          //           <a href="%paymentUrl%" style="background-color: #4f46e5; color: #ffffff; padding: 15px 35px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Pay Securely Now</a>
+          //         </div>
+          //       </div>
+          //       <div style="background-color: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8;">
+          //         <p>© BHIVES. All rights reserved.</p>
+          //       </div>
+          //     </div>
+          //   </body>
+          //   </html>`,
+          //             textBody: "Hello %name%, your order for $%amount% is ready. Pay here: %paymentUrl%",
+          //           }
+          {
+
+            templateEvent: "order-payment-link",
+            subject: "Complete your Purchase - %tenantName%",
+            mailVariables: "%name%, %amount%, %paymentUrl%, %tenantName%, %items%",
+            htmlBody: `<!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8" />
@@ -298,8 +336,13 @@ console.log('defaultTenant',defaultTenant)
         </div>
         <div style="padding: 30px; color: #333333; line-height: 1.6;">
           <p>Hello <strong>%name%</strong>,</p>
-          <p>Your order is ready at <strong>%tenantName%</strong>. Please use the link below to complete your payment and finalize the order.</p>
+          <p>Your order is ready at <strong>%tenantName%</strong>. Here is the summary of your items:</p>
           
+          <!-- 2. Items Table Placeholder Yahan Add kiya 👇 -->
+          <div style="margin: 20px 0;">
+            %items%
+          </div>
+
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
             <p style="margin: 0 0 10px 0; font-size: 14px; color: #64748b;">Total Amount Due</p>
             <p style="margin: 0; font-size: 28px; font-weight: bold; color: #1e293b;">$%amount%</p>
@@ -315,13 +358,14 @@ console.log('defaultTenant',defaultTenant)
       </div>
     </body>
     </html>`,
-              textBody: "Hello %name%, your order for $%amount% is ready. Pay here: %paymentUrl%",
-            }
-          ],
-          skipDuplicates: true,
-        });
-      }
-    
+            textBody: "Hello %name%, your order for $%amount% is ready. Items: %items%. Pay here: %paymentUrl%",
+
+          }
+        ],
+        skipDuplicates: true,
+      });
+    }
+
   } catch (error) {
     console.error(" Database connection error:", error);
     process.exit(1);

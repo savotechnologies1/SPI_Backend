@@ -149,6 +149,7 @@ const prisma = require("../config/prisma");
 // ;
 
 module.exports.sendMail = (templateName, mailVariables, email) => {
+  console.log('mailVariables',mailVariables)
   return new Promise(async function (resolve, reject) {
     try {
       const template = await prisma.mailTemplate.findFirst({

@@ -1411,15 +1411,51 @@ exports.createPayment = async (req, res) => {
             paymentUrl = response.result.links.find(link => link.rel === 'approve').href;
         }
 
+        // if (method === 'EMAIL') {
+        //     await sendMail("order-payment-link", { 
+        //         "%name%": customerDetails.name || "Customer", 
+        //         "%amount%": totalAmount, 
+        //         "%paymentUrl%": paymentUrl, 
+        //         "%tenantName%": tenant.tenantName 
+        //     }, customerDetails.email);
+        //     return res.json({ success: true, message: "Payment link sent to email." });
+        // }
+// --- YEH BHI NAYA HAI ---
+// --- YEH NAYA ADD KIYA GAYA HAI ---
+const itemsRows = items.map(item => `
+    <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #4a5568;">${item.name}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #4a5568; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #4a5568; text-align: right;">$${item.price.toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #1a202c; text-align: right; font-weight: bold;">$${(item.price * item.quantity).toFixed(2)}</td>
+    </tr>
+`).join('');
+const itemsTable = `
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+            <tr style="background-color: #f7fafc;">
+                <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0;">Item</th>
+                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #e2e8f0;">Qty</th>
+                <th style="text-align: right; padding: 10px; border-bottom: 2px solid #e2e8f0;">Price</th>
+                <th style="text-align: right; padding: 10px; border-bottom: 2px solid #e2e8f0;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsRows}
+        </tbody>
+    </table>
+`;
         if (method === 'EMAIL') {
-            await sendMail("order-payment-link", { 
-                "%name%": customerDetails.name || "Customer", 
-                "%amount%": totalAmount, 
-                "%paymentUrl%": paymentUrl, 
-                "%tenantName%": tenant.tenantName 
-            }, customerDetails.email);
-            return res.json({ success: true, message: "Payment link sent to email." });
-        }
+    await sendMail("order-payment-link", { 
+        "%name%": customerDetails.name || "Customer", 
+        "%amount%": totalAmount, 
+        "%paymentUrl%": paymentUrl, 
+        "%tenantName%": tenant.tenantName,
+        "%items%": itemsTable // <--- YEH CHANGE SABSE IMPORTANT HAI
+    }, customerDetails.email);
+    
+    return res.json({ success: true, message: "Payment link sent to email." });
+}
         return res.json({ success: true, url: paymentUrl });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

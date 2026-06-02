@@ -517,7 +517,6 @@ router.get("/select-parts", adminValidateToken, getSelectParts);
 router.get("/select-products", adminValidateToken, getSelectProducts);
 router.get("/get-order-catelog-data",adminValidateToken, getOrderCatalogData);
 router.post('/create-payment', adminValidateToken,createPayment);
-
 router.post(
     '/webhooks/stripe', 
     express.raw({ type: 'application/json' }), 
